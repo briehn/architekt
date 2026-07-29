@@ -6,6 +6,8 @@
 
 Establish a clean, working application foundation before introducing diagramming, state management, persistence, or AI features.
 
+**Milestone status: Complete.**
+
 ### Tasks
 
 * [x] Scaffold the Next.js application
@@ -14,7 +16,7 @@ Establish a clean, working application foundation before introducing diagramming
 * [x] Replace the generated starter page with a minimal Architekt application shell
 * [x] Replace the generated README with an Architekt-specific README
 * [x] Create the initial architecture documentation
-* [ ] Verify the application with lint and production build commands
+* [x] Verify the application with lint and production build commands
 
 ## Not in scope
 
