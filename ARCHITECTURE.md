@@ -2,7 +2,7 @@
 
 ## Current status
 
-Architekt is in its project-foundation milestone. The implemented application is a static Next.js App Router shell with global styling and product metadata. No domain graph, command pipeline, renderer, state-management system, persistence, authentication, collaboration, or AI integration exists yet.
+The Project foundation milestone is complete. The implemented application is a static Next.js App Router shell with global styling and product metadata. No domain graph, command pipeline, renderer, state-management system, persistence, authentication, collaboration, or AI integration exists yet.
 
 This document records the architectural boundaries already agreed for future milestones. It does not prescribe detailed designs for features that have not been built.
 

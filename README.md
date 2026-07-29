@@ -4,7 +4,7 @@ Architekt is a system-design application being built as a production-quality por
 
 ## Current status
 
-Architekt is in the **Project foundation** milestone. The repository currently provides a minimal branded application shell and the tooling needed to develop, lint, and build the application. Diagramming and product workflows are not implemented yet.
+The **Project foundation** milestone is complete. The repository provides a minimal branded application shell and the tooling needed to develop, lint, and build the application. Diagramming and product workflows are not implemented yet.
 
 ## Currently implemented
 
@@ -57,10 +57,6 @@ npm run build
 
 ## Roadmap
 
-This project is being built incrementally, with each milestone focused on a clear boundary and verifiable outcome.
+This project is being built incrementally, with each milestone focused on a clear boundary and verifiable outcome. The project foundation is complete; future work has not yet been scheduled into a new milestone.
 
-1. Complete the project foundation and document the initial architecture.
-2. Introduce a framework-independent domain graph and validated commands.
-3. Add a rendering adapter and diagram interaction deliberately, after the domain model is established.
-
-The roadmap is intentionally conservative: planned functionality will be documented as implemented only when it is present, validated, and maintainable.
+The long-term direction remains a framework-independent domain graph, followed by a rendering adapter and deliberate diagram interaction. Planned functionality will be documented as implemented only when it is present, validated, and maintainable.
