@@ -13,7 +13,7 @@ Establish a clean, working application foundation before introducing diagramming
 * [x] Add repository-level coding-agent instructions
 * [x] Replace the generated starter page with a minimal Architekt application shell
 * [x] Replace the generated README with an Architekt-specific README
-* [ ] Create the initial architecture documentation
+* [x] Create the initial architecture documentation
 * [ ] Verify the application with lint and production build commands
 
 ## Not in scope
