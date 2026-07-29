@@ -11,7 +11,7 @@ Establish a clean, working application foundation before introducing diagramming
 * [x] Scaffold the Next.js application
 * [x] Enable TypeScript, Tailwind CSS, ESLint, the App Router, and the `src/` directory
 * [x] Add repository-level coding-agent instructions
-* [ ] Replace the generated starter page with a minimal Architekt application shell
+* [x] Replace the generated starter page with a minimal Architekt application shell
 * [ ] Replace the generated README with an Architekt-specific README
 * [ ] Create the initial architecture documentation
 * [ ] Verify the application with lint and production build commands
