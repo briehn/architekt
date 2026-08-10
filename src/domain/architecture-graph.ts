@@ -213,4 +213,16 @@ export class ArchitectureGraph {
       graph: new ArchitectureGraph(this.componentsById, newConnectionsById),
     };
   }
+
+  getComponents(): ReadonlyArray<Readonly<ArchitectureComponent>> {
+    return Array.from(this.componentsById.values(), (component) => ({
+      ...component,
+    }));
+  }
+
+  getConnections(): ReadonlyArray<Readonly<ArchitectureConnection>> {
+    return Array.from(this.connectionsById.values(), (connection) => ({
+      ...connection,
+    }));
+  }
 }

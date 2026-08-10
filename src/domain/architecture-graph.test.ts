@@ -525,3 +525,176 @@ describe("ArchitectureGraph component cascade removal", () => {
     });
   });
 });
+
+describe("ArchitectureGraph read boundary", () => {
+  const api = component("api", "API");
+  const database = component("database", "Database");
+  const cache = component("cache", "Cache");
+
+  it("returns empty component and connection collections for an empty graph", () => {
+    const graph = ArchitectureGraph.empty();
+    const firstComponentRead = graph.getComponents();
+    const firstConnectionRead = graph.getConnections();
+
+    expect(firstComponentRead).toEqual([]);
+    expect(firstConnectionRead).toEqual([]);
+    expect(firstComponentRead).not.toBe(graph.getComponents());
+    expect(firstConnectionRead).not.toBe(graph.getConnections());
+  });
+
+  it("returns all admitted components and connections", () => {
+    const apiToDatabase = connection(
+      "api-to-database",
+      api.id,
+      database.id,
+    );
+    const graph = expectSuccess(
+      graphWithComponents(api, database).addConnection(apiToDatabase),
+    );
+
+    expect(graph.getComponents()).toHaveLength(2);
+    expect(graph.getComponents()).toEqual(
+      expect.arrayContaining([api, database]),
+    );
+    expect(graph.getConnections()).toEqual([apiToDatabase]);
+  });
+
+  it("excludes explicitly removed components and connections", () => {
+    const apiToDatabase = connection(
+      "api-to-database",
+      api.id,
+      database.id,
+    );
+    let graph = expectSuccess(
+      graphWithComponents(api, database, cache).addConnection(
+        apiToDatabase,
+      ),
+    );
+
+    graph = expectSuccess(graph.removeConnection(apiToDatabase.id));
+    graph = expectSuccess(graph.removeComponent(cache.id));
+
+    expect(graph.getComponents()).toHaveLength(2);
+    expect(graph.getComponents()).toEqual(
+      expect.arrayContaining([api, database]),
+    );
+    expect(graph.getConnections()).toEqual([]);
+  });
+
+  it("excludes connections cascade-removed with a component", () => {
+    const apiToDatabase = connection(
+      "api-to-database",
+      api.id,
+      database.id,
+    );
+    const cacheToApi = connection(
+      "cache-to-api",
+      cache.id,
+      api.id,
+    );
+    const databaseToCache = connection(
+      "database-to-cache",
+      database.id,
+      cache.id,
+    );
+    let graph = graphWithComponents(api, database, cache);
+
+    graph = expectSuccess(graph.addConnection(apiToDatabase));
+    graph = expectSuccess(graph.addConnection(cacheToApi));
+    graph = expectSuccess(graph.addConnection(databaseToCache));
+    graph = expectSuccess(graph.removeComponent(api.id));
+
+    expect(graph.getComponents()).toHaveLength(2);
+    expect(graph.getComponents()).toEqual(
+      expect.arrayContaining([database, cache]),
+    );
+    expect(graph.getConnections()).toEqual([databaseToCache]);
+  });
+
+  it("protects graph state from mutation of a returned component array", () => {
+    const graph = graphWithComponents(api, database);
+    const firstRead = graph.getComponents();
+    const mutableComponents = firstRead as ArchitectureComponent[];
+
+    expect(firstRead).not.toBe(graph.getComponents());
+
+    mutableComponents.splice(0, mutableComponents.length);
+
+    expect(graph.getComponents()).toHaveLength(2);
+    expect(graph.getComponents()).toEqual(
+      expect.arrayContaining([api, database]),
+    );
+  });
+
+  it("protects graph state from mutation of a returned connection array", () => {
+    const apiToDatabase = connection(
+      "api-to-database",
+      api.id,
+      database.id,
+    );
+    const graph = expectSuccess(
+      graphWithComponents(api, database).addConnection(apiToDatabase),
+    );
+    const firstRead = graph.getConnections();
+    const mutableConnections = firstRead as ArchitectureConnection[];
+
+    expect(firstRead).not.toBe(graph.getConnections());
+
+    mutableConnections.splice(0, mutableConnections.length);
+
+    expect(graph.getConnections()).toEqual([apiToDatabase]);
+  });
+
+  it("protects graph state from mutation of a returned component object", () => {
+    const graph = graphWithComponents(api);
+    const firstRead = graph.getComponents();
+    const mutableComponent = firstRead[0] as ArchitectureComponent;
+    const secondRead = graph.getComponents();
+
+    expect(mutableComponent).not.toBe(secondRead[0]);
+
+    mutableComponent.name = "Changed outside the graph";
+
+    expect(graph.getComponents()).toEqual([api]);
+  });
+
+  it("protects graph state from mutation of a returned connection object", () => {
+    const apiToDatabase = connection(
+      "api-to-database",
+      api.id,
+      database.id,
+    );
+    const graph = expectSuccess(
+      graphWithComponents(api, database).addConnection(apiToDatabase),
+    );
+    const firstRead = graph.getConnections();
+    const mutableConnection = firstRead[0] as ArchitectureConnection;
+    const secondRead = graph.getConnections();
+
+    expect(mutableConnection).not.toBe(secondRead[0]);
+
+    mutableConnection.targetComponentId = api.id;
+
+    expect(graph.getConnections()).toEqual([apiToDatabase]);
+  });
+
+  it("keeps original graph reads unchanged when an operation creates an updated graph", () => {
+    const originalGraph = graphWithComponents(api, database);
+    const apiToDatabase = connection(
+      "api-to-database",
+      api.id,
+      database.id,
+    );
+
+    const updatedGraph = expectSuccess(
+      originalGraph.addConnection(apiToDatabase),
+    );
+
+    expect(originalGraph.getComponents()).toHaveLength(2);
+    expect(originalGraph.getComponents()).toEqual(
+      expect.arrayContaining([api, database]),
+    );
+    expect(originalGraph.getConnections()).toEqual([]);
+    expect(updatedGraph.getConnections()).toEqual([apiToDatabase]);
+  });
+});
