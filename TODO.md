@@ -18,31 +18,33 @@ Establish a clean, working application foundation before introducing diagramming
 * [x] Create the initial architecture documentation
 * [x] Verify the application with lint and production build commands
 
-## Current milestone: Domain graph foundation
+## Completed milestone: Domain graph foundation
 
 ### Goal
 
 Establish the smallest useful framework-independent domain graph: architecture components, connections between them, explicit invariants, and deterministic operations verified by meaningful tests.
 
-The domain graph must remain independent from React, Next.js, React Flow, Zustand, persistence, and AI concerns.
+The domain graph remains independent from React, Next.js, React Flow, Zustand, persistence, and AI concerns.
 
-### Tasks
+**Milestone status: Complete.**
 
-* [ ] Define a minimal architecture component with stable identity and a human-readable name
-* [ ] Define a minimal connection between two architecture components, including only the identity needed by supported operations
-* [ ] Define a graph aggregate that owns its components and connections as canonical domain state
-* [ ] Decide and document the initial graph invariants:
+### Completed tasks
+
+* [x] Define a minimal architecture component with stable identity and a human-readable name
+* [x] Define a minimal directional connection between two architecture components, including the identity needed by supported operations
+* [x] Define an immutable graph aggregate that owns components and connections as canonical domain state
+* [x] Decide and document the initial graph invariants:
   * component and connection identifier uniqueness
   * endpoint validity
   * duplicate-connection policy
   * self-connection policy
   * component-removal behavior
-* [ ] Decide how domain operations report predictable success and rejection outcomes without coupling behavior to a UI or framework
-* [ ] Implement the smallest deterministic operation set needed to create and modify the graph while preserving the adopted invariants
-* [ ] Add the minimal test setup and project script needed to run domain tests
-* [ ] Test meaningful success and failure behavior through the domain model’s public API, including invariant enforcement and removal effects
-* [ ] Update `ARCHITECTURE.md` with the domain decisions actually adopted during the milestone
-* [ ] Verify tests, lint, production build, and framework independence
+* [x] Decide how domain operations report predictable success and rejection outcomes without coupling behavior to a UI or framework
+* [x] Implement the deterministic operation set needed to create and modify the graph while preserving the adopted invariants
+* [x] Configure Vitest and add the `npm run test` script for domain tests
+* [x] Test meaningful success and failure behavior through the domain model's public API, including invariant enforcement and removal effects (18 tests pass)
+* [x] Update `ARCHITECTURE.md` with the domain decisions adopted during the milestone
+* [x] Verify tests, lint, production build, and framework independence
 
 ## Not in scope
 
