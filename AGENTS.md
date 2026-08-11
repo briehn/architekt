@@ -135,6 +135,49 @@ Prefer chat guidance when the main issue is architecture, tradeoffs, concepts, o
 
 Unless the user explicitly requests direct implementation, stop after creating the smallest scaffold needed for the next focused step.
 
+### Scaffolding unfamiliar or newly introduced concepts
+
+When a task introduces a library, framework, architectural pattern, or TypeScript
+concept that is new to the current milestone, or when the repository owner indicates
+they are unfamiliar with it, prefer providing a minimal in-file learning scaffold.
+
+Do not assume the owner already understands a newly introduced dependency or pattern
+just because it appears in the task.
+
+For newly introduced concepts, briefly explain:
+- what the concept is
+- why it is being used here
+- what role it plays in the architecture
+- any important constraints the owner should understand before implementing it
+
+When there is a clear implementation location, the scaffold may include:
+- necessary imports
+- function/type signatures
+- concise TODO comments describing responsibilities and constraints
+
+TODO comments should describe intent, boundaries, and responsibilities without
+revealing the final implementation.
+
+Prefer comments like:
+
+`// TODO: Convert each domain component into the renderer's node representation.`
+
+`// TODO: Keep renderer-specific position data outside the domain model.`
+
+`// TODO: Preserve the domain connection's direction when creating the renderer edge.`
+
+Avoid comments like:
+
+`// TODO: Map components with x = index * 240 and data: { label: component.name }.`
+
+`// TODO: Return components.map((component, index) => ({ ... }))`
+
+The scaffold should help the owner understand what needs to happen, while still
+requiring them to decide and write the implementation.
+
+After the owner completes the implementation, remove temporary learning TODO
+comments unless they explain a lasting non-obvious architectural decision.
+
 ## Scope discipline
 
 Work one milestone at a time.
@@ -337,6 +380,33 @@ Prioritize testing:
 6. Critical user interactions
 
 Avoid coupling domain tests to React Flow representations.
+
+### Test implementation
+
+By default, Codex may write and maintain automated tests for the repository
+owner.
+
+The repository owner should still be told:
+
+- what behavior the tests protect
+- why important edge cases are included
+- when a test introduces a new testing technique or TypeScript concept
+
+Do not require the owner to manually write routine tests unless they explicitly
+want to practice testing.
+
+Tests should encode behavior that has already been agreed upon through the
+current milestone, documented requirements, existing public contracts, or an
+explicit design discussion.
+
+Do not invent new product behavior, domain rules, or implementation requirements
+merely to make a test suite more comprehensive.
+
+When behavior is ambiguous, ask or propose the expected contract before writing
+tests for it.
+
+Tests should target observable public behavior rather than the owner's private
+implementation choices.
 
 ## Documentation
 
