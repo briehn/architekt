@@ -1,4 +1,54 @@
+import { ArchitectureGraph } from "../domain/architecture-graph";
+import { toReactFlowDiagram } from "../diagram/react-flow-adapter";
+import { StaticDiagram } from "../diagram/static-diagram";
+import type { ComponentId, ConnectionId } from "../domain/identifiers";
+
+function componentId(value: string): ComponentId {
+  return value as ComponentId;
+}
+function connectionId(value: string): ConnectionId {
+  return value as ConnectionId;
+}
+
+function createExampleArchitectureGraph(): ArchitectureGraph {
+  const graph: ArchitectureGraph = ArchitectureGraph.empty();
+  const api = {
+    id: componentId("api"),
+    name: "API",
+  };
+  const db = {
+    id: componentId("database"),
+    name: "Database",
+  };
+  const apiToDB = {
+    id: connectionId("api-to-database"),
+    sourceComponentId: api.id,
+    targetComponentId: db.id,
+  };
+
+  const apiResult = graph.addComponent(api);
+  if (!apiResult.ok) {
+    return graph;
+  }
+
+  const dbResult = apiResult.graph.addComponent(db);
+  if (!dbResult.ok) {
+    return graph;
+  }
+
+  const connectionResult = dbResult.graph.addConnection(apiToDB);
+  if (!connectionResult.ok) {
+    return graph;
+  }
+
+  return connectionResult.graph;
+}
+
 export default function Home() {
+  const graph = createExampleArchitectureGraph();
+
+  const { nodes, edges } = toReactFlowDiagram(graph);
+
   return (
     <div className="flex flex-1 flex-col">
       <header className="border-b border-foreground/10">
@@ -13,9 +63,9 @@ export default function Home() {
       <main className="flex flex-1 items-center justify-center px-4 py-12 sm:px-6">
         <section className="w-full max-w-xl rounded-lg border border-foreground/15 px-6 py-10 text-center sm:px-10">
           <h2 className="text-lg font-semibold">Workspace</h2>
-          <p className="mt-2 text-sm text-foreground/70">
-            Diagramming will appear here in a future milestone.
-          </p>
+          <div className="mt-6">
+            <StaticDiagram nodes={nodes} edges={edges} />
+          </div>
         </section>
       </main>
     </div>
