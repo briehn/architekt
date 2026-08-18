@@ -50,22 +50,21 @@ export default function Home() {
   const { nodes, edges } = toReactFlowDiagram(graph);
 
   return (
-    <div className="flex flex-1 flex-col">
-      <header className="border-b border-foreground/10">
-        <div className="mx-auto w-full max-w-6xl px-4 py-5 sm:px-6">
-          <h1 className="text-xl font-semibold tracking-tight">Architekt</h1>
-          <p className="mt-1 text-sm text-foreground/70">
-            A foundation for clear, editable software architecture diagrams.
-          </p>
+    <div className="flex min-h-0 flex-1 flex-col bg-canvas">
+      <header className="h-14 shrink-0 border-b border-border bg-surface">
+        <div className="flex h-full items-center px-4 sm:px-6 lg:px-8">
+          <h1 className="text-lg font-semibold tracking-tight text-text-primary">
+            Architekt
+          </h1>
         </div>
       </header>
 
-      <main className="flex flex-1 items-center justify-center px-4 py-12 sm:px-6">
-        <section className="w-full max-w-xl rounded-lg border border-foreground/15 px-6 py-10 text-center sm:px-10">
-          <h2 className="text-lg font-semibold">Workspace</h2>
-          <div className="mt-6">
-            <StaticDiagram nodes={nodes} edges={edges} />
-          </div>
+      <main className="flex min-h-0 flex-1 flex-col p-3 sm:p-4 lg:p-6">
+        <section
+          aria-label="Architecture diagram"
+          className="flex min-h-0 flex-1 overflow-hidden rounded-lg border border-border bg-surface"
+        >
+          <StaticDiagram nodes={nodes} edges={edges} />
         </section>
       </main>
     </div>

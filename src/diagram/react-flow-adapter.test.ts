@@ -1,4 +1,4 @@
-import type { Edge, Node } from "@xyflow/react";
+import { MarkerType, type Edge, type Node } from "@xyflow/react";
 import { describe, expect, it } from "vitest";
 
 import type { ArchitectureComponent } from "../domain/architecture-component";
@@ -106,8 +106,18 @@ describe("toReactFlowDiagram", () => {
     );
 
     const expectedEdges: Edge[] = [
-      { id: "api-to-database", source: "api", target: "database" },
-      { id: "database-to-api", source: "database", target: "api" },
+      {
+        id: "api-to-database",
+        source: "api",
+        target: "database",
+        markerEnd: { type: MarkerType.ArrowClosed },
+      },
+      {
+        id: "database-to-api",
+        source: "database",
+        target: "api",
+        markerEnd: { type: MarkerType.ArrowClosed },
+      },
     ];
 
     expect(toReactFlowDiagram(graph).edges).toEqual(expectedEdges);
