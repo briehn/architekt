@@ -59,7 +59,7 @@ export default function Home() {
         </div>
       </header>
 
-      <main className="flex min-h-0 flex-1 flex-col p-3 sm:p-4 lg:p-6">
+      <main className="flex min-h-0 flex-1 flex-col px-4 py-3 sm:px-6 sm:py-4 lg:px-8 lg:py-6">
         <section
           aria-label="Architecture diagram"
           className="flex min-h-0 flex-1 overflow-hidden rounded-lg border border-border bg-surface"
