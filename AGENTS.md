@@ -466,6 +466,16 @@ Do not update documentation for trivial formatting, wording, or internal impleme
 
 Do not document speculative architecture as though it has already been adopted.
 
+## Design source of truth
+
+For UI work, read `DESIGN.md` before making visual changes.
+
+`DESIGN.md` is the authoritative source for Architekt's visual system, including
+colors, typography, spacing, radius, component styling, and diagram styling.
+
+The PDF under `/docs` is a human-readable reference copy. If it conflicts with
+`DESIGN.md`, follow `DESIGN.md`.
+
 ## Verification
 
 Before considering a coding task complete, run the relevant checks.

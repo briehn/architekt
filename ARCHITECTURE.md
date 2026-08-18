@@ -2,7 +2,7 @@
 
 ## Current status
 
-The Project foundation and Domain graph foundation milestones are complete. The application has a framework-independent domain graph with components, directional connections, immutable graph operations, and focused Vitest coverage. Rendering, UI state, persistence, runtime boundary validation, and AI integration have not been implemented.
+The Project foundation, Domain graph foundation, and Static Diagram Rendering milestones are complete. The application has a framework-independent domain graph with components, directional connections, immutable graph operations, focused Vitest coverage, and a read-only React Flow rendering path. Editing, persistence, runtime boundary validation, custom nodes, layout logic, and AI integration have not been implemented.
 
 ## Guiding data flow
 
@@ -10,7 +10,7 @@ The Project foundation and Domain graph foundation milestones are complete. The 
 User Input → Validated Command → Domain Graph → Renderer
 ```
 
-The domain graph is the source of truth. Framework, UI, persistence, and AI concerns depend on the domain layer, not the reverse.
+The domain graph is the source of truth. `ArchitectureGraph` is converted by a React Flow adapter into renderer-specific `Node[]` and `Edge[]`, then rendered by `StaticDiagram`. Framework, UI, persistence, and AI concerns depend on the domain layer, not the reverse.
 
 ## Domain graph
 
@@ -25,12 +25,18 @@ The domain graph is the source of truth. Framework, UI, persistence, and AI conc
 
 This keeps graph behavior deterministic and testable without a browser or framework runtime.
 
+## Rendering boundary
+
+`toReactFlowDiagram` adapts domain components and directional connections into React Flow `Node[]` and `Edge[]`. Its deterministic placeholder positions are renderer metadata, not domain state.
+
+`StaticDiagram` is a read-only React Flow renderer. It allows panning and zooming for inspection and uses `fitView` for initial framing. Node dragging, connecting, selecting, and edge reconnection are disabled. It does not own application graph state or translate user interactions into domain operations.
+
 ## Boundaries outside the domain layer
 
-Runtime validation belongs at external boundaries such as forms, API requests, persisted data, imports, and AI output. Persistence, serialization, rendering adapters, layout metadata, UI state, and AI integration remain outside the graph layer. Those concerns must translate accepted intent or data into domain operations; they must not make renderer or UI state canonical.
+Runtime validation belongs at external boundaries such as forms, API requests, persisted data, imports, and AI output. Persistence, serialization, layout metadata, UI state, and AI integration remain outside the graph layer. Those concerns must translate accepted intent or data into domain operations; they must not make renderer or UI state canonical.
 
 ## Testing implications
 
-The 18 Vitest tests exercise `ArchitectureGraph` through its public API. They cover accepted operations, expected rejections, immutability, and cascade removal without React, Next.js, React Flow, persistence, AI, or a browser.
+The 27 domain Vitest tests exercise `ArchitectureGraph` through its public API. They cover accepted operations, expected rejections, immutability, and cascade removal without React, Next.js, React Flow, persistence, AI, or a browser. Four adapter tests verify the deterministic domain-to-renderer mapping without making React Flow state canonical.
 
 Future tests should preserve this separation: domain tests verify graph behavior, adapter tests verify renderer mapping, and UI tests verify user interactions.

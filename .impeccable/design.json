@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-17T00:00:00Z",
+  "title": "Design System: Architekt",
+  "extensions": {
+    "colorMeta": {
+      "canvas-light": { "role": "neutral", "displayName": "Slate Canvas", "canonical": "#F8FAFC" },
+      "canvas-dark": { "role": "neutral", "displayName": "Ink Canvas", "canonical": "#0B1220" },
+      "accent": { "role": "primary", "displayName": "Indigo Violet", "canonical": "#4F46E5" },
+      "accent-hover": { "role": "primary", "displayName": "Active Indigo", "canonical": "#6366F1" }
+    },
+    "typographyMeta": {
+      "body": { "displayName": "Product Body", "purpose": "Default workspace copy." },
+      "mono": { "displayName": "Technical Mono", "purpose": "Identifiers, protocols, and capacity values." }
+    },
+    "shadows": [
+      { "name": "floating-only", "value": "Undecided", "purpose": "Use a subtle shadow only for floating layers and dragged nodes." }
+    ],
+    "motion": [
+      { "name": "fast", "value": "100-150ms", "purpose": "Hover, pressed, and focus transitions." },
+      { "name": "base", "value": "150-200ms", "purpose": "Menus and small panels." },
+      { "name": "slow", "value": "200-250ms", "purpose": "Useful large-panel reveals." }
+    ],
+    "breakpoints": [
+      { "name": "mobile", "value": "<768px" },
+      { "name": "tablet", "value": "768-1023px" },
+      { "name": "desktop", "value": ">=1024px" }
+    ]
+  },
+  "components": [],
+  "narrative": {
+    "northStar": "The Calm Technical Workspace.",
+    "overview": "Architekt is precise, capable, modern, and approachable to learners. The architecture canvas carries the greatest visual weight; chrome, navigation, and controls provide quiet structure.",
+    "keyCharacteristics": ["Precise", "Calm", "Capable", "Modern", "Trustworthy", "Developer-oriented"],
+    "rules": [
+      { "name": "The Canvas First Rule", "body": "Give the diagram the most available space and visual emphasis. Use accent only for primary actions, focus, selection, and meaningful state.", "section": "overview" },
+      { "name": "The Single Accent Rule", "body": "Do not introduce rainbow infrastructure categories, neon cyberpunk treatments, gradients, or decorative color. Color must never be the sole state or category signal.", "section": "colors" },
+      { "name": "The Engineered Geometry Rule", "body": "Avoid oversized radii and pill-shaped controls; the workspace should feel engineered, not bubbly.", "section": "shapes" }
+    ],
+    "dos": ["Do target WCAG AA contrast for text and interactive states.", "Do provide visible 2px keyboard focus rings and preserve keyboard navigation order.", "Do keep React Flow styling and coordinates outside the domain model."],
+    "donts": ["Don't show controls or visual detail for behavior the product does not yet implement.", "Don't use excessive glassmorphism, dense enterprise-dashboard chrome, large workspace gradients, or overly playful illustration.", "Don't add tokens until a repeated product need establishes them."]
+  }
+}

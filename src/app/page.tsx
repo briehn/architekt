@@ -11,7 +11,7 @@ function connectionId(value: string): ConnectionId {
 }
 
 function createExampleArchitectureGraph(): ArchitectureGraph {
-  const graph: ArchitectureGraph = ArchitectureGraph.empty();
+  const graph = ArchitectureGraph.empty();
   const api = {
     id: componentId("api"),
     name: "API",

@@ -7,10 +7,18 @@ type StaticDiagramProps = {
   edges: Edge[];
 };
 
-export function StaticDiagram({nodes, edges} : StaticDiagramProps) {
+export function StaticDiagram({ nodes, edges }: StaticDiagramProps) {
   return (
     <div className="h-150 w-full">
-      <ReactFlow nodes={nodes} edges={edges} />
+      <ReactFlow
+        nodes={nodes}
+        edges={edges}
+        fitView
+        nodesDraggable={false}
+        nodesConnectable={false}
+        elementsSelectable={false}
+        edgesReconnectable={false}
+      />
     </div>
   );
 }

@@ -42,7 +42,7 @@ The domain graph remains independent from React, Next.js, React Flow, Zustand, p
 * [x] Decide how domain operations report predictable success and rejection outcomes without coupling behavior to a UI or framework
 * [x] Implement the deterministic operation set needed to create and modify the graph while preserving the adopted invariants
 * [x] Configure Vitest and add the `npm run test` script for domain tests
-* [x] Test meaningful success and failure behavior through the domain model's public API, including invariant enforcement and removal effects (18 tests pass)
+* [x] Test meaningful success and failure behavior through the domain model's public API, including invariant enforcement and removal effects (27 tests pass)
 * [x] Update `ARCHITECTURE.md` with the domain decisions adopted during the milestone
 * [x] Verify tests, lint, production build, and framework independence
 
@@ -74,3 +74,30 @@ This milestone is complete when:
 * Domain tests run without React, Next.js, React Flow, a browser, persistence, or AI
 * `npm run test`, `npm run lint`, and `npm run build` succeed
 * `ARCHITECTURE.md` reflects the implemented domain decisions without specifying future infrastructure
+
+## Completed milestone: Static Diagram Rendering
+
+### Goal
+
+Render the canonical domain graph through React Flow without making React Flow state canonical or introducing editing behavior.
+
+**Milestone status: Complete.**
+
+### Completed tasks
+
+* [x] Add a renderer adapter that converts `ArchitectureGraph` components and connections into React Flow `Node[]` and `Edge[]`
+* [x] Keep all renderer-specific node positions and edge shapes outside the domain graph
+* [x] Render the adapted collections through `StaticDiagram`
+* [x] Configure the renderer as read-only: node dragging, connecting, selecting, and edge reconnection are disabled
+* [x] Preserve panning and zooming for diagram inspection
+* [x] Use `fitView` to frame the supplied diagram on initial render
+* [x] Add focused adapter coverage for empty graphs, deterministic mapping, directional connections, and domain immutability (4 tests pass)
+* [x] Verify the full test suite (31 tests), lint, and production build
+
+## Still out of scope
+
+* Diagram editing and renderer-to-domain commands
+* Persistence or serialization
+* Custom React Flow nodes
+* AI integration
+* Layout logic beyond the adapter's deterministic placeholder positions
