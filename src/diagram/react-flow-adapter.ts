@@ -1,6 +1,8 @@
-import { MarkerType, type Edge, type Node } from "@xyflow/react";
+import { type Edge, type EdgeMarker, type Node } from "@xyflow/react";
 
 import type { ArchitectureGraph } from "../domain/architecture-graph";
+
+const closedArrowMarker = { type: "arrowclosed" } satisfies EdgeMarker;
 
 export function toReactFlowDiagram(graph: ArchitectureGraph): {
   nodes: Node[];
@@ -20,7 +22,7 @@ export function toReactFlowDiagram(graph: ArchitectureGraph): {
     id: connection.id,
     source: connection.sourceComponentId,
     target: connection.targetComponentId,
-    markerEnd: { type: MarkerType.ArrowClosed },
+    markerEnd: closedArrowMarker,
   }));
 
   return { nodes, edges };

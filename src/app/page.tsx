@@ -48,7 +48,6 @@ export default function Home() {
   const graph = createExampleArchitectureGraph();
 
   const { nodes, edges } = toReactFlowDiagram(graph);
-
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-canvas">
       <header className="h-14 shrink-0 border-b border-border bg-surface">

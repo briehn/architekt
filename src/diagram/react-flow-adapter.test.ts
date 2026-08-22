@@ -1,4 +1,4 @@
-import { MarkerType, type Edge, type Node } from "@xyflow/react";
+import { type Edge, type Node } from "@xyflow/react";
 import { describe, expect, it } from "vitest";
 
 import type { ArchitectureComponent } from "../domain/architecture-component";
@@ -110,13 +110,13 @@ describe("toReactFlowDiagram", () => {
         id: "api-to-database",
         source: "api",
         target: "database",
-        markerEnd: { type: MarkerType.ArrowClosed },
+        markerEnd: { type: "arrowclosed" },
       },
       {
         id: "database-to-api",
         source: "database",
         target: "api",
-        markerEnd: { type: MarkerType.ArrowClosed },
+        markerEnd: { type: "arrowclosed" },
       },
     ];
 
