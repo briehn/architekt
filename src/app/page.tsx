@@ -1,4 +1,5 @@
 import { ArchitectureGraph } from "../domain/architecture-graph";
+import { createInitialDiagramNodePositions } from "../diagram/diagram-layout";
 import { toReactFlowDiagram } from "../diagram/react-flow-adapter";
 import { StaticDiagram } from "../diagram/static-diagram";
 import type { ComponentId, ConnectionId } from "../domain/identifiers";
@@ -46,8 +47,9 @@ function createExampleArchitectureGraph(): ArchitectureGraph {
 
 export default function Home() {
   const graph = createExampleArchitectureGraph();
+  const nodePositions = createInitialDiagramNodePositions(graph);
 
-  const { nodes, edges } = toReactFlowDiagram(graph);
+  const { nodes, edges } = toReactFlowDiagram(graph, nodePositions);
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-canvas">
       <header className="h-14 shrink-0 border-b border-border bg-surface">
