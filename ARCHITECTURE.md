@@ -2,7 +2,7 @@
 
 ## Current status
 
-The Project foundation, Domain graph foundation, Static Diagram Rendering, and Interactive Node Movement milestones are complete. The application has a framework-independent domain graph with components, directional connections, immutable graph operations, focused Vitest coverage, and a React Flow rendering path. ArchitectureEditor owns renderer-only node positions and measured dimensions, and users can drag nodes through its controlled state loop. Persistence, runtime boundary validation, custom nodes, layout logic, and AI integration have not been implemented.
+The Project foundation, Domain graph foundation, Static Diagram Rendering, and Interactive Node Movement milestones are complete. The application has a framework-independent domain graph with components, directional connections, immutable graph operations, focused Vitest coverage, and a React Flow rendering path. ArchitectureEditor owns one coordinated editor-state value for the graph, renderer-only node positions, and measured dimensions, and users can drag nodes through its controlled state loop. Persistence, runtime boundary validation, custom nodes, layout logic, and AI integration have not been implemented.
 
 ## Guiding data flow
 
@@ -29,7 +29,7 @@ This keeps graph behavior deterministic and testable without a browser or framew
 
 `toReactFlowDiagram` adapts domain components and directional connections into React Flow `Node[]` and `Edge[]`. Its deterministic placeholder positions are renderer metadata, not domain state.
 
-`ArchitectureEditor` is the narrow Client Component that owns `DiagramNodePositions` and a separate renderer-only map of measured node dimensions. It initializes positions once, derives React Flow `Node[]` and `Edge[]` through `toReactFlowDiagram`, merges current measurements into the derived nodes, and routes React Flow changes through focused position and measurement adapters. The example graph remains stable across position-triggered renders.
+ArchitectureEditor is the narrow Client Component that owns ArchitectureEditorState, which coordinates ArchitectureGraph, DiagramNodePositions, and a renderer-only map of measured node dimensions. It initializes that state once, derives React Flow Node[] and Edge[] through toReactFlowDiagram, merges current measurements into the derived nodes, and routes React Flow changes through one functional editor-state transition. The example graph remains stable across drag-triggered renders.
 
 `DiagramNodePositions` remains the source of truth for user-authored coordinates. React Flow measurements are transient renderer metadata retained only so freshly derived controlled nodes stay initialized; they do not enter the domain graph or application layout model.
 

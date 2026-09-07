@@ -6,13 +6,11 @@ import type { NodeChange } from "@xyflow/react";
 import { ArchitectureGraph } from "../domain/architecture-graph";
 import type { ComponentId, ConnectionId } from "../domain/identifiers";
 import {
-  createInitialDiagramNodePositions,
-  type DiagramNodePositions,
-} from "./diagram-layout";
+  applyReactFlowNodeChangesToEditorState,
+  createArchitectureEditorState,
+  type ArchitectureEditorState,
+} from "./architecture-editor-state";
 import {
-  applyReactFlowNodeMeasurementChanges,
-  applyReactFlowNodePositionChanges,
-  type ReactFlowNodeMeasurements,
   toReactFlowDiagram,
   withReactFlowNodeMeasurements,
 } from "./react-flow-adapter";
@@ -50,26 +48,21 @@ function createExampleArchitectureGraph(): ArchitectureGraph {
 const exampleArchitectureGraph = createExampleArchitectureGraph();
 
 export function ArchitectureEditor() {
-  const [nodePositions, setNodePositions] = useState<DiagramNodePositions>(() =>
-    createInitialDiagramNodePositions(exampleArchitectureGraph),
+  const [editorState, setEditorState] = useState<ArchitectureEditorState>(() =>
+    createArchitectureEditorState(exampleArchitectureGraph),
   );
-  const [nodeMeasurements, setNodeMeasurements] =
-    useState<ReactFlowNodeMeasurements>(() => new Map());
   const { nodes: diagramNodes, edges } = toReactFlowDiagram(
-    exampleArchitectureGraph,
-    nodePositions,
+    editorState.graph,
+    editorState.nodePositions,
   );
   const nodes = withReactFlowNodeMeasurements(
     diagramNodes,
-    nodeMeasurements,
+    editorState.nodeMeasurements,
   );
 
   function handleNodesChange(changes: NodeChange[]) {
-    setNodePositions((currentPositions) =>
-      applyReactFlowNodePositionChanges(currentPositions, changes),
-    );
-    setNodeMeasurements((currentMeasurements) =>
-      applyReactFlowNodeMeasurementChanges(currentMeasurements, changes),
+    setEditorState((currentState) =>
+      applyReactFlowNodeChangesToEditorState(currentState, changes),
     );
   }
 
