@@ -10,8 +10,11 @@ import {
   type DiagramNodePositions,
 } from "./diagram-layout";
 import {
+  applyReactFlowNodeMeasurementChanges,
   applyReactFlowNodePositionChanges,
+  type ReactFlowNodeMeasurements,
   toReactFlowDiagram,
+  withReactFlowNodeMeasurements,
 } from "./react-flow-adapter";
 import { StaticDiagram } from "./static-diagram";
 
@@ -50,14 +53,23 @@ export function ArchitectureEditor() {
   const [nodePositions, setNodePositions] = useState<DiagramNodePositions>(() =>
     createInitialDiagramNodePositions(exampleArchitectureGraph),
   );
-  const { nodes, edges } = toReactFlowDiagram(
+  const [nodeMeasurements, setNodeMeasurements] =
+    useState<ReactFlowNodeMeasurements>(() => new Map());
+  const { nodes: diagramNodes, edges } = toReactFlowDiagram(
     exampleArchitectureGraph,
     nodePositions,
+  );
+  const nodes = withReactFlowNodeMeasurements(
+    diagramNodes,
+    nodeMeasurements,
   );
 
   function handleNodesChange(changes: NodeChange[]) {
     setNodePositions((currentPositions) =>
       applyReactFlowNodePositionChanges(currentPositions, changes),
+    );
+    setNodeMeasurements((currentMeasurements) =>
+      applyReactFlowNodeMeasurementChanges(currentMeasurements, changes),
     );
   }
 

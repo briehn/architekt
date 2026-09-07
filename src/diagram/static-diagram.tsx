@@ -27,7 +27,7 @@ export function StaticDiagram({
         edges={edges}
         onNodesChange={onNodesChange}
         fitView
-        nodesDraggable={false}
+        nodesDraggable
         nodesConnectable={false}
         elementsSelectable={false}
         edgesReconnectable={false}

@@ -4,7 +4,7 @@ Architekt is a system-design application being built as a production-quality por
 
 ## Current status
 
-The **Project foundation**, **Domain graph foundation**, and **Static Diagram Rendering** milestones are complete. The repository provides a minimal branded application shell, a framework-independent architecture graph, and a read-only React Flow diagram rendering path.
+The **Project foundation**, **Domain graph foundation**, **Static Diagram Rendering**, and **Interactive Node Movement** milestones are complete. The repository provides a minimal branded application shell, a framework-independent architecture graph, and controlled React Flow node dragging backed by application-owned layout state.
 
 ## Currently implemented
 
@@ -12,8 +12,9 @@ The **Project foundation**, **Domain graph foundation**, and **Static Diagram Re
 - A responsive, semantic Architekt application shell
 - An immutable, framework-independent `ArchitectureGraph` with directional connections and invariant enforcement
 - A React Flow adapter that produces renderer-specific `Node[]` and `Edge[]` from the canonical graph
-- A read-only `StaticDiagram` with panning, zooming, and initial `fitView` framing; node dragging, connecting, selecting, and edge reconnection are disabled
-- Vitest coverage for domain behavior and the renderer adapter (31 tests)
+- Application-owned node positions with renderer-only measured dimensions kept outside the domain graph
+- A `StaticDiagram` with panning, zooming, node dragging, and initial `fitView` framing; connecting, selecting, and edge reconnection remain disabled
+- Vitest coverage for domain behavior, layout behavior, and the renderer adapter (43 tests)
 - Project-level test, lint, and production build commands
 - Repository guidance that documents engineering, architecture, and visual-system boundaries
 
@@ -21,7 +22,7 @@ The **Project foundation**, **Domain graph foundation**, and **Static Diagram Re
 
 The long-term vision is a workspace where a user can describe a software system and receive a clean, editable architecture diagram. Planned capabilities include deliberate diagram editing, persistence, custom nodes, layout logic, and carefully bounded AI assistance.
 
-Diagram editing, persistence, custom nodes, layout logic, AI integration, authentication, and collaboration are planned only. React Flow currently serves only as a read-only renderer.
+Node movement is implemented. Further diagram editing, persistence, custom nodes, layout logic, AI integration, authentication, and collaboration are planned only.
 
 ## Architecture principle
 
@@ -61,6 +62,6 @@ npm run build
 
 ## Roadmap
 
-This project is being built incrementally, with each milestone focused on a clear boundary and verifiable outcome. The project foundation, domain graph foundation, and static diagram rendering milestones are complete.
+This project is being built incrementally, with each milestone focused on a clear boundary and verifiable outcome. The project foundation, domain graph foundation, static diagram rendering, and interactive node movement milestones are complete.
 
-The next work remains deliberate diagram interaction and its translation into validated domain operations. Planned functionality will be documented as implemented only when it is present, validated, and maintainable.
+The next work remains further deliberate diagram interaction and its translation into validated domain operations. Planned functionality will be documented as implemented only when it is present, validated, and maintainable.

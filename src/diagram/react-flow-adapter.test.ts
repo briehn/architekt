@@ -7,8 +7,11 @@ import { ArchitectureGraph } from "../domain/architecture-graph";
 import type { ComponentId, ConnectionId } from "../domain/identifiers";
 import type { DiagramNodePositions } from "./diagram-layout";
 import {
+  applyReactFlowNodeMeasurementChanges,
   applyReactFlowNodePositionChanges,
+  type ReactFlowNodeMeasurements,
   toReactFlowDiagram,
+  withReactFlowNodeMeasurements,
 } from "./react-flow-adapter";
 
 function componentId(value: string): ComponentId {
@@ -66,6 +69,14 @@ function nodePositions(
     readonly [ComponentId, Readonly<{ x: number; y: number }>]
   >
 ): DiagramNodePositions {
+  return new Map(entries);
+}
+
+function nodeMeasurements(
+  ...entries: ReadonlyArray<
+    readonly [string, Readonly<{ width: number; height: number }>]
+  >
+): ReactFlowNodeMeasurements {
   return new Map(entries);
 }
 
@@ -280,5 +291,138 @@ describe("applyReactFlowNodePositionChanges", () => {
     );
 
     expect(nextPositions).toBe(previousPositions);
+  });
+});
+
+describe("React Flow node measurements", () => {
+  it("stores measured dimensions without changing previous renderer state", () => {
+    const previousMeasurements = nodeMeasurements([
+      "database",
+      { width: 176, height: 48 },
+    ]);
+    const measuredDimensions = { width: 204, height: 56 };
+
+    const nextMeasurements = applyReactFlowNodeMeasurementChanges(
+      previousMeasurements,
+      [
+        {
+          id: "api",
+          type: "dimensions",
+          dimensions: measuredDimensions,
+        },
+      ],
+    );
+    measuredDimensions.width = 999;
+
+    expect(nextMeasurements).not.toBe(previousMeasurements);
+    expect(nextMeasurements).toEqual(
+      nodeMeasurements(
+        ["database", { width: 176, height: 48 }],
+        ["api", { width: 204, height: 56 }],
+      ),
+    );
+    expect(previousMeasurements).toEqual(
+      nodeMeasurements(["database", { width: 176, height: 48 }]),
+    );
+  });
+
+  it("ignores changes outside renderer measurement ownership", () => {
+    const previousMeasurements = nodeMeasurements([
+      "api",
+      { width: 176, height: 48 },
+    ]);
+    const ignoredChanges: NodeChange[] = [
+      { id: "api", type: "dimensions", resizing: true },
+      {
+        id: "api",
+        type: "position",
+        position: { x: 120, y: 80 },
+        dragging: true,
+      },
+      { id: "api", type: "select", selected: true },
+      { id: "api", type: "remove" },
+      {
+        type: "add",
+        item: { id: "added", position: { x: 0, y: 0 }, data: {} },
+      },
+      {
+        id: "api",
+        type: "replace",
+        item: { id: "api", position: { x: 0, y: 0 }, data: {} },
+      },
+    ];
+
+    expect(
+      applyReactFlowNodeMeasurementChanges(
+        previousMeasurements,
+        ignoredChanges,
+      ),
+    ).toBe(previousMeasurements);
+  });
+
+  it("adds measurements to matching derived nodes only", () => {
+    const nodes: Node[] = [
+      { id: "api", position: { x: 10, y: 20 }, data: { label: "API" } },
+      {
+        id: "database",
+        position: { x: 250, y: 20 },
+        data: { label: "Database" },
+      },
+    ];
+
+    expect(
+      withReactFlowNodeMeasurements(
+        nodes,
+        nodeMeasurements(
+          ["api", { width: 176, height: 48 }],
+          ["missing", { width: 100, height: 40 }],
+        ),
+      ),
+    ).toEqual([
+      {
+        id: "api",
+        position: { x: 10, y: 20 },
+        data: { label: "API" },
+        measured: { width: 176, height: 48 },
+      },
+      {
+        id: "database",
+        position: { x: 250, y: 20 },
+        data: { label: "Database" },
+      },
+    ]);
+  });
+
+  it("preserves measurements when canonical positions change", () => {
+    const api = component("api", "API");
+    const graph = addComponent(ArchitectureGraph.empty(), api);
+    const measurements = applyReactFlowNodeMeasurementChanges(new Map(), [
+      {
+        id: api.id,
+        type: "dimensions",
+        dimensions: { width: 176, height: 48 },
+      },
+    ]);
+    const positions = applyReactFlowNodePositionChanges(
+      nodePositions([api.id, { x: 0, y: 0 }]),
+      [
+        {
+          id: api.id,
+          type: "position",
+          position: { x: 120, y: 80 },
+          dragging: true,
+        },
+      ],
+    );
+    const { nodes } = toReactFlowDiagram(graph, positions);
+
+    expect(withReactFlowNodeMeasurements(nodes, measurements)).toEqual([
+      {
+        id: api.id,
+        position: { x: 120, y: 80 },
+        data: { label: "API" },
+        measured: { width: 176, height: 48 },
+      },
+    ]);
   });
 });

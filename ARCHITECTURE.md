@@ -2,7 +2,7 @@
 
 ## Current status
 
-The Project foundation, Domain graph foundation, Static Diagram Rendering, and Interactive Node Movement state wiring milestones are complete. The application has a framework-independent domain graph with components, directional connections, immutable graph operations, focused Vitest coverage, and a React Flow rendering path. ArchitectureEditor owns renderer-only node positions; node dragging remains disabled until the next step. Persistence, runtime boundary validation, custom nodes, layout logic, and AI integration have not been implemented.
+The Project foundation, Domain graph foundation, Static Diagram Rendering, and Interactive Node Movement milestones are complete. The application has a framework-independent domain graph with components, directional connections, immutable graph operations, focused Vitest coverage, and a React Flow rendering path. ArchitectureEditor owns renderer-only node positions and measured dimensions, and users can drag nodes through its controlled state loop. Persistence, runtime boundary validation, custom nodes, layout logic, and AI integration have not been implemented.
 
 ## Guiding data flow
 
@@ -29,7 +29,11 @@ This keeps graph behavior deterministic and testable without a browser or framew
 
 `toReactFlowDiagram` adapts domain components and directional connections into React Flow `Node[]` and `Edge[]`. Its deterministic placeholder positions are renderer metadata, not domain state.
 
-`StaticDiagram` is a read-only React Flow renderer. It allows panning and zooming for inspection and uses `fitView` for initial framing. Node dragging, connecting, selecting, and edge reconnection are disabled. It does not own application graph state or translate user interactions into domain operations.
+`ArchitectureEditor` is the narrow Client Component that owns `DiagramNodePositions` and a separate renderer-only map of measured node dimensions. It initializes positions once, derives React Flow `Node[]` and `Edge[]` through `toReactFlowDiagram`, merges current measurements into the derived nodes, and routes React Flow changes through focused position and measurement adapters. The example graph remains stable across position-triggered renders.
+
+`DiagramNodePositions` remains the source of truth for user-authored coordinates. React Flow measurements are transient renderer metadata retained only so freshly derived controlled nodes stay initialized; they do not enter the domain graph or application layout model.
+
+`StaticDiagram` renders the derived collections. It allows panning and zooming for inspection and uses `fitView` for initial framing. Node dragging is enabled; connecting, selecting, and edge reconnection are disabled. It does not own application graph state or translate user interactions into domain operations.
 
 ## Boundaries outside the domain layer
 
@@ -37,6 +41,6 @@ Runtime validation belongs at external boundaries such as forms, API requests, p
 
 ## Testing implications
 
-The 27 domain Vitest tests exercise `ArchitectureGraph` through its public API. They cover accepted operations, expected rejections, immutability, and cascade removal without React, Next.js, React Flow, persistence, AI, or a browser. Four adapter tests verify the deterministic domain-to-renderer mapping without making React Flow state canonical.
+The 27 domain Vitest tests exercise `ArchitectureGraph` through its public API. They cover accepted operations, expected rejections, immutability, and cascade removal without React, Next.js, React Flow, persistence, AI, or a browser. Adapter tests verify deterministic domain-to-renderer mapping, position translation, and renderer-measurement preservation without making React Flow state canonical.
 
 Future tests should preserve this separation: domain tests verify graph behavior, adapter tests verify renderer mapping, and UI tests verify user interactions.

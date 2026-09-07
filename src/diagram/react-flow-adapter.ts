@@ -1,4 +1,5 @@
 import {
+  type Dimensions,
   type Edge,
   type EdgeMarker,
   type Node,
@@ -14,6 +15,11 @@ import {
 } from "./diagram-layout";
 
 const closedArrowMarker = { type: "arrowclosed" } satisfies EdgeMarker;
+
+export type ReactFlowNodeMeasurements = ReadonlyMap<
+  string,
+  Readonly<Dimensions>
+>;
 
 function getDiagramPosition(
   nodePositions: DiagramNodePositions,
@@ -84,4 +90,36 @@ export function applyReactFlowNodePositionChanges(
   }
 
   return nextPositions;
+}
+
+export function applyReactFlowNodeMeasurementChanges(
+  currentMeasurements: ReactFlowNodeMeasurements,
+  changes: readonly NodeChange[],
+): ReactFlowNodeMeasurements {
+  let nextMeasurements: Map<string, Readonly<Dimensions>> | undefined;
+
+  for (const change of changes) {
+    if (change.type !== "dimensions" || !change.dimensions) {
+      continue;
+    }
+
+    nextMeasurements ??= new Map(currentMeasurements);
+    nextMeasurements.set(change.id, {
+      width: change.dimensions.width,
+      height: change.dimensions.height,
+    });
+  }
+
+  return nextMeasurements ?? currentMeasurements;
+}
+
+export function withReactFlowNodeMeasurements(
+  nodes: readonly Node[],
+  measurements: ReactFlowNodeMeasurements,
+): Node[] {
+  return nodes.map((node) => {
+    const measured = measurements.get(node.id);
+
+    return measured ? { ...node, measured } : node;
+  });
 }
