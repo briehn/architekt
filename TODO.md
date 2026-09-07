@@ -120,3 +120,30 @@ Introduce the narrow client-side state boundary needed to translate future React
 * [x] Wire `onNodesChange` through a functional React state update
 * [x] Enable node dragging in React Flow while preserving the controlled position-state loop
 * [x] Preserve measured node dimensions as renderer-only metadata across controlled position updates
+## Completed milestone: Component Creation and Deletion
+
+### Goal
+
+Allow users to deliberately create and delete architecture components while preserving ArchitectureGraph as canonical structure, DiagramNodePositions as canonical layout, and React Flow as a controlled derived renderer.
+
+**Milestone status: Complete.**
+
+### Completed tasks
+
+* [x] Reject blank component names as a domain invariant
+* [x] Add immutable layout helpers for new and removed component positions
+* [x] Add immutable cleanup for renderer-only node measurements
+* [x] Coordinate graph, layout, and renderer metadata through pure ArchitectureEditorState operations
+* [x] Keep React Flow structural add/remove changes from mutating the domain graph
+* [x] Refactor ArchitectureEditor to own one coordinated editor-state value
+* [x] Add a compact form and component list with explicit delete actions
+* [x] Generate component IDs at the UI boundary and submit accepted input through editor-state operations
+* [x] Preserve node dragging while connecting, selection, and edge reconnection remain disabled
+* [x] Verify domain, layout, adapter, and editor-state behavior through focused Vitest coverage
+
+## Still out of scope
+
+* Connection creation or deletion through the UI
+* Node selection, keyboard deletion, renaming, or custom nodes
+* Persistence, undo/redo, collaboration, authentication, or AI integration
+* Automatic layout, collision avoidance, or viewport-aware placement

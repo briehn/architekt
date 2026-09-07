@@ -11,6 +11,7 @@
   --accent: #4f46e5;
   --accent-hover: #6366f1;
   --accent-soft: #e0e7ff;
+  --danger: #dc2626;
   --focus-ring: #6366f1;
   --font-technical: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
     "Liberation Mono", "Courier New", monospace;
@@ -29,6 +30,7 @@
   --color-accent: var(--accent);
   --color-accent-hover: var(--accent-hover);
   --color-accent-soft: var(--accent-soft);
+  --color-danger: var(--danger);
   --color-focus-ring: var(--focus-ring);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -48,6 +50,7 @@
     --accent: #4f46e5;
     --accent-hover: #6366f1;
     --accent-soft: #1e1b4b;
+    --danger: #f87171;
     --focus-ring: #818cf8;
   }
 }
