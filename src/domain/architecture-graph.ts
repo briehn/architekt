@@ -1,10 +1,15 @@
 import type { ArchitectureComponent } from "./architecture-component";
 import type { ArchitectureConnection } from "./architecture-connection";
 
-export type AddComponentRejection = {
-  type: "component-id-already-exists";
-  componentId: ArchitectureComponent["id"];
-};
+export type AddComponentRejection =
+  | {
+      type: "component-id-already-exists";
+      componentId: ArchitectureComponent["id"];
+    }
+  | {
+      type: "component-name-empty";
+      componentId: ArchitectureComponent["id"];
+    };
 
 export type AddComponentResult =
   | { ok: true; graph: ArchitectureGraph }
@@ -80,6 +85,16 @@ export class ArchitectureGraph {
         ok: false,
         error: {
           type: "component-id-already-exists",
+          componentId: component.id,
+        },
+      };
+    }
+
+    if (component.name.trim().length === 0) {
+      return {
+        ok: false,
+        error: {
+          type: "component-name-empty",
           componentId: component.id,
         },
       };

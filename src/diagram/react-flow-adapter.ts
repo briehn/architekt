@@ -113,6 +113,20 @@ export function applyReactFlowNodeMeasurementChanges(
   return nextMeasurements ?? currentMeasurements;
 }
 
+export function removeReactFlowNodeMeasurement(
+  currentMeasurements: ReactFlowNodeMeasurements,
+  componentId: ComponentId,
+): ReactFlowNodeMeasurements {
+  if (!currentMeasurements.has(componentId)) {
+    return currentMeasurements;
+  }
+
+  const nextMeasurements = new Map(currentMeasurements);
+  nextMeasurements.delete(componentId);
+
+  return nextMeasurements;
+}
+
 export function withReactFlowNodeMeasurements(
   nodes: readonly Node[],
   measurements: ReactFlowNodeMeasurements,

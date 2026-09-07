@@ -84,6 +84,64 @@ describe("ArchitectureGraph.addComponent", () => {
     });
   });
 
+  it("rejects an empty component name", () => {
+    const unnamedComponent = component("unnamed", "");
+    const graph = ArchitectureGraph.empty();
+
+    const result = graph.addComponent(unnamedComponent);
+
+    expect(result).toEqual({
+      ok: false,
+      error: {
+        type: "component-name-empty",
+        componentId: unnamedComponent.id,
+      },
+    });
+    expect(graph.getComponents()).toEqual([]);
+  });
+
+  it("rejects a whitespace-only component name", () => {
+    const unnamedComponent = component("unnamed", " \t\n ");
+
+    const result = ArchitectureGraph.empty().addComponent(
+      unnamedComponent,
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      error: {
+        type: "component-name-empty",
+        componentId: unnamedComponent.id,
+      },
+    });
+  });
+
+  it("preserves the supplied value of a valid component name", () => {
+    const api = component("api", "  Public API  ");
+
+    const graph = expectSuccess(
+      ArchitectureGraph.empty().addComponent(api),
+    );
+
+    expect(graph.getComponents()).toEqual([api]);
+  });
+
+  it("reports a duplicate ID before validating the component name", () => {
+    const api = component("api", "API");
+    const graph = graphWithComponents(api);
+
+    const result = graph.addComponent(component("api", ""));
+
+    expect(result).toEqual({
+      ok: false,
+      error: {
+        type: "component-id-already-exists",
+        componentId: api.id,
+      },
+    });
+    expect(graph.getComponents()).toEqual([api]);
+  });
+
   it("does not mutate the original graph", () => {
     const api = component("api", "API");
     const originalGraph = ArchitectureGraph.empty();

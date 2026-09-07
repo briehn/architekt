@@ -9,6 +9,7 @@ import type { DiagramNodePositions } from "./diagram-layout";
 import {
   applyReactFlowNodeMeasurementChanges,
   applyReactFlowNodePositionChanges,
+  removeReactFlowNodeMeasurement,
   type ReactFlowNodeMeasurements,
   toReactFlowDiagram,
   withReactFlowNodeMeasurements,
@@ -295,6 +296,47 @@ describe("applyReactFlowNodePositionChanges", () => {
 });
 
 describe("React Flow node measurements", () => {
+  it("removes a known measurement without changing previous renderer state", () => {
+    const apiId = componentId("api");
+    const databaseId = componentId("database");
+    const databaseMeasurement = { width: 176, height: 48 };
+    const previousMeasurements = nodeMeasurements(
+      [apiId, { width: 204, height: 56 }],
+      [databaseId, databaseMeasurement],
+    );
+
+    const nextMeasurements = removeReactFlowNodeMeasurement(
+      previousMeasurements,
+      apiId,
+    );
+
+    expect(nextMeasurements).not.toBe(previousMeasurements);
+    expect(nextMeasurements).toEqual(
+      nodeMeasurements([databaseId, { width: 176, height: 48 }]),
+    );
+    expect(nextMeasurements.get(databaseId)).toBe(databaseMeasurement);
+    expect(previousMeasurements).toEqual(
+      nodeMeasurements(
+        [apiId, { width: 204, height: 56 }],
+        [databaseId, { width: 176, height: 48 }],
+      ),
+    );
+  });
+
+  it("returns the original measurements for an unknown component", () => {
+    const previousMeasurements = nodeMeasurements([
+      "api",
+      { width: 176, height: 48 },
+    ]);
+
+    const nextMeasurements = removeReactFlowNodeMeasurement(
+      previousMeasurements,
+      componentId("missing"),
+    );
+
+    expect(nextMeasurements).toBe(previousMeasurements);
+  });
+
   it("stores measured dimensions without changing previous renderer state", () => {
     const previousMeasurements = nodeMeasurements([
       "database",
