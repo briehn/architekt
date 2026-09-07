@@ -1,55 +1,6 @@
-import { ArchitectureGraph } from "../domain/architecture-graph";
-import { createInitialDiagramNodePositions } from "../diagram/diagram-layout";
-import { toReactFlowDiagram } from "../diagram/react-flow-adapter";
-import { StaticDiagram } from "../diagram/static-diagram";
-import type { ComponentId, ConnectionId } from "../domain/identifiers";
-
-function componentId(value: string): ComponentId {
-  return value as ComponentId;
-}
-function connectionId(value: string): ConnectionId {
-  return value as ConnectionId;
-}
-
-function createExampleArchitectureGraph(): ArchitectureGraph {
-  const graph = ArchitectureGraph.empty();
-  const api = {
-    id: componentId("api"),
-    name: "API",
-  };
-  const db = {
-    id: componentId("database"),
-    name: "Database",
-  };
-  const apiToDB = {
-    id: connectionId("api-to-database"),
-    sourceComponentId: api.id,
-    targetComponentId: db.id,
-  };
-
-  const apiResult = graph.addComponent(api);
-  if (!apiResult.ok) {
-    return graph;
-  }
-
-  const dbResult = apiResult.graph.addComponent(db);
-  if (!dbResult.ok) {
-    return graph;
-  }
-
-  const connectionResult = dbResult.graph.addConnection(apiToDB);
-  if (!connectionResult.ok) {
-    return graph;
-  }
-
-  return connectionResult.graph;
-}
+import { ArchitectureEditor } from "../diagram/architecture-editor";
 
 export default function Home() {
-  const graph = createExampleArchitectureGraph();
-  const nodePositions = createInitialDiagramNodePositions(graph);
-
-  const { nodes, edges } = toReactFlowDiagram(graph, nodePositions);
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-canvas">
       <header className="h-14 shrink-0 border-b border-border bg-surface">
@@ -65,7 +16,7 @@ export default function Home() {
           aria-label="Architecture diagram"
           className="flex min-h-0 flex-1 overflow-hidden rounded-lg border border-border bg-surface"
         >
-          <StaticDiagram nodes={nodes} edges={edges} />
+          <ArchitectureEditor />
         </section>
       </main>
     </div>

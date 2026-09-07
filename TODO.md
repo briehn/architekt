@@ -101,3 +101,24 @@ Render the canonical domain graph through React Flow without making React Flow s
 * Custom React Flow nodes
 * AI integration
 * Layout logic beyond the adapter's deterministic placeholder positions
+
+## Completed milestone: Interactive Node Movement state wiring
+
+### Goal
+
+Introduce the narrow client-side state boundary needed to translate future React Flow node-position changes into renderer metadata without making React Flow canonical.
+
+**Milestone status: Complete.**
+
+### Completed tasks
+
+* [x] Keep renderer-specific node positions in `DiagramNodePositions`, outside the domain graph
+* [x] Translate recognized React Flow position changes through a deterministic adapter
+* [x] Add `ArchitectureEditor` as the Client Component that owns position state
+* [x] Initialize positions once and derive React Flow nodes and edges from graph plus positions
+* [x] Keep the example `ArchitectureGraph` stable across position-triggered renders
+* [x] Wire `onNodesChange` through a functional React state update
+
+### Next step
+
+* [ ] Enable node dragging in React Flow and manually verify that a dragged node retains its new renderer position

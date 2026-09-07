@@ -2,7 +2,7 @@
 
 ## Current status
 
-The Project foundation, Domain graph foundation, and Static Diagram Rendering milestones are complete. The application has a framework-independent domain graph with components, directional connections, immutable graph operations, focused Vitest coverage, and a read-only React Flow rendering path. Editing, persistence, runtime boundary validation, custom nodes, layout logic, and AI integration have not been implemented.
+The Project foundation, Domain graph foundation, Static Diagram Rendering, and Interactive Node Movement state wiring milestones are complete. The application has a framework-independent domain graph with components, directional connections, immutable graph operations, focused Vitest coverage, and a React Flow rendering path. ArchitectureEditor owns renderer-only node positions; node dragging remains disabled until the next step. Persistence, runtime boundary validation, custom nodes, layout logic, and AI integration have not been implemented.
 
 ## Guiding data flow
 

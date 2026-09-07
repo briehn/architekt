@@ -6,19 +6,26 @@ import {
   ReactFlow,
   type Edge,
   type Node,
+  type OnNodesChange,
 } from "@xyflow/react";
 
 type StaticDiagramProps = {
   nodes: Node[];
   edges: Edge[];
+  onNodesChange: OnNodesChange;
 };
 
-export function StaticDiagram({ nodes, edges }: StaticDiagramProps) {
+export function StaticDiagram({
+  nodes,
+  edges,
+  onNodesChange,
+}: StaticDiagramProps) {
   return (
     <div className="architekt-diagram h-full min-h-0 w-full">
       <ReactFlow
         nodes={nodes}
         edges={edges}
+        onNodesChange={onNodesChange}
         fitView
         nodesDraggable={false}
         nodesConnectable={false}
