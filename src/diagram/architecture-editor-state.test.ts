@@ -12,6 +12,7 @@ import {
   applyReactFlowNodeChangesToEditorState,
   createArchitectureEditorState,
   removeComponentFromEditorState,
+  removeConnectionFromEditorState,
 } from "./architecture-editor-state";
 import {
   createInitialDiagramNodePositions,
@@ -529,6 +530,121 @@ describe("addConnectionToEditorState", () => {
     expect(
       toReactFlowDiagram(state.graph, state.nodePositions).edges,
     ).toEqual([]);
+  });
+});
+
+describe("removeConnectionFromEditorState", () => {
+  it("removes one connection while preserving components and editor metadata", () => {
+    const api = component("api", "API");
+    const database = component("database", "Database");
+    const cache = component("cache", "Cache");
+    const apiToDatabase = connection(
+      "api-to-database",
+      api.id,
+      database.id,
+    );
+    const apiToCache = connection(
+      "api-to-cache",
+      api.id,
+      cache.id,
+    );
+    const initializedState = createArchitectureEditorState(
+      graphWithConnections(
+        graphWithComponents(api, database, cache),
+        apiToDatabase,
+        apiToCache,
+      ),
+    );
+    const previousState: ArchitectureEditorState = {
+      ...initializedState,
+      nodeMeasurements: new Map([
+        [api.id, { width: 176, height: 48 }],
+      ]),
+    };
+
+    const nextState = expectEditorStateSuccess(
+      removeConnectionFromEditorState(
+        previousState,
+        apiToDatabase.id,
+      ),
+    );
+
+    expect(nextState).not.toBe(previousState);
+    expect(nextState.graph).not.toBe(previousState.graph);
+    expect(nextState.graph.getComponents()).toEqual([
+      api,
+      database,
+      cache,
+    ]);
+    expect(nextState.graph.getConnections()).toEqual([apiToCache]);
+    expect(nextState.nodePositions).toBe(previousState.nodePositions);
+    expect(nextState.nodeMeasurements).toBe(
+      previousState.nodeMeasurements,
+    );
+    expect(previousState.graph.getConnections()).toEqual([
+      apiToDatabase,
+      apiToCache,
+    ]);
+
+    expect(
+      toReactFlowDiagram(nextState.graph, nextState.nodePositions),
+    ).toEqual({
+      nodes: [
+        { id: api.id, data: { label: "API" }, position: { x: 0, y: 0 } },
+        {
+          id: database.id,
+          data: { label: "Database" },
+          position: { x: 240, y: 0 },
+        },
+        {
+          id: cache.id,
+          data: { label: "Cache" },
+          position: { x: 480, y: 0 },
+        },
+      ],
+      edges: [
+        {
+          id: apiToCache.id,
+          source: api.id,
+          target: cache.id,
+          markerEnd: { type: "arrowclosed" },
+        },
+      ],
+    });
+  });
+
+  it("propagates unknown-ID rejection without changing state", () => {
+    const api = component("api", "API");
+    const database = component("database", "Database");
+    const existingConnection = connection(
+      "api-to-database",
+      api.id,
+      database.id,
+    );
+    const state = createArchitectureEditorState(
+      graphWithConnections(
+        graphWithComponents(api, database),
+        existingConnection,
+      ),
+    );
+    const missingId = connectionId("missing");
+    const graphReference = state.graph;
+    const positionsReference = state.nodePositions;
+    const measurementsReference = state.nodeMeasurements;
+
+    const result = removeConnectionFromEditorState(state, missingId);
+
+    expect(result).toEqual({
+      ok: false,
+      error: {
+        type: "connection-id-does-not-exist",
+        connectionId: missingId,
+      },
+    });
+    expect(state.graph).toBe(graphReference);
+    expect(state.nodePositions).toBe(positionsReference);
+    expect(state.nodeMeasurements).toBe(measurementsReference);
+    expect(state.graph.getConnections()).toEqual([existingConnection]);
   });
 });
 

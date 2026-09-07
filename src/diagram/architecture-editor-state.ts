@@ -7,8 +7,9 @@ import type {
   AddConnectionRejection,
   ArchitectureGraph,
   RemoveComponentRejection,
+  RemoveConnectionRejection,
 } from "../domain/architecture-graph";
-import type { ComponentId } from "../domain/identifiers";
+import type { ComponentId, ConnectionId } from "../domain/identifiers";
 import {
   addDiagramNodePosition,
   createInitialDiagramNodePositions,
@@ -40,6 +41,10 @@ export type AddConnectionToEditorStateResult =
 export type RemoveComponentFromEditorStateResult =
   | { ok: true; state: ArchitectureEditorState }
   | { ok: false; error: RemoveComponentRejection };
+
+export type RemoveConnectionFromEditorStateResult =
+  | { ok: true; state: ArchitectureEditorState }
+  | { ok: false; error: RemoveConnectionRejection };
 
 export function createArchitectureEditorState(
   graph: ArchitectureGraph,
@@ -110,6 +115,26 @@ export function addConnectionToEditorState(
   connection: ArchitectureConnection,
 ): AddConnectionToEditorStateResult {
   const graphResult = state.graph.addConnection(connection);
+
+  if (!graphResult.ok) {
+    return graphResult;
+  }
+
+  return {
+    ok: true,
+    state: {
+      graph: graphResult.graph,
+      nodePositions: state.nodePositions,
+      nodeMeasurements: state.nodeMeasurements,
+    },
+  };
+}
+
+export function removeConnectionFromEditorState(
+  state: ArchitectureEditorState,
+  connectionId: ConnectionId,
+): RemoveConnectionFromEditorStateResult {
+  const graphResult = state.graph.removeConnection(connectionId);
 
   if (!graphResult.ok) {
     return graphResult;

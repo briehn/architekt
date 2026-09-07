@@ -16,6 +16,7 @@ import {
   createArchitectureEditorState,
   type ArchitectureEditorState,
   removeComponentFromEditorState,
+  removeConnectionFromEditorState,
 } from "./architecture-editor-state";
 import {
   toArchitectureConnection,
@@ -174,6 +175,22 @@ export function ArchitectureEditor() {
     });
   }
 
+  function handleDeleteConnection(connectionId: ConnectionId) {
+    setViewState((currentViewState) => {
+      const result = removeConnectionFromEditorState(
+        currentViewState.editorState,
+        connectionId,
+      );
+
+      return result.ok
+        ? {
+            editorState: result.state,
+            connectionRejection: null,
+          }
+        : currentViewState;
+    });
+  }
+
   function handleConnect(connection: Connection) {
     const architectureConnection = toArchitectureConnection(
       connection,
@@ -199,6 +216,24 @@ export function ArchitectureEditor() {
   }
 
   const components = editorState.graph.getComponents();
+  const connections = editorState.graph.getConnections();
+  const componentNamesById = new Map(
+    components.map((component) => [component.id, component.name]),
+  );
+  const connectionRows = connections.map((connection) => ({
+    connection,
+    sourceName: componentNamesById.get(connection.sourceComponentId)!,
+    targetName: componentNamesById.get(connection.targetComponentId)!,
+  }));
+  const connectionRowsWithAmbiguity = connectionRows.map((row) => ({
+    ...row,
+    isAmbiguous: connectionRows.some(
+      (otherRow) =>
+        otherRow.connection.id !== row.connection.id &&
+        otherRow.sourceName === row.sourceName &&
+        otherRow.targetName === row.targetName,
+    ),
+  }));
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col">
@@ -254,39 +289,101 @@ export function ArchitectureEditor() {
           </p>
         ) : null}
 
-        <div className="mt-3 border-t border-border pt-3">
-          <p className="text-xs font-semibold text-text-secondary">
-            Components
-          </p>
-          {components.length > 0 ? (
-            <ul
-              aria-label="Components"
-              className="mt-2 flex flex-wrap gap-2"
-            >
-              {components.map((component) => (
-                <li
-                  className="flex h-9 items-center overflow-hidden rounded-md border border-border bg-surface-subtle"
-                  key={component.id}
-                >
-                  <span className="px-3 text-sm text-text-primary">
-                    {component.name}
-                  </span>
-                  <button
-                    aria-label={`Delete ${component.name}`}
-                    className="h-full border-l border-border px-3 text-xs font-semibold text-text-secondary transition-colors hover:bg-surface hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
-                    onClick={() => handleDeleteComponent(component.id)}
-                    type="button"
-                  >
-                    Delete
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="mt-2 text-sm text-text-muted">
-              No components yet.
+        <div className="mt-3 grid gap-3 border-t border-border pt-3 lg:grid-cols-2">
+          <div>
+            <p className="text-xs font-semibold text-text-secondary">
+              Components
             </p>
-          )}
+            {components.length > 0 ? (
+              <ul
+                aria-label="Components"
+                className="mt-2 flex flex-wrap gap-2"
+              >
+                {components.map((component) => (
+                  <li
+                    className="flex h-9 items-center overflow-hidden rounded-md border border-border bg-surface-subtle"
+                    key={component.id}
+                  >
+                    <span className="px-3 text-sm text-text-primary">
+                      {component.name}
+                    </span>
+                    <button
+                      aria-label={`Delete ${component.name}`}
+                      className="h-full border-l border-border px-3 text-xs font-semibold text-text-secondary transition-colors hover:bg-surface hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                      onClick={() => handleDeleteComponent(component.id)}
+                      type="button"
+                    >
+                      Delete
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-2 text-sm text-text-muted">
+                No components yet.
+              </p>
+            )}
+          </div>
+
+          <div>
+            <p className="text-xs font-semibold text-text-secondary">
+              Connections
+            </p>
+            {connectionRowsWithAmbiguity.length > 0 ? (
+              <ul
+                aria-label="Connections"
+                className="mt-2 flex flex-wrap gap-2"
+              >
+                {connectionRowsWithAmbiguity.map(
+                  ({
+                    connection,
+                    sourceName,
+                    targetName,
+                    isAmbiguous,
+                  }) => (
+                    <li
+                      className="flex min-h-9 items-stretch overflow-hidden rounded-md border border-border bg-surface-subtle"
+                      key={connection.id}
+                    >
+                      <span className="flex min-w-0 flex-col justify-center px-3 py-2">
+                        <span className="text-sm text-text-primary">
+                          {sourceName} <span aria-hidden="true">→</span>
+                          <span className="sr-only"> to </span>{" "}
+                          {targetName}
+                        </span>
+                        {isAmbiguous ? (
+                          <span className="mt-0.5 break-all font-mono text-xs text-text-muted">
+                            {connection.sourceComponentId}{" "}
+                            <span aria-hidden="true">→</span>
+                            <span className="sr-only"> to </span>{" "}
+                            {connection.targetComponentId}
+                          </span>
+                        ) : null}
+                      </span>
+                      <button
+                        aria-label={
+                          isAmbiguous
+                            ? `Delete connection from ${sourceName} (${connection.sourceComponentId}) to ${targetName} (${connection.targetComponentId})`
+                            : `Delete connection from ${sourceName} to ${targetName}`
+                        }
+                        className="border-l border-border px-3 text-xs font-semibold text-text-secondary transition-colors hover:bg-surface hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                        onClick={() =>
+                          handleDeleteConnection(connection.id)
+                        }
+                        type="button"
+                      >
+                        Delete
+                      </button>
+                    </li>
+                  ),
+                )}
+              </ul>
+            ) : (
+              <p className="mt-2 text-sm text-text-muted">
+                No connections yet.
+              </p>
+            )}
+          </div>
         </div>
       </div>
 

@@ -175,3 +175,29 @@ Allow users to create directional architecture connections through React Flow wh
 * Custom nodes, handles, ports, connection labels, or connection types
 * Persistence, undo/redo, collaboration, authentication, or AI integration
 * Zustand or renderer-owned canonical edge state
+
+## Completed milestone: Connection Deletion
+
+### Goal
+
+Allow users to deliberately delete existing architecture connections without making React Flow canonical or introducing canvas selection.
+
+**Milestone status: Complete.**
+
+### Completed tasks
+
+* [x] Add connection removal through a pure ArchitectureEditorState operation
+* [x] Delegate unknown-ID rejection, immutability, and removal semantics to ArchitectureGraph
+* [x] Preserve DiagramNodePositions and ReactFlowNodeMeasurements by reference
+* [x] Add a compact connection list with directional endpoint names and explicit delete actions
+* [x] Disambiguate duplicate visible endpoint-name pairs with existing full endpoint IDs only where needed
+* [x] Keep React Flow selection, structural edge changes, and edge reconnection disabled
+* [x] Verify successful deletion, rejection, preservation behavior, and derived edges through focused Vitest coverage
+
+## Still out of scope
+
+* Node or edge selection and keyboard deletion
+* Edge reconnection, custom edges, inline edge controls, or context menus
+* Connection labels, types, ports, or display-specific identifiers
+* Persistence, undo/redo, collaboration, authentication, or AI integration
+* Zustand or renderer-owned canonical edge state

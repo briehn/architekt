@@ -399,6 +399,7 @@ describe("ArchitectureGraph.addConnection", () => {
 describe("ArchitectureGraph.removeConnection", () => {
   const api = component("api", "API");
   const database = component("database", "Database");
+  const cache = component("cache", "Cache");
 
   it("rejects an unknown connection ID", () => {
     const missingId = connectionId("missing");
@@ -416,21 +417,39 @@ describe("ArchitectureGraph.removeConnection", () => {
   });
 
   it("removes an existing connection", () => {
-    const baseGraph = graphWithComponents(api, database);
+    const baseGraph = graphWithComponents(api, database, cache);
 
     const apiToDatabase = connection(
       "api-to-database",
       api.id,
       database.id,
     );
+    const databaseToCache = connection(
+      "database-to-cache",
+      database.id,
+      cache.id,
+    );
 
     const connectedGraph = expectSuccess(
-      baseGraph.addConnection(apiToDatabase),
+      expectSuccess(
+        baseGraph.addConnection(apiToDatabase),
+      ).addConnection(databaseToCache),
     );
 
     const removedGraph = expectSuccess(
       connectedGraph.removeConnection(apiToDatabase.id),
     );
+
+    expect(removedGraph.getComponents()).toEqual([
+      api,
+      database,
+      cache,
+    ]);
+    expect(removedGraph.getConnections()).toEqual([databaseToCache]);
+    expect(connectedGraph.getConnections()).toEqual([
+      apiToDatabase,
+      databaseToCache,
+    ]);
 
     const replacementConnection = connection(
       "replacement-api-to-database",
