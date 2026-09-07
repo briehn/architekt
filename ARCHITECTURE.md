@@ -2,7 +2,7 @@
 
 ## Current status
 
-The Project foundation, Domain graph foundation, Static Diagram Rendering, Interactive Node Movement, and Component Creation and Deletion milestones are complete. The application has a framework-independent domain graph with components, directional connections, immutable graph operations, focused Vitest coverage, and a React Flow rendering path. ArchitectureEditor owns one coordinated editor-state value for the graph, renderer-only node positions, and measured dimensions, and users can drag nodes through its controlled state loop. Users can also create and delete components through a compact editor control region. Persistence, runtime boundary validation, custom nodes, layout logic, and AI integration have not been implemented.
+The Project foundation, Domain graph foundation, Static Diagram Rendering, Interactive Node Movement, Component Creation and Deletion, and Connection Creation milestones are complete. The application has a framework-independent domain graph with components, directional connections, immutable graph operations, focused Vitest coverage, and a React Flow rendering path. ArchitectureEditor owns coordinated graph, layout, renderer metadata, and connection-feedback state, and users can drag nodes and create validated directional connections through its controlled state loop. Users can also create and delete components through a compact editor control region. Persistence, runtime boundary validation, custom nodes, layout logic, and AI integration have not been implemented.
 
 ## Guiding data flow
 
@@ -32,11 +32,11 @@ This keeps graph behavior deterministic and testable without a browser or framew
 
 ArchitectureEditor is the narrow Client Component that owns ArchitectureEditorState, which coordinates ArchitectureGraph, DiagramNodePositions, and a renderer-only map of measured node dimensions. It initializes that state once, derives React Flow Node[] and Edge[] through toReactFlowDiagram, merges current measurements into the derived nodes, and routes React Flow changes through one functional editor-state transition. The example graph remains stable across drag-triggered renders.
 
-Its compact control region creates ComponentId values with crypto.randomUUID() at the UI boundary, trims form input, and submits accepted component additions and deletions through pure editor-state operations. It does not enable React Flow selection, connection creation, or edge reconnection.
+Its compact control region creates ComponentId values with crypto.randomUUID() at the UI boundary, trims form input, and submits accepted component additions and deletions through pure editor-state operations. React Flow connection gestures are translated into ArchitectureConnection values with application-generated ConnectionId values, then admitted through the same editor-state and domain-graph path. Connection rejection feedback is calculated together with the authoritative latest-state transition in one functional React update. React Flow selection and edge reconnection remain disabled.
 
 `DiagramNodePositions` remains the source of truth for user-authored coordinates. React Flow measurements are transient renderer metadata retained only so freshly derived controlled nodes stay initialized; they do not enter the domain graph or application layout model.
 
-`StaticDiagram` renders the derived collections. It allows panning and zooming for inspection and uses `fitView` for initial framing. Node dragging is enabled; connecting, selecting, and edge reconnection are disabled. It does not own application graph state or translate user interactions into domain operations.
+`StaticDiagram` renders the derived collections. It allows panning and zooming for inspection and uses `fitView` for initial framing. Node dragging and strict source-to-target connection gestures are enabled; selection and edge reconnection are disabled. It reports connection intent to ArchitectureEditor and does not own or directly add canonical edges.
 
 ## Boundaries outside the domain layer
 

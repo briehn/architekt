@@ -1,8 +1,10 @@
 import type { NodeChange } from "@xyflow/react";
 
 import type { ArchitectureComponent } from "../domain/architecture-component";
+import type { ArchitectureConnection } from "../domain/architecture-connection";
 import type {
   AddComponentRejection,
+  AddConnectionRejection,
   ArchitectureGraph,
   RemoveComponentRejection,
 } from "../domain/architecture-graph";
@@ -30,6 +32,10 @@ export type ArchitectureEditorState = {
 export type AddComponentToEditorStateResult =
   | { ok: true; state: ArchitectureEditorState }
   | { ok: false; error: AddComponentRejection };
+
+export type AddConnectionToEditorStateResult =
+  | { ok: true; state: ArchitectureEditorState }
+  | { ok: false; error: AddConnectionRejection };
 
 export type RemoveComponentFromEditorStateResult =
   | { ok: true; state: ArchitectureEditorState }
@@ -94,6 +100,26 @@ export function addComponentToEditorState(
     state: {
       graph: graphResult.graph,
       nodePositions,
+      nodeMeasurements: state.nodeMeasurements,
+    },
+  };
+}
+
+export function addConnectionToEditorState(
+  state: ArchitectureEditorState,
+  connection: ArchitectureConnection,
+): AddConnectionToEditorStateResult {
+  const graphResult = state.graph.addConnection(connection);
+
+  if (!graphResult.ok) {
+    return graphResult;
+  }
+
+  return {
+    ok: true,
+    state: {
+      graph: graphResult.graph,
+      nodePositions: state.nodePositions,
       nodeMeasurements: state.nodeMeasurements,
     },
   };

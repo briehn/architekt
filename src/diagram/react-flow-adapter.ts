@@ -1,4 +1,5 @@
 import {
+  type Connection,
   type Dimensions,
   type Edge,
   type EdgeMarker,
@@ -6,8 +7,9 @@ import {
   type NodeChange,
 } from "@xyflow/react";
 
+import type { ArchitectureConnection } from "../domain/architecture-connection";
 import type { ArchitectureGraph } from "../domain/architecture-graph";
-import type { ComponentId } from "../domain/identifiers";
+import type { ComponentId, ConnectionId } from "../domain/identifiers";
 import {
   type DiagramNodePositions,
   type DiagramPosition,
@@ -20,6 +22,17 @@ export type ReactFlowNodeMeasurements = ReadonlyMap<
   string,
   Readonly<Dimensions>
 >;
+
+export function toArchitectureConnection(
+  connection: Connection,
+  connectionId: ConnectionId,
+): ArchitectureConnection {
+  return {
+    id: connectionId,
+    sourceComponentId: connection.source as ComponentId,
+    targetComponentId: connection.target as ComponentId,
+  };
+}
 
 function getDiagramPosition(
   nodePositions: DiagramNodePositions,

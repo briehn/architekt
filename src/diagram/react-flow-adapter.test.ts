@@ -1,4 +1,9 @@
-import { type Edge, type Node, type NodeChange } from "@xyflow/react";
+import {
+  type Connection,
+  type Edge,
+  type Node,
+  type NodeChange,
+} from "@xyflow/react";
 import { describe, expect, it } from "vitest";
 
 import type { ArchitectureComponent } from "../domain/architecture-component";
@@ -11,6 +16,7 @@ import {
   applyReactFlowNodePositionChanges,
   removeReactFlowNodeMeasurement,
   type ReactFlowNodeMeasurements,
+  toArchitectureConnection,
   toReactFlowDiagram,
   withReactFlowNodeMeasurements,
 } from "./react-flow-adapter";
@@ -80,6 +86,29 @@ function nodeMeasurements(
 ): ReactFlowNodeMeasurements {
   return new Map(entries);
 }
+
+describe("toArchitectureConnection", () => {
+  it("translates renderer endpoints with an application-provided ID", () => {
+    const rendererConnection: Connection = {
+      source: "api",
+      target: "database",
+      sourceHandle: "source-handle",
+      targetHandle: "target-handle",
+    };
+    const generatedConnectionId = connectionId("generated-connection");
+
+    expect(
+      toArchitectureConnection(
+        rendererConnection,
+        generatedConnectionId,
+      ),
+    ).toEqual({
+      id: generatedConnectionId,
+      sourceComponentId: componentId("api"),
+      targetComponentId: componentId("database"),
+    });
+  });
+});
 
 describe("toReactFlowDiagram", () => {
   it("maps an empty graph to empty React Flow collections", () => {

@@ -147,3 +147,31 @@ Allow users to deliberately create and delete architecture components while pres
 * Node selection, keyboard deletion, renaming, or custom nodes
 * Persistence, undo/redo, collaboration, authentication, or AI integration
 * Automatic layout, collision avoidance, or viewport-aware placement
+
+## Completed milestone: Connection Creation
+
+### Goal
+
+Allow users to create directional architecture connections through React Flow while preserving ArchitectureGraph as canonical connection state and keeping renderer gestures at the application boundary.
+
+**Milestone status: Complete.**
+
+### Completed tasks
+
+* [x] Translate React Flow Connection payloads into ArchitectureConnection values
+* [x] Generate ConnectionId values at the UI boundary
+* [x] Add connections through a pure ArchitectureEditorState operation
+* [x] Delegate connection invariants and rejection types to ArchitectureGraph
+* [x] Synchronize the authoritative latest-state transition with concise rejection feedback
+* [x] Derive rendered edges from the accepted domain graph
+* [x] Enable strict source-to-target connection gestures while preserving node dragging
+* [x] Keep selection and edge reconnection disabled
+* [x] Verify translation, accepted connections, rejected connections, reference preservation, and derived edges through focused Vitest coverage
+
+## Still out of scope
+
+* Connection deletion or edge reconnection
+* Node or edge selection and keyboard deletion
+* Custom nodes, handles, ports, connection labels, or connection types
+* Persistence, undo/redo, collaboration, authentication, or AI integration
+* Zustand or renderer-owned canonical edge state

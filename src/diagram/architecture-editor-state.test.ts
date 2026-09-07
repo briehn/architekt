@@ -1,4 +1,4 @@
-import type { NodeChange } from "@xyflow/react";
+import type { Connection, NodeChange } from "@xyflow/react";
 import { describe, expect, it } from "vitest";
 
 import type { ArchitectureComponent } from "../domain/architecture-component";
@@ -7,6 +7,7 @@ import { ArchitectureGraph } from "../domain/architecture-graph";
 import type { ComponentId, ConnectionId } from "../domain/identifiers";
 import {
   addComponentToEditorState,
+  addConnectionToEditorState,
   type ArchitectureEditorState,
   applyReactFlowNodeChangesToEditorState,
   createArchitectureEditorState,
@@ -16,6 +17,10 @@ import {
   createInitialDiagramNodePositions,
   moveDiagramNode,
 } from "./diagram-layout";
+import {
+  toArchitectureConnection,
+  toReactFlowDiagram,
+} from "./react-flow-adapter";
 
 function componentId(value: string): ComponentId {
   return value as ComponentId;
@@ -310,6 +315,220 @@ describe("removeComponentFromEditorState", () => {
     expect(state.graph).toBe(graphReference);
     expect(state.nodePositions).toBe(positionsReference);
     expect(state.nodeMeasurements).toBe(measurementsReference);
+  });
+});
+
+describe("addConnectionToEditorState", () => {
+  const api = component("api", "API");
+  const database = component("database", "Database");
+
+  it("adds a connection while preserving layout and renderer metadata", () => {
+    const initialState = createArchitectureEditorState(
+      graphWithComponents(api, database),
+    );
+    const measurement = { width: 176, height: 48 };
+    const previousState: ArchitectureEditorState = {
+      ...initialState,
+      nodeMeasurements: new Map([[api.id, measurement]]),
+    };
+    const architectureConnection = connection(
+      "api-to-database",
+      api.id,
+      database.id,
+    );
+
+    const result = addConnectionToEditorState(
+      previousState,
+      architectureConnection,
+    );
+    const nextState = expectEditorStateSuccess(result);
+
+    expect(nextState).not.toBe(previousState);
+    expect(nextState.graph).not.toBe(previousState.graph);
+    expect(nextState.graph.getConnections()).toEqual([
+      architectureConnection,
+    ]);
+    expect(nextState.nodePositions).toBe(previousState.nodePositions);
+    expect(nextState.nodeMeasurements).toBe(
+      previousState.nodeMeasurements,
+    );
+    expect(nextState.nodeMeasurements.get(api.id)).toBe(measurement);
+    expect(previousState.graph.getConnections()).toEqual([]);
+  });
+
+  it("allows the reverse ordered direction", () => {
+    const forwardConnection = connection(
+      "api-to-database",
+      api.id,
+      database.id,
+    );
+    const graph = graphWithConnections(
+      graphWithComponents(api, database),
+      forwardConnection,
+    );
+    const previousState = createArchitectureEditorState(graph);
+    const reverseConnection = connection(
+      "database-to-api",
+      database.id,
+      api.id,
+    );
+
+    const nextState = expectEditorStateSuccess(
+      addConnectionToEditorState(previousState, reverseConnection),
+    );
+
+    expect(nextState.graph.getConnections()).toEqual([
+      forwardConnection,
+      reverseConnection,
+    ]);
+  });
+
+  it.each([
+    {
+      name: "a duplicate connection ID",
+      proposedConnection: connection(
+        "existing",
+        database.id,
+        api.id,
+      ),
+      expectedError: {
+        type: "connection-id-already-exists" as const,
+        connectionId: connectionId("existing"),
+      },
+    },
+    {
+      name: "a missing source",
+      proposedConnection: connection(
+        "missing-source",
+        componentId("missing"),
+        database.id,
+      ),
+      expectedError: {
+        type: "source-component-id-does-not-exist" as const,
+        sourceComponentId: componentId("missing"),
+      },
+    },
+    {
+      name: "a missing target",
+      proposedConnection: connection(
+        "missing-target",
+        api.id,
+        componentId("missing"),
+      ),
+      expectedError: {
+        type: "target-component-id-does-not-exist" as const,
+        targetComponentId: componentId("missing"),
+      },
+    },
+    {
+      name: "a self-connection",
+      proposedConnection: connection(
+        "self-connection",
+        api.id,
+        api.id,
+      ),
+      expectedError: {
+        type: "source-and-target-component-ids-are-the-same" as const,
+        componentId: api.id,
+      },
+    },
+    {
+      name: "a duplicate ordered endpoint pair",
+      proposedConnection: connection(
+        "duplicate-pair",
+        api.id,
+        database.id,
+      ),
+      expectedError: {
+        type: "connection-already-exists" as const,
+        sourceComponentId: api.id,
+        targetComponentId: database.id,
+      },
+    },
+  ])("propagates rejection for $name without changing state", ({
+    proposedConnection,
+    expectedError,
+  }) => {
+    const existingConnection = connection(
+      "existing",
+      api.id,
+      database.id,
+    );
+    const graph = graphWithConnections(
+      graphWithComponents(api, database),
+      existingConnection,
+    );
+    const state = createArchitectureEditorState(graph);
+    const graphReference = state.graph;
+    const positionsReference = state.nodePositions;
+    const measurementsReference = state.nodeMeasurements;
+
+    const result = addConnectionToEditorState(
+      state,
+      proposedConnection,
+    );
+
+    expect(result).toEqual({ ok: false, error: expectedError });
+    expect(state.graph).toBe(graphReference);
+    expect(state.nodePositions).toBe(positionsReference);
+    expect(state.nodeMeasurements).toBe(measurementsReference);
+    expect(state.graph.getConnections()).toEqual([existingConnection]);
+  });
+
+  it("translates a React Flow connection into a derived canonical edge", () => {
+    const previousState = createArchitectureEditorState(
+      graphWithComponents(api, database),
+    );
+    const rendererConnection: Connection = {
+      source: api.id,
+      target: database.id,
+      sourceHandle: null,
+      targetHandle: null,
+    };
+    const architectureConnection = toArchitectureConnection(
+      rendererConnection,
+      connectionId("created-from-renderer"),
+    );
+
+    const nextState = expectEditorStateSuccess(
+      addConnectionToEditorState(previousState, architectureConnection),
+    );
+    const diagram = toReactFlowDiagram(
+      nextState.graph,
+      nextState.nodePositions,
+    );
+
+    expect(diagram.edges).toEqual([
+      {
+        id: "created-from-renderer",
+        source: api.id,
+        target: database.id,
+        markerEnd: { type: "arrowclosed" },
+      },
+    ]);
+    expect(previousState.graph.getConnections()).toEqual([]);
+  });
+
+  it("does not derive an edge from a rejected renderer connection", () => {
+    const state = createArchitectureEditorState(
+      graphWithComponents(api, database),
+    );
+    const selfConnection = toArchitectureConnection(
+      {
+        source: api.id,
+        target: api.id,
+        sourceHandle: null,
+        targetHandle: null,
+      },
+      connectionId("rejected-self-connection"),
+    );
+
+    const result = addConnectionToEditorState(state, selfConnection);
+
+    expect(result.ok).toBe(false);
+    expect(
+      toReactFlowDiagram(state.graph, state.nodePositions).edges,
+    ).toEqual([]);
   });
 });
 
