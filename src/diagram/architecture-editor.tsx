@@ -1,6 +1,6 @@
 "use client";
 
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
 import type { Connection, NodeChange } from "@xyflow/react";
 
 import {
@@ -9,6 +9,7 @@ import {
   ArchitectureGraph,
 } from "../domain/architecture-graph";
 import type { ComponentId, ConnectionId } from "../domain/identifiers";
+import { loadLocalArchitectureEditorState } from "../persistence/local-architecture-editor-storage";
 import {
   addComponentToEditorState,
   addConnectionToEditorState,
@@ -89,24 +90,115 @@ function createExampleArchitectureGraph(): ArchitectureGraph {
 // This module-level value remains stable when position state causes a re-render.
 const exampleArchitectureGraph = createExampleArchitectureGraph();
 
-type ArchitectureEditorViewState = {
+function createExampleArchitectureEditorState(): ArchitectureEditorState {
+  return createArchitectureEditorState(exampleArchitectureGraph);
+}
+
+type EditableArchitectureEditorViewState = {
   readonly editorState: ArchitectureEditorState;
   readonly connectionRejection: AddConnectionRejection | null;
 };
 
+type ArchitectureEditorViewState =
+  | { readonly status: "loading" }
+  | (EditableArchitectureEditorViewState & {
+      readonly status: "ready";
+    })
+  | (EditableArchitectureEditorViewState & {
+      readonly status: "recovery-required";
+      readonly reason:
+        | "saved-state-invalid"
+        | "unsupported-schema-version";
+    })
+  | (EditableArchitectureEditorViewState & {
+      readonly status: "memory-only";
+    });
+
 export function ArchitectureEditor() {
-  const [viewState, setViewState] = useState<ArchitectureEditorViewState>(
-    () => ({
-      editorState: createArchitectureEditorState(
-        exampleArchitectureGraph,
-      ),
-      connectionRejection: null,
-    }),
-  );
+  const [viewState, setViewState] = useState<ArchitectureEditorViewState>({
+    status: "loading",
+  });
   const [componentName, setComponentName] = useState("");
   const [validationMessage, setValidationMessage] = useState<string | null>(
     null,
   );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    queueMicrotask(() => {
+      if (cancelled) return;
+
+      let storage: Storage;
+
+      try {
+        storage = window.localStorage;
+      } catch {
+        setViewState({
+          status: "memory-only",
+          editorState: createExampleArchitectureEditorState(),
+          connectionRejection: null,
+        });
+        return;
+      }
+
+      const loadResult = loadLocalArchitectureEditorState(storage);
+
+      if (loadResult.status === "loaded") {
+        setViewState({
+          status: "ready",
+          editorState: loadResult.state,
+          connectionRejection: null,
+        });
+        return;
+      }
+
+      const editorState = createExampleArchitectureEditorState();
+
+      if (loadResult.status === "missing") {
+        setViewState({
+          status: "ready",
+          editorState,
+          connectionRejection: null,
+        });
+        return;
+      }
+
+      if (loadResult.error.type === "storage-unavailable") {
+        setViewState({
+          status: "memory-only",
+          editorState,
+          connectionRejection: null,
+        });
+        return;
+      }
+
+      setViewState({
+        status: "recovery-required",
+        reason: loadResult.error.type,
+        editorState,
+        connectionRejection: null,
+      });
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (viewState.status === "loading") {
+    return (
+      <div
+        className="flex h-full min-h-0 w-full items-center justify-center bg-surface px-4"
+        role="status"
+      >
+        <p className="text-sm text-text-muted">
+          Loading saved workspace…
+        </p>
+      </div>
+    );
+  }
+
   const { editorState, connectionRejection } = viewState;
   const { nodes: diagramNodes, edges } = toReactFlowDiagram(
     editorState.graph,
@@ -119,6 +211,10 @@ export function ArchitectureEditor() {
 
   function handleNodesChange(changes: NodeChange[]) {
     setViewState((currentViewState) => {
+      if (currentViewState.status === "loading") {
+        return currentViewState;
+      }
+
       const nextEditorState = applyReactFlowNodeChangesToEditorState(
         currentViewState.editorState,
         changes,
@@ -149,6 +245,10 @@ export function ArchitectureEditor() {
     }
 
     setViewState((currentViewState) => {
+      if (currentViewState.status === "loading") {
+        return currentViewState;
+      }
+
       const latestResult = addComponentToEditorState(
         currentViewState.editorState,
         component,
@@ -164,6 +264,10 @@ export function ArchitectureEditor() {
 
   function handleDeleteComponent(componentId: ComponentId) {
     setViewState((currentViewState) => {
+      if (currentViewState.status === "loading") {
+        return currentViewState;
+      }
+
       const result = removeComponentFromEditorState(
         currentViewState.editorState,
         componentId,
@@ -177,6 +281,10 @@ export function ArchitectureEditor() {
 
   function handleDeleteConnection(connectionId: ConnectionId) {
     setViewState((currentViewState) => {
+      if (currentViewState.status === "loading") {
+        return currentViewState;
+      }
+
       const result = removeConnectionFromEditorState(
         currentViewState.editorState,
         connectionId,
@@ -184,6 +292,7 @@ export function ArchitectureEditor() {
 
       return result.ok
         ? {
+            ...currentViewState,
             editorState: result.state,
             connectionRejection: null,
           }
@@ -198,6 +307,10 @@ export function ArchitectureEditor() {
     );
 
     setViewState((currentViewState) => {
+      if (currentViewState.status === "loading") {
+        return currentViewState;
+      }
+
       const result = addConnectionToEditorState(
         currentViewState.editorState,
         architectureConnection,
@@ -205,6 +318,7 @@ export function ArchitectureEditor() {
 
       return result.ok
         ? {
+            ...currentViewState,
             editorState: result.state,
             connectionRejection: null,
           }
@@ -234,10 +348,31 @@ export function ArchitectureEditor() {
         otherRow.targetName === row.targetName,
     ),
   }));
+  const persistenceNotice =
+    viewState.status === "recovery-required"
+      ? viewState.reason === "unsupported-schema-version"
+        ? "Saved workspace uses an unsupported format. The example workspace is open, but changes are not saved."
+        : "Saved workspace couldn’t be read. The example workspace is open, but changes are not saved."
+      : viewState.status === "memory-only"
+        ? "Storage is unavailable. The example workspace is open, but changes will be lost on refresh."
+        : null;
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col">
       <div className="shrink-0 border-b border-border bg-surface px-3 py-3 sm:px-4">
+        {persistenceNotice ? (
+          <p
+            className={`mb-3 text-sm ${
+              viewState.status === "recovery-required"
+                ? "text-danger"
+                : "text-text-secondary"
+            }`}
+            role="status"
+          >
+            {persistenceNotice}
+          </p>
+        ) : null}
+
         <form
           className="flex flex-col gap-2 sm:flex-row sm:items-end"
           onSubmit={handleAddComponent}

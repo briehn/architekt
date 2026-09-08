@@ -201,3 +201,43 @@ Allow users to deliberately delete existing architecture connections without mak
 * Connection labels, types, ports, or display-specific identifiers
 * Persistence, undo/redo, collaboration, authentication, or AI integration
 * Zustand or renderer-owned canonical edge state
+
+## Current milestone: Persistence
+
+### Goal
+
+Preserve the current single-workspace graph and node positions across refreshes without making persisted or renderer data canonical and without bypassing domain invariants during restoration.
+
+**Milestone status: In progress.**
+
+### Completed tasks
+
+* [x] Define a plain, explicitly versioned V1 editor-document schema
+* [x] Serialize graph components, graph connections, and DiagramNodePositions without renderer measurements
+* [x] Runtime-validate persisted `unknown` data at the codec seam
+* [x] Restore ArchitectureGraph exclusively through `empty`, `addComponent`, and `addConnection`
+* [x] Reject invalid graphs and incomplete, duplicate, orphaned, or non-finite node positions atomically
+* [x] Restore ReactFlowNodeMeasurements as empty transient state
+* [x] Verify serialization, restoration, invariant enforcement, round trips, and immutability with focused tests
+* [x] Add a typed localStorage adapter around the pure codec with injected storage
+* [x] Handle missing data, invalid saved state, unsupported versions, and unavailable storage without duplicating domain validation
+* [x] Verify load, save, clear, failure mapping, single-write behavior, and adapter round trips with a browser-free fake
+* [x] Add a stable server/client loading state and load local persistence after mount
+* [x] Resolve loaded, missing, recovery-required, and memory-only editor modes without mounting React Flow early
+* [x] Keep the example workspace editable in recovery and memory-only modes while preserving invalid saved data
+* [x] Preserve functional graph, position, and measurement updates across every editable persistence mode
+* [x] Verify that server rendering emits only the loading shell
+
+### Remaining tasks
+
+* [ ] Add debounced automatic saving for graph and position changes
+* [ ] Add storage failure, retry, and saved-workspace reset behavior
+* [ ] Verify persistence and recovery through browser-level checks
+
+## Still out of scope
+
+* IndexedDB, a server or database, authentication, projects, or multi-user infrastructure
+* Cross-device synchronization or cross-tab conflict resolution
+* React Flow nodes, edges, measurements, viewport, or transient UI-state persistence
+* Import/export, migration machinery beyond rejecting unsupported versions, backups, or history
+* AI, Zustand, undo/redo, or collaboration
