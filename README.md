@@ -4,7 +4,7 @@ Architekt is a system-design application being built as a production-quality por
 
 ## Current status
 
-The **Project foundation**, **Domain graph foundation**, **Static Diagram Rendering**, **Interactive Node Movement**, **Component Creation and Deletion**, **Connection Creation**, **Connection Deletion**, and **Persistence** milestones are complete. The repository provides a minimal branded application shell, a framework-independent architecture graph, controlled React Flow node dragging backed by application-owned layout state, deliberate component and connection deletion, validated directional connection creation, and local workspace persistence. Undo/redo is in progress: its pure history model is implemented but is not yet connected to the editor UI.
+The **Project foundation**, **Domain graph foundation**, **Static Diagram Rendering**, **Interactive Node Movement**, **Component Creation and Deletion**, **Connection Creation**, **Connection Deletion**, and **Persistence** milestones are complete. The repository provides a minimal branded application shell, a framework-independent architecture graph, controlled React Flow node dragging backed by application-owned layout state, deliberate component and connection deletion, validated directional connection creation, and local workspace persistence. Undo/redo is in progress: editable editor modes now own its pure history model, but no undo/redo behavior is exposed yet.
 
 ## Currently implemented
 
@@ -31,7 +31,7 @@ The **Project foundation**, **Domain graph foundation**, **Static Diagram Render
 
 The long-term vision is a workspace where a user can describe a software system and receive a clean, editable architecture diagram. Planned capabilities include deliberate diagram editing, persistence, custom nodes, layout logic, and carefully bounded AI assistance.
 
-Component creation and deletion, node movement, connection creation and deletion, and local persistence are implemented. The undo/redo history foundation is implemented, while editor integration, drag coalescing, controls, and keyboard shortcuts remain unfinished. Custom nodes, layout logic, AI integration, authentication, and collaboration remain planned only.
+Component creation and deletion, node movement, connection creation and deletion, and local persistence are implemented. The undo/redo history foundation and editor-state ownership integration are implemented, while history entry creation, drag coalescing, controls, and keyboard shortcuts remain unfinished. Custom nodes, layout logic, AI integration, authentication, and collaboration remain planned only.
 
 ## Architecture principle
 

@@ -64,7 +64,7 @@ Recovery distinguishes corrupt data from an unsupported saved version without ex
 
 ArchitectureEditorHistory is a framework-independent wrapper around ArchitectureEditorState. Its present value contains the full coordinated editor state, while bounded past and future snapshots contain only ArchitectureGraph and DiagramNodePositions. Accepted graph or position reference changes create history entries; measurement-only changes update present without recording or clearing redo. Complete no-ops preserve the existing history reference.
 
-Undo and redo restore graph and position snapshots while treating ReactFlowNodeMeasurements as a transient cache. Measurements are never stored in snapshots. Restoration retains current measurements only for component IDs present in the restored graph, and components without retained measurements are left for React Flow to measure again. The history retains at most 100 past snapshots and is not serialized. React ownership, drag coalescing, controls, shortcuts, and autosave integration remain deferred.
+Undo and redo restore graph and position snapshots while treating ReactFlowNodeMeasurements as a transient cache. Measurements are never stored in snapshots. Restoration retains current measurements only for component IDs present in the restored graph, and components without retained measurements are left for React Flow to measure again. The history retains at most 100 past snapshots and is not serialized. Each editable ArchitectureEditor persistence mode owns a history wrapper and reads the active editor state from its present value. Existing mutations currently replace that value without recording, so drag coalescing, controls, shortcuts, and history entry creation remain deferred.
 
 ## Testing implications
 

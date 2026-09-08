@@ -33,6 +33,11 @@ import {
   removeConnectionFromEditorState,
 } from "./architecture-editor-state";
 import {
+  createArchitectureEditorHistory,
+  replaceArchitectureEditorStateWithoutHistory,
+  type ArchitectureEditorHistory,
+} from "./architecture-editor-history";
+import {
   toArchitectureConnection,
   toReactFlowDiagram,
   withReactFlowNodeMeasurements,
@@ -108,7 +113,7 @@ function createExampleArchitectureEditorState(): ArchitectureEditorState {
 }
 
 type EditableArchitectureEditorViewState = {
-  readonly editorState: ArchitectureEditorState;
+  readonly history: ArchitectureEditorHistory;
   readonly connectionRejection: AddConnectionRejection | null;
 };
 
@@ -182,7 +187,9 @@ export function ArchitectureEditor() {
         autosaveBaselineRef.current = null;
         setViewState({
           status: "memory-only",
-          editorState: createExampleArchitectureEditorState(),
+          history: createArchitectureEditorHistory(
+            createExampleArchitectureEditorState(),
+          ),
           connectionRejection: null,
         });
         return;
@@ -197,7 +204,7 @@ export function ArchitectureEditor() {
         );
         setViewState({
           status: "ready",
-          editorState: loadResult.state,
+          history: createArchitectureEditorHistory(loadResult.state),
           connectionRejection: null,
           saveFailure: null,
         });
@@ -210,7 +217,7 @@ export function ArchitectureEditor() {
         autosaveBaselineRef.current = persistedEditorStateBaseline(editorState);
         setViewState({
           status: "ready",
-          editorState,
+          history: createArchitectureEditorHistory(editorState),
           connectionRejection: null,
           saveFailure: null,
         });
@@ -222,7 +229,7 @@ export function ArchitectureEditor() {
         autosaveBaselineRef.current = null;
         setViewState({
           status: "memory-only",
-          editorState,
+          history: createArchitectureEditorHistory(editorState),
           connectionRejection: null,
         });
         return;
@@ -232,7 +239,7 @@ export function ArchitectureEditor() {
       setViewState({
         status: "recovery-required",
         reason: loadResult.error.type,
-        editorState,
+        history: createArchitectureEditorHistory(editorState),
         connectionRejection: null,
         resetFailure: null,
       });
@@ -245,7 +252,7 @@ export function ArchitectureEditor() {
 
   useEffect(() => {
     if (viewState.status !== "loading") {
-      latestEditorStateRef.current = viewState.editorState;
+      latestEditorStateRef.current = viewState.history.present;
     }
   }, [viewState]);
 
@@ -277,8 +284,8 @@ export function ArchitectureEditor() {
         }
 
         const savedRevisionIsCurrent =
-          currentViewState.editorState.graph === editorStateToSave.graph &&
-          currentViewState.editorState.nodePositions ===
+          currentViewState.history.present.graph === editorStateToSave.graph &&
+          currentViewState.history.present.nodePositions ===
             editorStateToSave.nodePositions;
 
         if (!savedRevisionIsCurrent || currentViewState.saveFailure === null) {
@@ -295,9 +302,11 @@ export function ArchitectureEditor() {
   );
 
   const autosaveGraph =
-    viewState.status === "ready" ? viewState.editorState.graph : null;
+    viewState.status === "ready" ? viewState.history.present.graph : null;
   const autosaveNodePositions =
-    viewState.status === "ready" ? viewState.editorState.nodePositions : null;
+    viewState.status === "ready"
+      ? viewState.history.present.nodePositions
+      : null;
 
   useEffect(() => {
     if (autosaveGraph === null || autosaveNodePositions === null) {
@@ -346,7 +355,8 @@ export function ArchitectureEditor() {
     );
   }
 
-  const { editorState, connectionRejection } = viewState;
+  const { history, connectionRejection } = viewState;
+  const editorState = history.present;
   const { nodes: diagramNodes, edges } = toReactFlowDiagram(
     editorState.graph,
     editorState.nodePositions,
@@ -363,13 +373,18 @@ export function ArchitectureEditor() {
       }
 
       const nextEditorState = applyReactFlowNodeChangesToEditorState(
-        currentViewState.editorState,
+        currentViewState.history.present,
         changes,
       );
 
-      return nextEditorState === currentViewState.editorState
+      const history = replaceArchitectureEditorStateWithoutHistory(
+        currentViewState.history,
+        nextEditorState,
+      );
+
+      return history === currentViewState.history
         ? currentViewState
-        : { ...currentViewState, editorState: nextEditorState };
+        : { ...currentViewState, history };
     });
   }
 
@@ -397,12 +412,18 @@ export function ArchitectureEditor() {
       }
 
       const latestResult = addComponentToEditorState(
-        currentViewState.editorState,
+        currentViewState.history.present,
         component,
       );
 
       return latestResult.ok
-        ? { ...currentViewState, editorState: latestResult.state }
+        ? {
+            ...currentViewState,
+            history: replaceArchitectureEditorStateWithoutHistory(
+              currentViewState.history,
+              latestResult.state,
+            ),
+          }
         : currentViewState;
     });
     setComponentName("");
@@ -416,12 +437,18 @@ export function ArchitectureEditor() {
       }
 
       const result = removeComponentFromEditorState(
-        currentViewState.editorState,
+        currentViewState.history.present,
         componentId,
       );
 
       return result.ok
-        ? { ...currentViewState, editorState: result.state }
+        ? {
+            ...currentViewState,
+            history: replaceArchitectureEditorStateWithoutHistory(
+              currentViewState.history,
+              result.state,
+            ),
+          }
         : currentViewState;
     });
   }
@@ -433,14 +460,17 @@ export function ArchitectureEditor() {
       }
 
       const result = removeConnectionFromEditorState(
-        currentViewState.editorState,
+        currentViewState.history.present,
         connectionId,
       );
 
       return result.ok
         ? {
             ...currentViewState,
-            editorState: result.state,
+            history: replaceArchitectureEditorStateWithoutHistory(
+              currentViewState.history,
+              result.state,
+            ),
             connectionRejection: null,
           }
         : currentViewState;
@@ -459,14 +489,17 @@ export function ArchitectureEditor() {
       }
 
       const result = addConnectionToEditorState(
-        currentViewState.editorState,
+        currentViewState.history.present,
         architectureConnection,
       );
 
       return result.ok
         ? {
             ...currentViewState,
-            editorState: result.state,
+            history: replaceArchitectureEditorStateWithoutHistory(
+              currentViewState.history,
+              result.state,
+            ),
             connectionRejection: null,
           }
         : {
@@ -481,7 +514,7 @@ export function ArchitectureEditor() {
       return;
     }
 
-    persistEditorState(viewState.editorState);
+    persistEditorState(viewState.history.present);
   }
 
   function handleResetSavedWorkspace() {
@@ -524,7 +557,7 @@ export function ArchitectureEditor() {
     setValidationMessage(null);
     setViewState({
       status: "ready",
-      editorState,
+      history: createArchitectureEditorHistory(editorState),
       connectionRejection: null,
       saveFailure: null,
     });

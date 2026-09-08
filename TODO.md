@@ -260,7 +260,7 @@ Allow users to reverse accepted graph and layout edits without making renderer m
 
 ### Remaining tasks
 
-* [ ] Integrate history ownership into ArchitectureEditor editable view states
+* [x] Integrate history ownership into ArchitectureEditor editable view states
 * [ ] Record accepted component and connection edits while excluding rejected and measurement-only transitions
 * [ ] Coalesce each completed node drag into one history entry
 * [ ] Add accessible Undo and Redo controls and guarded keyboard shortcuts
