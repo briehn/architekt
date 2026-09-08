@@ -18,6 +18,7 @@ import {
   canRedoArchitectureEditorHistory,
   canUndoArchitectureEditorHistory,
   clearArchitectureEditorHistory,
+  commitArchitectureEditorHistoryTransaction,
   createArchitectureEditorHistory,
   recordArchitectureEditorState,
   redoArchitectureEditorHistory,
@@ -689,5 +690,179 @@ describe("structural editor-state history recording", () => {
     expect(history.past).toHaveLength(1);
     expect(history.future).toEqual([]);
     expect(canRedoArchitectureEditorHistory(history)).toBe(false);
+  });
+});
+
+describe("ArchitectureEditorHistory drag transactions", () => {
+  it("commits multiple intermediate replacements as one final entry", () => {
+    const state = initialState(api);
+    const transactionStart = createArchitectureEditorHistory(state);
+    const firstFrameState = applyReactFlowNodeChangesToEditorState(
+      transactionStart.present,
+      [
+        {
+          id: api.id,
+          type: "position",
+          position: { x: 40, y: 20 },
+          dragging: true,
+        },
+      ],
+    );
+    const firstFrameHistory = replaceArchitectureEditorStateWithoutHistory(
+      transactionStart,
+      firstFrameState,
+    );
+    const finalState = applyReactFlowNodeChangesToEditorState(
+      firstFrameHistory.present,
+      [
+        {
+          id: api.id,
+          type: "position",
+          position: { x: 120, y: 80 },
+          dragging: false,
+        },
+        {
+          id: api.id,
+          type: "dimensions",
+          dimensions: { width: 176, height: 48 },
+        },
+      ],
+    );
+    const finalFrameHistory = replaceArchitectureEditorStateWithoutHistory(
+      firstFrameHistory,
+      finalState,
+    );
+
+    const history = commitArchitectureEditorHistoryTransaction(
+      transactionStart,
+      finalFrameHistory,
+    );
+
+    expect(history.past).toHaveLength(1);
+    expect(history.past[0]).toEqual({
+      graph: state.graph,
+      nodePositions: state.nodePositions,
+    });
+    expect(history.past[0]).not.toHaveProperty("nodeMeasurements");
+    expect(history.present).toBe(finalState);
+    expect(history.present.nodePositions.get(api.id)).toEqual({
+      x: 120,
+      y: 80,
+    });
+    expect(history.present.nodeMeasurements.get(api.id)).toEqual({
+      width: 176,
+      height: 48,
+    });
+    expect(undoArchitectureEditorHistory(history).present.nodePositions).toBe(
+      state.nodePositions,
+    );
+  });
+
+  it("treats returning to the pre-drag coordinates as a no-op", () => {
+    const state = initialState(api);
+    const historyWithFuture = undoArchitectureEditorHistory(
+      recordArchitectureEditorState(
+        createArchitectureEditorHistory(state),
+        expectEditorStateSuccess(addComponentToEditorState(state, database)),
+      ),
+    );
+    const movedState = applyReactFlowNodeChangesToEditorState(
+      historyWithFuture.present,
+      [
+        {
+          id: api.id,
+          type: "position",
+          position: { x: 120, y: 80 },
+          dragging: true,
+        },
+      ],
+    );
+    const movedHistory = replaceArchitectureEditorStateWithoutHistory(
+      historyWithFuture,
+      movedState,
+    );
+    const returnedState = applyReactFlowNodeChangesToEditorState(
+      movedHistory.present,
+      [
+        {
+          id: api.id,
+          type: "position",
+          position: { x: 0, y: 0 },
+          dragging: false,
+        },
+      ],
+    );
+    const returnedHistory = replaceArchitectureEditorStateWithoutHistory(
+      movedHistory,
+      returnedState,
+    );
+
+    const history = commitArchitectureEditorHistoryTransaction(
+      historyWithFuture,
+      returnedHistory,
+    );
+
+    expect(history).toBe(returnedHistory);
+    expect(history.past).toBe(historyWithFuture.past);
+    expect(history.future).toBe(historyWithFuture.future);
+    expect(canUndoArchitectureEditorHistory(history)).toBe(false);
+    expect(canRedoArchitectureEditorHistory(history)).toBe(true);
+  });
+
+  it("clears redo only when the completed drag changes position", () => {
+    const state = initialState(api);
+    const historyWithFuture = undoArchitectureEditorHistory(
+      recordArchitectureEditorState(
+        createArchitectureEditorHistory(state),
+        expectEditorStateSuccess(addComponentToEditorState(state, database)),
+      ),
+    );
+    const finalState = applyReactFlowNodeChangesToEditorState(
+      historyWithFuture.present,
+      [
+        {
+          id: api.id,
+          type: "position",
+          position: { x: 120, y: 80 },
+          dragging: false,
+        },
+      ],
+    );
+    const finalFrameHistory = replaceArchitectureEditorStateWithoutHistory(
+      historyWithFuture,
+      finalState,
+    );
+
+    const history = commitArchitectureEditorHistoryTransaction(
+      historyWithFuture,
+      finalFrameHistory,
+    );
+
+    expect(history.past).toHaveLength(1);
+    expect(history.past[0]?.nodePositions).toBe(
+      historyWithFuture.present.nodePositions,
+    );
+    expect(history.present).toBe(finalState);
+    expect(history.future).toEqual([]);
+    expect(canRedoArchitectureEditorHistory(history)).toBe(false);
+  });
+
+  it("ignores a stale transaction without changing current history", () => {
+    const state = initialState(api);
+    const transactionStart = createArchitectureEditorHistory(state);
+    const structurallyEditedHistory = recordArchitectureEditorState(
+      transactionStart,
+      expectEditorStateSuccess(addComponentToEditorState(state, database)),
+    );
+
+    const history = commitArchitectureEditorHistoryTransaction(
+      transactionStart,
+      structurallyEditedHistory,
+    );
+
+    expect(history).toBe(structurallyEditedHistory);
+    expect(transactionStart.past).toEqual([]);
+    expect(transactionStart.present).toBe(state);
+    expect(structurallyEditedHistory.past).toHaveLength(1);
   });
 });

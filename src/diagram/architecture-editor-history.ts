@@ -31,6 +31,33 @@ function hasRecordableChange(
   );
 }
 
+function haveEqualNodePositions(
+  first: ArchitectureEditorHistorySnapshot["nodePositions"],
+  second: ArchitectureEditorHistorySnapshot["nodePositions"],
+): boolean {
+  if (first === second) {
+    return true;
+  }
+
+  if (first.size !== second.size) {
+    return false;
+  }
+
+  for (const [componentId, firstPosition] of first) {
+    const secondPosition = second.get(componentId);
+
+    if (
+      !secondPosition ||
+      firstPosition.x !== secondPosition.x ||
+      firstPosition.y !== secondPosition.y
+    ) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 function isCompleteNoOp(
   currentState: ArchitectureEditorState,
   nextState: ArchitectureEditorState,
@@ -124,6 +151,31 @@ export function replaceArchitectureEditorStateWithoutHistory(
     present: nextState,
     future: history.future,
   };
+}
+
+export function commitArchitectureEditorHistoryTransaction(
+  transactionStart: ArchitectureEditorHistory,
+  currentHistory: ArchitectureEditorHistory,
+): ArchitectureEditorHistory {
+  const transactionIsCurrent =
+    transactionStart.past === currentHistory.past &&
+    transactionStart.future === currentHistory.future &&
+    transactionStart.present.graph === currentHistory.present.graph;
+
+  if (
+    !transactionIsCurrent ||
+    haveEqualNodePositions(
+      transactionStart.present.nodePositions,
+      currentHistory.present.nodePositions,
+    )
+  ) {
+    return currentHistory;
+  }
+
+  return recordArchitectureEditorState(
+    transactionStart,
+    currentHistory.present,
+  );
 }
 
 export function undoArchitectureEditorHistory(

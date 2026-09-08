@@ -8,6 +8,7 @@ import {
   type Edge,
   type Node,
   type OnConnect,
+  type OnNodeDrag,
   type OnNodesChange,
 } from "@xyflow/react";
 
@@ -15,6 +16,8 @@ type StaticDiagramProps = {
   nodes: Node[];
   edges: Edge[];
   onConnect: OnConnect;
+  onNodeDragStart: OnNodeDrag;
+  onNodeDragStop: OnNodeDrag;
   onNodesChange: OnNodesChange;
 };
 
@@ -22,6 +25,8 @@ export function StaticDiagram({
   nodes,
   edges,
   onConnect,
+  onNodeDragStart,
+  onNodeDragStop,
   onNodesChange,
 }: StaticDiagramProps) {
   return (
@@ -30,6 +35,8 @@ export function StaticDiagram({
         nodes={nodes}
         edges={edges}
         onConnect={onConnect}
+        onNodeDragStart={onNodeDragStart}
+        onNodeDragStop={onNodeDragStop}
         onNodesChange={onNodesChange}
         fitView
         nodesDraggable

@@ -33,6 +33,7 @@ import {
   removeConnectionFromEditorState,
 } from "./architecture-editor-state";
 import {
+  commitArchitectureEditorHistoryTransaction,
   createArchitectureEditorHistory,
   recordArchitectureEditorState,
   replaceArchitectureEditorStateWithoutHistory,
@@ -172,6 +173,7 @@ export function ArchitectureEditor() {
   const storageRef = useRef<StorageLike | null>(null);
   const autosaveBaselineRef = useRef<PersistedEditorStateBaseline | null>(null);
   const latestEditorStateRef = useRef<ArchitectureEditorState | null>(null);
+  const dragStartHistoryRef = useRef<ArchitectureEditorHistory | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -381,6 +383,34 @@ export function ArchitectureEditor() {
       const history = replaceArchitectureEditorStateWithoutHistory(
         currentViewState.history,
         nextEditorState,
+      );
+
+      return history === currentViewState.history
+        ? currentViewState
+        : { ...currentViewState, history };
+    });
+  }
+
+  function handleNodeDragStart() {
+    dragStartHistoryRef.current = history;
+  }
+
+  function handleNodeDragStop() {
+    const dragStartHistory = dragStartHistoryRef.current;
+    dragStartHistoryRef.current = null;
+
+    if (dragStartHistory === null) {
+      return;
+    }
+
+    setViewState((currentViewState) => {
+      if (currentViewState.status === "loading") {
+        return currentViewState;
+      }
+
+      const history = commitArchitectureEditorHistoryTransaction(
+        dragStartHistory,
+        currentViewState.history,
       );
 
       return history === currentViewState.history
@@ -792,6 +822,8 @@ export function ArchitectureEditor() {
           nodes={nodes}
           edges={edges}
           onConnect={handleConnect}
+          onNodeDragStart={handleNodeDragStart}
+          onNodeDragStop={handleNodeDragStop}
           onNodesChange={handleNodesChange}
         />
       </div>
