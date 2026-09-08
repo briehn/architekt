@@ -22,7 +22,7 @@ The **Project foundation**, **Domain graph foundation**, **Static Diagram Render
 - A hydration-safe loading boundary that resolves saved, missing, recovery-required, and memory-only editor modes before mounting React Flow
 - A 300 ms trailing autosave for graph and position changes, with truthful save-failure feedback and explicit Retry
 - Clear-first recovery reset for invalid or unsupported saved workspaces, guarded by native confirmation
-- A bounded, framework-independent history model for graph and node-position snapshots with transient measurement reconciliation
+- A bounded, framework-independent history model that records accepted component and connection edits while reconciling transient measurements
 - Vitest coverage for domain behavior, layout behavior, renderer adaptation, coordinated editor state, and persistence behavior (127 tests)
 - Project-level test, lint, and production build commands
 - Repository guidance that documents engineering, architecture, and visual-system boundaries
@@ -31,7 +31,7 @@ The **Project foundation**, **Domain graph foundation**, **Static Diagram Render
 
 The long-term vision is a workspace where a user can describe a software system and receive a clean, editable architecture diagram. Planned capabilities include deliberate diagram editing, persistence, custom nodes, layout logic, and carefully bounded AI assistance.
 
-Component creation and deletion, node movement, connection creation and deletion, and local persistence are implemented. The undo/redo history foundation and editor-state ownership integration are implemented, while history entry creation, drag coalescing, controls, and keyboard shortcuts remain unfinished. Custom nodes, layout logic, AI integration, authentication, and collaboration remain planned only.
+Component creation and deletion, node movement, connection creation and deletion, and local persistence are implemented. The undo/redo history foundation, editor-state ownership integration, and structural-edit recording are implemented, while drag coalescing, controls, and keyboard shortcuts remain unfinished. Custom nodes, layout logic, AI integration, authentication, and collaboration remain planned only.
 
 ## Architecture principle
 

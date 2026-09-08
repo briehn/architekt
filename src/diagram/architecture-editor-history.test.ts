@@ -7,6 +7,7 @@ import type { ComponentId, ConnectionId } from "../domain/identifiers";
 import {
   addComponentToEditorState,
   addConnectionToEditorState,
+  applyReactFlowNodeChangesToEditorState,
   createArchitectureEditorState,
   type ArchitectureEditorState,
   removeComponentFromEditorState,
@@ -515,5 +516,178 @@ describe("ArchitectureEditorHistory", () => {
     expect(recordedHistory.present.nodePositions).toBe(
       nextState.nodePositions,
     );
+  });
+});
+
+describe("structural editor-state history recording", () => {
+  it("records one snapshot for an accepted component add", () => {
+    const state = initialState(api);
+    const nextState = expectEditorStateSuccess(
+      addComponentToEditorState(state, database),
+    );
+    const history = recordArchitectureEditorState(
+      createArchitectureEditorHistory(state),
+      nextState,
+    );
+
+    expect(history.past).toHaveLength(1);
+    expect(history.past[0]).toEqual({
+      graph: state.graph,
+      nodePositions: state.nodePositions,
+    });
+    expect(history.present).toBe(nextState);
+  });
+
+  it("records one snapshot for an accepted component delete", () => {
+    const state = initialState(api, database);
+    const nextState = expectEditorStateSuccess(
+      removeComponentFromEditorState(state, database.id),
+    );
+    const history = recordArchitectureEditorState(
+      createArchitectureEditorHistory(state),
+      nextState,
+    );
+
+    expect(history.past).toHaveLength(1);
+    expect(history.past[0]).toEqual({
+      graph: state.graph,
+      nodePositions: state.nodePositions,
+    });
+    expect(history.present.graph.getComponents()).toEqual([api]);
+  });
+
+  it("records one snapshot for an accepted connection add", () => {
+    const state = initialState(api, database);
+    const nextState = expectEditorStateSuccess(
+      addConnectionToEditorState(state, apiToDatabase),
+    );
+    const history = recordArchitectureEditorState(
+      createArchitectureEditorHistory(state),
+      nextState,
+    );
+
+    expect(history.past).toHaveLength(1);
+    expect(history.past[0]).toEqual({
+      graph: state.graph,
+      nodePositions: state.nodePositions,
+    });
+    expect(history.present.graph.getConnections()).toEqual([apiToDatabase]);
+  });
+
+  it("records one snapshot for an accepted connection delete", () => {
+    const state = expectEditorStateSuccess(
+      addConnectionToEditorState(initialState(api, database), apiToDatabase),
+    );
+    const nextState = expectEditorStateSuccess(
+      removeConnectionFromEditorState(state, apiToDatabase.id),
+    );
+    const history = recordArchitectureEditorState(
+      createArchitectureEditorHistory(state),
+      nextState,
+    );
+
+    expect(history.past).toHaveLength(1);
+    expect(history.past[0]).toEqual({
+      graph: state.graph,
+      nodePositions: state.nodePositions,
+    });
+    expect(history.present.graph.getConnections()).toEqual([]);
+  });
+
+  it("preserves both history stacks after rejected structural operations", () => {
+    const initialHistory = createArchitectureEditorHistory(initialState(api));
+    const historyWithFuture = undoArchitectureEditorHistory(
+      recordArchitectureEditorState(
+        initialHistory,
+        expectEditorStateSuccess(
+          addComponentToEditorState(initialHistory.present, database),
+        ),
+      ),
+    );
+    const rejectedComponent = addComponentToEditorState(
+      historyWithFuture.present,
+      api,
+    );
+    const rejectedConnection = addConnectionToEditorState(
+      historyWithFuture.present,
+      apiToDatabase,
+    );
+    const pastBeforeRejectedOperations = historyWithFuture.past;
+    const futureBeforeRejectedOperations = historyWithFuture.future;
+
+    expect(rejectedComponent.ok).toBe(false);
+    expect(rejectedConnection.ok).toBe(false);
+    expect(
+      recordArchitectureEditorState(
+        historyWithFuture,
+        historyWithFuture.present,
+      ),
+    ).toBe(historyWithFuture);
+    expect(historyWithFuture.past).toBe(pastBeforeRejectedOperations);
+    expect(historyWithFuture.future).toBe(futureBeforeRejectedOperations);
+  });
+
+  it("keeps measurement and position changes non-recording", () => {
+    const state = initialState(api);
+    const historyWithFuture = undoArchitectureEditorHistory(
+      recordArchitectureEditorState(
+        createArchitectureEditorHistory(state),
+        expectEditorStateSuccess(addComponentToEditorState(state, database)),
+      ),
+    );
+    const measuredState = applyReactFlowNodeChangesToEditorState(
+      historyWithFuture.present,
+      [
+        {
+          id: api.id,
+          type: "dimensions",
+          dimensions: { width: 176, height: 48 },
+        },
+      ],
+    );
+    const measuredHistory = replaceArchitectureEditorStateWithoutHistory(
+      historyWithFuture,
+      measuredState,
+    );
+    const movedState = applyReactFlowNodeChangesToEditorState(
+      measuredHistory.present,
+      [
+        {
+          id: api.id,
+          type: "position",
+          position: { x: 120, y: 80 },
+          dragging: true,
+        },
+      ],
+    );
+    const movedHistory = replaceArchitectureEditorStateWithoutHistory(
+      measuredHistory,
+      movedState,
+    );
+
+    expect(measuredHistory.past).toBe(historyWithFuture.past);
+    expect(measuredHistory.future).toBe(historyWithFuture.future);
+    expect(movedHistory.past).toBe(historyWithFuture.past);
+    expect(movedHistory.future).toBe(historyWithFuture.future);
+    expect(canRedoArchitectureEditorHistory(movedHistory)).toBe(true);
+  });
+
+  it("clears redo after a new accepted structural edit", () => {
+    const state = initialState(api);
+    const historyWithFuture = undoArchitectureEditorHistory(
+      recordArchitectureEditorState(
+        createArchitectureEditorHistory(state),
+        expectEditorStateSuccess(addComponentToEditorState(state, database)),
+      ),
+    );
+    const cache = component("cache", "Cache");
+    const nextState = expectEditorStateSuccess(
+      addComponentToEditorState(historyWithFuture.present, cache),
+    );
+    const history = recordArchitectureEditorState(historyWithFuture, nextState);
+
+    expect(history.past).toHaveLength(1);
+    expect(history.future).toEqual([]);
+    expect(canRedoArchitectureEditorHistory(history)).toBe(false);
   });
 });

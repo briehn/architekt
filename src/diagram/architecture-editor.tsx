@@ -34,6 +34,7 @@ import {
 } from "./architecture-editor-state";
 import {
   createArchitectureEditorHistory,
+  recordArchitectureEditorState,
   replaceArchitectureEditorStateWithoutHistory,
   type ArchitectureEditorHistory,
 } from "./architecture-editor-history";
@@ -419,7 +420,7 @@ export function ArchitectureEditor() {
       return latestResult.ok
         ? {
             ...currentViewState,
-            history: replaceArchitectureEditorStateWithoutHistory(
+            history: recordArchitectureEditorState(
               currentViewState.history,
               latestResult.state,
             ),
@@ -444,7 +445,7 @@ export function ArchitectureEditor() {
       return result.ok
         ? {
             ...currentViewState,
-            history: replaceArchitectureEditorStateWithoutHistory(
+            history: recordArchitectureEditorState(
               currentViewState.history,
               result.state,
             ),
@@ -467,7 +468,7 @@ export function ArchitectureEditor() {
       return result.ok
         ? {
             ...currentViewState,
-            history: replaceArchitectureEditorStateWithoutHistory(
+            history: recordArchitectureEditorState(
               currentViewState.history,
               result.state,
             ),
@@ -496,7 +497,7 @@ export function ArchitectureEditor() {
       return result.ok
         ? {
             ...currentViewState,
-            history: replaceArchitectureEditorStateWithoutHistory(
+            history: recordArchitectureEditorState(
               currentViewState.history,
               result.state,
             ),
