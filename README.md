@@ -1,77 +1,72 @@
 # Architekt
 
-Architekt is a system-design application being built as a production-quality portfolio project. Its goal is to help people turn software-system ideas into clear, editable architecture diagrams while keeping the underlying model understandable and maintainable.
+**A visual workspace for thinking through software systems.**
 
-## Current status
+I started building Architekt because system design often gets split between two imperfect places: a whiteboard that is easy to change but hard to preserve, and documentation that is accurate but slow to keep current.
 
-The **Project foundation**, **Domain graph foundation**, **Static Diagram Rendering**, **Interactive Node Movement**, **Component Creation and Deletion**, **Connection Creation**, **Connection Deletion**, **Persistence**, and **Undo/Redo** milestones are complete. The repository provides a minimal branded application shell, a framework-independent architecture graph, controlled React Flow editing backed by application-owned state, local workspace persistence, and accessible history navigation.
+Architekt is my attempt to bring those ideas into one focused workspace. The diagram stays visual and editable, while the system behind it remains structured enough to validate, save, undo, and eventually support carefully controlled AI-assisted changes.
 
-## Currently implemented
+## What works today
 
-- A Next.js App Router application with TypeScript and Tailwind CSS
-- A responsive, semantic Architekt application shell
-- An immutable, framework-independent `ArchitectureGraph` with directional connections and invariant enforcement
-- A React Flow adapter that produces renderer-specific `Node[]` and `Edge[]` from the canonical graph
-- Application-owned node positions with renderer-only measured dimensions kept outside the domain graph
-- A compact component form and component list for creating and deleting architecture components
-- React Flow connection gestures translated into domain-validated directional connections without renderer-owned canonical edges
-- A graph-derived connection list for deleting directional connections without enabling canvas selection
-- A `StaticDiagram` with panning, zooming, node dragging, connection creation, and initial `fitView` framing; selection and edge reconnection remain disabled
-- A framework-independent V1 codec that validates and restores persisted graph and position data through domain operations
-- A typed localStorage adapter with an injected, browser-free test seam and explicit failure results
-- A hydration-safe loading boundary that resolves saved, missing, recovery-required, and memory-only editor modes before mounting React Flow
-- A 300 ms trailing autosave for graph and position changes, with truthful save-failure feedback and explicit Retry
-- Clear-first recovery reset for invalid or unsupported saved workspaces, guarded by native confirmation
-- A bounded, framework-independent history model that records accepted structural edits and coalesces each completed node drag while reconciling transient measurements
-- Compact Undo and Redo controls with guarded Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z, and Ctrl+Y shortcuts
-- Vitest coverage for domain behavior, layout behavior, renderer adaptation, coordinated editor state, persistence, history, and keyboard-shortcut behavior (159 tests)
-- Project-level test, lint, and production build commands
-- Repository guidance that documents engineering, architecture, and visual-system boundaries
+Architekt currently supports the core editing loop:
 
-## Planned vision
+- Create and delete architecture components
+- Move components around the canvas
+- Add and remove directional connections
+- Save the current graph and layout in the browser
+- Recover safely when saved data is invalid or unavailable
+- Undo and redo structural edits and completed node drags
+- Use standard history shortcuts such as `Ctrl/Cmd+Z`, `Ctrl/Cmd+Shift+Z`, and `Ctrl+Y`
 
-The long-term vision is a workspace where a user can describe a software system and receive a clean, editable architecture diagram. Planned capabilities include deliberate diagram editing, persistence, custom nodes, layout logic, and carefully bounded AI assistance.
+The editor is intentionally small right now. I am building it one complete interaction at a time instead of filling the interface with controls before their behavior is properly defined.
 
-Component creation and deletion, node movement, connection creation and deletion, local persistence, and undo/redo are implemented. Custom nodes, layout logic, AI integration, authentication, and collaboration remain planned only.
+## How it is built
 
-## Architecture principle
-
-The domain graph is the canonical source of truth. It remains independent from React Flow and other rendering concerns:
+The central idea is that the canvas is a view of the architecture, not the architecture itself.
 
 ```text
-User input → validated command → domain graph → renderer
+User action
+    -> validated domain operation
+    -> architecture graph
+    -> React Flow adapter
+    -> rendered diagram
 ```
 
-The React Flow adapter renders an adapted `Node[]` and `Edge[]` view of the domain graph rather than becoming canonical application state. This keeps domain behavior testable without a browser or UI library and gives future manual edits and AI output a shared, validated path into the system.
+`ArchitectureGraph` owns the actual components, connections, and rules. React Flow receives nodes and edges derived from that graph, while node positions are kept in a separate layout model.
 
-## Tech stack
+That separation gives the project a few useful properties:
 
-- Next.js 16 with the App Router
+- Domain behavior can be tested without React or a browser.
+- Invalid connections are rejected before they reach the canvas.
+- Saved data is validated by rebuilding it through the same domain operations used by the editor.
+- Undo and redo can restore meaningful graph and layout snapshots without storing renderer-only details.
+- Future AI output can be treated as a proposed set of validated edits instead of being allowed to manipulate the canvas directly.
+
+## Technical highlights
+
+- Immutable graph operations with explicit success and rejection results
+- Branded TypeScript identifiers for components and connections
+- Controlled React Flow rendering backed by application-owned state
+- A versioned persistence format with runtime validation
+- Debounced local autosave with clear loading, failure, and recovery states
+- Bounded undo/redo history with completed node drags grouped into single actions
+- Automated coverage for the domain, layout, rendering adapter, persistence, editor state, history, and keyboard shortcuts
+
+## Stack
+
+- Next.js 16
 - React 19
 - TypeScript
+- React Flow
 - Tailwind CSS 4
-- ESLint
+- Vitest
 
-## Local setup
+## Current direction
 
-Install dependencies and start the development server:
+Architekt is under active development. The next focused feature is component renaming, followed by deeper decisions around component types, connection meaning, layout, and the boundaries of AI-assisted editing.
 
-```bash
-npm install
-npm run dev
-```
+Screenshots and a live demo will be added when the editor's visual language is mature enough to represent the project well. For now, the repository reflects the working product and the engineering decisions behind it.
 
-Open [http://localhost:3000](http://localhost:3000) in a browser.
+## About this repository
 
-Run the standard checks before handing off changes:
-
-```bash
-npm run lint
-npm run build
-```
-
-## Roadmap
-
-This project is being built incrementally, with each milestone focused on a clear boundary and verifiable outcome. The project foundation, domain graph foundation, static diagram rendering, interactive node movement, component creation and deletion, connection creation, connection deletion, and persistence milestones are complete.
-
-The current milestone is undo/redo. Its pure history model is complete; editor ownership, drag grouping, user controls, keyboard shortcuts, and persistence integration remain. Planned functionality will be documented as implemented only when it is present, validated, and maintainable.
+This is a personal portfolio project that I am designing and building as a complete product. The source is available to show my approach to product thinking, application architecture, interaction design, and testing. It is not intended to be a starter kit, tutorial project, or community-maintained template, and I am not currently accepting outside contributions.
