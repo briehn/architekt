@@ -202,13 +202,13 @@ Allow users to deliberately delete existing architecture connections without mak
 * Persistence, undo/redo, collaboration, authentication, or AI integration
 * Zustand or renderer-owned canonical edge state
 
-## Current milestone: Persistence
+## Completed milestone: Persistence
 
 ### Goal
 
 Preserve the current single-workspace graph and node positions across refreshes without making persisted or renderer data canonical and without bypassing domain invariants during restoration.
 
-**Milestone status: In progress.**
+**Milestone status: Complete.**
 
 ### Completed tasks
 
@@ -233,7 +233,7 @@ Preserve the current single-workspace graph and node positions across refreshes 
 * [x] Add 300 ms trailing-debounced automatic saving for graph and position changes
 * [x] Keep failed saves editable and support explicit Retry plus automatic retry after a later persistable edit
 * [x] Add clear-first saved-workspace reset and recovery actions
-* [ ] Verify persistence and recovery through browser-level checks
+* [x] Verify persistence and recovery through browser-level checks
 
 ## Still out of scope
 
@@ -242,3 +242,33 @@ Preserve the current single-workspace graph and node positions across refreshes 
 * React Flow nodes, edges, measurements, viewport, or transient UI-state persistence
 * Import/export, migration machinery beyond rejecting unsupported versions, backups, or history
 * AI, Zustand, undo/redo, or collaboration
+
+## Current milestone: Undo/Redo
+
+### Goal
+
+Allow users to reverse accepted graph and layout edits without making renderer metadata historical or changing the domain graph's authority.
+
+**Milestone status: In progress.**
+
+### Completed tasks
+
+* [x] Add a framework-independent ArchitectureEditorHistory module
+* [x] Store only ArchitectureGraph and DiagramNodePositions in bounded past/future snapshots
+* [x] Keep ReactFlowNodeMeasurements transient and reconcile them against restored graphs
+* [x] Verify recording, undo/redo, redo invalidation, history limits, measurement behavior, and immutability with focused tests
+
+### Remaining tasks
+
+* [ ] Integrate history ownership into ArchitectureEditor editable view states
+* [ ] Record accepted component and connection edits while excluding rejected and measurement-only transitions
+* [ ] Coalesce each completed node drag into one history entry
+* [ ] Add accessible Undo and Redo controls and guarded keyboard shortcuts
+* [ ] Verify autosave compatibility and user-facing behavior
+
+## Still out of scope
+
+* Persisting undo/redo history across reloads
+* Command logs, inverse commands, branching history, or a visual timeline
+* Viewport, selection, form, validation, persistence-status, or renderer-measurement history
+* Zustand, AI, projects, authentication, server persistence, or collaboration

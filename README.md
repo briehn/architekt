@@ -4,7 +4,7 @@ Architekt is a system-design application being built as a production-quality por
 
 ## Current status
 
-The **Project foundation**, **Domain graph foundation**, **Static Diagram Rendering**, **Interactive Node Movement**, **Component Creation and Deletion**, **Connection Creation**, and **Connection Deletion** milestones are complete. The repository provides a minimal branded application shell, a framework-independent architecture graph, controlled React Flow node dragging backed by application-owned layout state, deliberate component and connection deletion, and validated directional connection creation. Local persistence is implemented: the editor loads, automatically saves, and explicitly resets its single saved workspace. Browser-level recovery verification remains pending.
+The **Project foundation**, **Domain graph foundation**, **Static Diagram Rendering**, **Interactive Node Movement**, **Component Creation and Deletion**, **Connection Creation**, **Connection Deletion**, and **Persistence** milestones are complete. The repository provides a minimal branded application shell, a framework-independent architecture graph, controlled React Flow node dragging backed by application-owned layout state, deliberate component and connection deletion, validated directional connection creation, and local workspace persistence. Undo/redo is in progress: its pure history model is implemented but is not yet connected to the editor UI.
 
 ## Currently implemented
 
@@ -22,6 +22,7 @@ The **Project foundation**, **Domain graph foundation**, **Static Diagram Render
 - A hydration-safe loading boundary that resolves saved, missing, recovery-required, and memory-only editor modes before mounting React Flow
 - A 300 ms trailing autosave for graph and position changes, with truthful save-failure feedback and explicit Retry
 - Clear-first recovery reset for invalid or unsupported saved workspaces, guarded by native confirmation
+- A bounded, framework-independent history model for graph and node-position snapshots with transient measurement reconciliation
 - Vitest coverage for domain behavior, layout behavior, renderer adaptation, coordinated editor state, and persistence behavior (127 tests)
 - Project-level test, lint, and production build commands
 - Repository guidance that documents engineering, architecture, and visual-system boundaries
@@ -30,7 +31,7 @@ The **Project foundation**, **Domain graph foundation**, **Static Diagram Render
 
 The long-term vision is a workspace where a user can describe a software system and receive a clean, editable architecture diagram. Planned capabilities include deliberate diagram editing, persistence, custom nodes, layout logic, and carefully bounded AI assistance.
 
-Component creation and deletion, node movement, and connection creation and deletion are implemented. The persistence data contract, codec, storage adapter, post-mount loading path, debounced automatic saving, and explicit recovery reset are implemented. Custom nodes, layout logic, AI integration, authentication, and collaboration remain planned only.
+Component creation and deletion, node movement, connection creation and deletion, and local persistence are implemented. The undo/redo history foundation is implemented, while editor integration, drag coalescing, controls, and keyboard shortcuts remain unfinished. Custom nodes, layout logic, AI integration, authentication, and collaboration remain planned only.
 
 ## Architecture principle
 
@@ -70,6 +71,6 @@ npm run build
 
 ## Roadmap
 
-This project is being built incrementally, with each milestone focused on a clear boundary and verifiable outcome. The project foundation, domain graph foundation, static diagram rendering, interactive node movement, component creation and deletion, connection creation, and connection deletion milestones are complete.
+This project is being built incrementally, with each milestone focused on a clear boundary and verifiable outcome. The project foundation, domain graph foundation, static diagram rendering, interactive node movement, component creation and deletion, connection creation, connection deletion, and persistence milestones are complete.
 
-The current persistence milestone's implementation is complete; browser-level recovery verification remains. Planned functionality will be documented as implemented only when it is present, validated, and maintainable.
+The current milestone is undo/redo. Its pure history model is complete; editor ownership, drag grouping, user controls, keyboard shortcuts, and persistence integration remain. Planned functionality will be documented as implemented only when it is present, validated, and maintainable.
