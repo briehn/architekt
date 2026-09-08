@@ -16,8 +16,10 @@ import {
 } from "../domain/architecture-graph";
 import type { ComponentId, ConnectionId } from "../domain/identifiers";
 import {
+  clearLocalArchitectureEditorState,
   loadLocalArchitectureEditorState,
   saveLocalArchitectureEditorState,
+  type ClearLocalArchitectureEditorStateResult,
   type SaveLocalArchitectureEditorStateResult,
   type StorageLike,
 } from "../persistence/local-architecture-editor-storage";
@@ -115,6 +117,11 @@ type ArchitectureEditorSaveFailure = Extract<
   { readonly ok: false }
 >["error"];
 
+type ArchitectureEditorResetFailure = Extract<
+  ClearLocalArchitectureEditorStateResult,
+  { readonly ok: false }
+>["error"];
+
 type ArchitectureEditorViewState =
   | { readonly status: "loading" }
   | (EditableArchitectureEditorViewState & {
@@ -126,6 +133,7 @@ type ArchitectureEditorViewState =
       readonly reason:
         | "saved-state-invalid"
         | "unsupported-schema-version";
+      readonly resetFailure: ArchitectureEditorResetFailure | null;
     })
   | (EditableArchitectureEditorViewState & {
       readonly status: "memory-only";
@@ -226,6 +234,7 @@ export function ArchitectureEditor() {
         reason: loadResult.error.type,
         editorState,
         connectionRejection: null,
+        resetFailure: null,
       });
     });
 
@@ -475,6 +484,52 @@ export function ArchitectureEditor() {
     persistEditorState(viewState.editorState);
   }
 
+  function handleResetSavedWorkspace() {
+    if (viewState.status !== "recovery-required") {
+      return;
+    }
+
+    const shouldReset = window.confirm(
+      "Reset saved workspace? Saved data will be permanently deleted, and edits made during recovery will be discarded.",
+    );
+
+    if (!shouldReset) {
+      return;
+    }
+
+    const storage = storageRef.current;
+    const clearResult = storage
+      ? clearLocalArchitectureEditorState(storage)
+      : {
+          ok: false,
+          error: { type: "storage-unavailable" as const },
+        };
+
+    if (!clearResult.ok) {
+      setViewState((currentViewState) =>
+        currentViewState.status === "recovery-required"
+          ? {
+              ...currentViewState,
+              resetFailure: clearResult.error,
+            }
+          : currentViewState,
+      );
+      return;
+    }
+
+    const editorState = createExampleArchitectureEditorState();
+    autosaveBaselineRef.current = persistedEditorStateBaseline(editorState);
+    latestEditorStateRef.current = editorState;
+    setComponentName("");
+    setValidationMessage(null);
+    setViewState({
+      status: "ready",
+      editorState,
+      connectionRejection: null,
+      saveFailure: null,
+    });
+  }
+
   const components = editorState.graph.getComponents();
   const connections = editorState.graph.getConnections();
   const componentNamesById = new Map(
@@ -494,14 +549,16 @@ export function ArchitectureEditor() {
         otherRow.targetName === row.targetName,
     ),
   }));
-  const persistenceNotice =
+  const recoveryDescription =
     viewState.status === "recovery-required"
       ? viewState.reason === "unsupported-schema-version"
-        ? "Saved workspace uses an unsupported format. The example workspace is open, but changes are not saved."
-        : "Saved workspace couldn’t be read. The example workspace is open, but changes are not saved."
-      : viewState.status === "memory-only"
-        ? "Storage is unavailable. The example workspace is open, but changes will be lost on refresh."
-        : null;
+        ? "Saved workspace uses an unsupported version. The example workspace is open, but changes are not saved."
+        : "Saved workspace data is invalid or corrupt. The example workspace is open, but changes are not saved."
+      : null;
+  const memoryOnlyNotice =
+    viewState.status === "memory-only"
+      ? "Storage is unavailable. The example workspace is open, but changes will be lost on refresh."
+      : null;
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col">
@@ -520,16 +577,30 @@ export function ArchitectureEditor() {
               Retry
             </button>
           </div>
-        ) : persistenceNotice ? (
+        ) : viewState.status === "recovery-required" ? (
+          <div className="mb-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm text-danger">{recoveryDescription}</p>
+              <button
+                className="h-9 shrink-0 rounded-md border border-danger bg-surface px-3 text-xs font-semibold text-danger transition-colors hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                onClick={handleResetSavedWorkspace}
+                type="button"
+              >
+                Reset saved workspace
+              </button>
+            </div>
+            {viewState.resetFailure !== null ? (
+              <p className="mt-2 text-sm text-danger" role="alert">
+                Could not clear saved workspace. Try again.
+              </p>
+            ) : null}
+          </div>
+        ) : memoryOnlyNotice ? (
           <p
-            className={`mb-3 text-sm ${
-              viewState.status === "recovery-required"
-                ? "text-danger"
-                : "text-text-secondary"
-            }`}
+            className="mb-3 text-sm text-text-secondary"
             role="status"
           >
-            {persistenceNotice}
+            {memoryOnlyNotice}
           </p>
         ) : null}
 

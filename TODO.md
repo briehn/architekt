@@ -232,7 +232,7 @@ Preserve the current single-workspace graph and node positions across refreshes 
 
 * [x] Add 300 ms trailing-debounced automatic saving for graph and position changes
 * [x] Keep failed saves editable and support explicit Retry plus automatic retry after a later persistable edit
-* [ ] Add saved-workspace reset and recovery actions
+* [x] Add clear-first saved-workspace reset and recovery actions
 * [ ] Verify persistence and recovery through browser-level checks
 
 ## Still out of scope
