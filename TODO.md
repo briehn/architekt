@@ -243,13 +243,13 @@ Preserve the current single-workspace graph and node positions across refreshes 
 * Import/export, migration machinery beyond rejecting unsupported versions, backups, or history
 * AI, Zustand, undo/redo, or collaboration
 
-## Current milestone: Undo/Redo
+## Completed milestone: Undo/Redo
 
 ### Goal
 
 Allow users to reverse accepted graph and layout edits without making renderer metadata historical or changing the domain graph's authority.
 
-**Milestone status: In progress.**
+**Milestone status: Complete.**
 
 ### Completed tasks
 
@@ -258,13 +258,11 @@ Allow users to reverse accepted graph and layout edits without making renderer m
 * [x] Keep ReactFlowNodeMeasurements transient and reconcile them against restored graphs
 * [x] Verify recording, undo/redo, redo invalidation, history limits, measurement behavior, and immutability with focused tests
 
-### Remaining tasks
-
 * [x] Integrate history ownership into ArchitectureEditor editable view states
 * [x] Record accepted component and connection edits while excluding rejected and measurement-only transitions
 * [x] Coalesce each completed node drag into one history entry
-* [ ] Add accessible Undo and Redo controls and guarded keyboard shortcuts
-* [ ] Verify autosave compatibility and user-facing behavior
+* [x] Add accessible Undo and Redo controls and guarded keyboard shortcuts
+* [x] Verify autosave compatibility and user-facing behavior
 
 ## Still out of scope
 

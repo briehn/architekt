@@ -33,12 +33,20 @@ import {
   removeConnectionFromEditorState,
 } from "./architecture-editor-state";
 import {
+  canRedoArchitectureEditorHistory,
+  canUndoArchitectureEditorHistory,
   commitArchitectureEditorHistoryTransaction,
   createArchitectureEditorHistory,
   recordArchitectureEditorState,
+  redoArchitectureEditorHistory,
   replaceArchitectureEditorStateWithoutHistory,
   type ArchitectureEditorHistory,
+  undoArchitectureEditorHistory,
 } from "./architecture-editor-history";
+import {
+  getArchitectureEditorHistoryNavigationAction,
+  type ArchitectureEditorHistoryNavigationAction,
+} from "./architecture-editor-keyboard-shortcuts";
 import {
   toArchitectureConnection,
   toReactFlowDiagram,
@@ -162,6 +170,17 @@ function persistedEditorStateBaseline(
   };
 }
 
+function isEditableKeyboardTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) {
+    return false;
+  }
+
+  return (
+    target.closest("input, textarea, select") !== null ||
+    (target instanceof HTMLElement && target.isContentEditable)
+  );
+}
+
 export function ArchitectureEditor() {
   const [viewState, setViewState] = useState<ArchitectureEditorViewState>({
     status: "loading",
@@ -170,10 +189,12 @@ export function ArchitectureEditor() {
   const [validationMessage, setValidationMessage] = useState<string | null>(
     null,
   );
+  const [nodeDragIsActive, setNodeDragIsActive] = useState(false);
   const storageRef = useRef<StorageLike | null>(null);
   const autosaveBaselineRef = useRef<PersistedEditorStateBaseline | null>(null);
   const latestEditorStateRef = useRef<ArchitectureEditorState | null>(null);
   const dragStartHistoryRef = useRef<ArchitectureEditorHistory | null>(null);
+  const latestViewStateRef = useRef<ArchitectureEditorViewState>(viewState);
 
   useEffect(() => {
     let cancelled = false;
@@ -254,10 +275,78 @@ export function ArchitectureEditor() {
   }, []);
 
   useEffect(() => {
+    latestViewStateRef.current = viewState;
+
     if (viewState.status !== "loading") {
       latestEditorStateRef.current = viewState.history.present;
     }
   }, [viewState]);
+
+  const navigateHistory = useCallback(
+    (action: ArchitectureEditorHistoryNavigationAction) => {
+      const latestViewState = latestViewStateRef.current;
+
+      if (
+        latestViewState.status === "loading" ||
+        dragStartHistoryRef.current !== null
+      ) {
+        return false;
+      }
+
+      const actionIsAvailable =
+        action === "undo"
+          ? canUndoArchitectureEditorHistory(latestViewState.history)
+          : canRedoArchitectureEditorHistory(latestViewState.history);
+
+      if (!actionIsAvailable) {
+        return false;
+      }
+
+      setViewState((currentViewState) => {
+        if (
+          currentViewState.status === "loading" ||
+          dragStartHistoryRef.current !== null
+        ) {
+          return currentViewState;
+        }
+
+        const history =
+          action === "undo"
+            ? undoArchitectureEditorHistory(currentViewState.history)
+            : redoArchitectureEditorHistory(currentViewState.history);
+
+        return history === currentViewState.history
+          ? currentViewState
+          : { ...currentViewState, history };
+      });
+
+      return true;
+    },
+    [],
+  );
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      const action = getArchitectureEditorHistoryNavigationAction({
+        key: event.key,
+        altKey: event.altKey,
+        ctrlKey: event.ctrlKey,
+        metaKey: event.metaKey,
+        shiftKey: event.shiftKey,
+        originatesFromEditableElement: isEditableKeyboardTarget(event.target),
+      });
+
+      if (action !== null && navigateHistory(action)) {
+        event.preventDefault();
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [navigateHistory]);
 
   const persistEditorState = useCallback(
     (editorStateToSave: ArchitectureEditorState) => {
@@ -360,6 +449,10 @@ export function ArchitectureEditor() {
 
   const { history, connectionRejection } = viewState;
   const editorState = history.present;
+  const undoIsAvailable =
+    !nodeDragIsActive && canUndoArchitectureEditorHistory(history);
+  const redoIsAvailable =
+    !nodeDragIsActive && canRedoArchitectureEditorHistory(history);
   const { nodes: diagramNodes, edges } = toReactFlowDiagram(
     editorState.graph,
     editorState.nodePositions,
@@ -393,11 +486,13 @@ export function ArchitectureEditor() {
 
   function handleNodeDragStart() {
     dragStartHistoryRef.current = history;
+    setNodeDragIsActive(true);
   }
 
   function handleNodeDragStop() {
     const dragStartHistory = dragStartHistoryRef.current;
     dragStartHistoryRef.current = null;
+    setNodeDragIsActive(false);
 
     if (dragStartHistory === null) {
       return;
@@ -701,6 +796,24 @@ export function ArchitectureEditor() {
           >
             Add
           </button>
+          <div aria-label="History controls" className="flex gap-2" role="group">
+            <button
+              className="h-9 rounded-md border border-border bg-surface px-3 text-xs font-semibold text-text-primary transition-colors hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-default disabled:bg-surface-subtle disabled:text-text-muted disabled:hover:bg-surface-subtle"
+              disabled={!undoIsAvailable}
+              onClick={() => navigateHistory("undo")}
+              type="button"
+            >
+              Undo
+            </button>
+            <button
+              className="h-9 rounded-md border border-border bg-surface px-3 text-xs font-semibold text-text-primary transition-colors hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-default disabled:bg-surface-subtle disabled:text-text-muted disabled:hover:bg-surface-subtle"
+              disabled={!redoIsAvailable}
+              onClick={() => navigateHistory("redo")}
+              type="button"
+            >
+              Redo
+            </button>
+          </div>
         </form>
 
         {validationMessage ? (

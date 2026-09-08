@@ -4,7 +4,7 @@ Architekt is a system-design application being built as a production-quality por
 
 ## Current status
 
-The **Project foundation**, **Domain graph foundation**, **Static Diagram Rendering**, **Interactive Node Movement**, **Component Creation and Deletion**, **Connection Creation**, **Connection Deletion**, and **Persistence** milestones are complete. The repository provides a minimal branded application shell, a framework-independent architecture graph, controlled React Flow node dragging backed by application-owned layout state, deliberate component and connection deletion, validated directional connection creation, and local workspace persistence. Undo/redo is in progress: editable editor modes now own its pure history model, but no undo/redo behavior is exposed yet.
+The **Project foundation**, **Domain graph foundation**, **Static Diagram Rendering**, **Interactive Node Movement**, **Component Creation and Deletion**, **Connection Creation**, **Connection Deletion**, **Persistence**, and **Undo/Redo** milestones are complete. The repository provides a minimal branded application shell, a framework-independent architecture graph, controlled React Flow editing backed by application-owned state, local workspace persistence, and accessible history navigation.
 
 ## Currently implemented
 
@@ -23,7 +23,8 @@ The **Project foundation**, **Domain graph foundation**, **Static Diagram Render
 - A 300 ms trailing autosave for graph and position changes, with truthful save-failure feedback and explicit Retry
 - Clear-first recovery reset for invalid or unsupported saved workspaces, guarded by native confirmation
 - A bounded, framework-independent history model that records accepted structural edits and coalesces each completed node drag while reconciling transient measurements
-- Vitest coverage for domain behavior, layout behavior, renderer adaptation, coordinated editor state, persistence, and history behavior (154 tests)
+- Compact Undo and Redo controls with guarded Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z, and Ctrl+Y shortcuts
+- Vitest coverage for domain behavior, layout behavior, renderer adaptation, coordinated editor state, persistence, history, and keyboard-shortcut behavior (159 tests)
 - Project-level test, lint, and production build commands
 - Repository guidance that documents engineering, architecture, and visual-system boundaries
 
@@ -31,7 +32,7 @@ The **Project foundation**, **Domain graph foundation**, **Static Diagram Render
 
 The long-term vision is a workspace where a user can describe a software system and receive a clean, editable architecture diagram. Planned capabilities include deliberate diagram editing, persistence, custom nodes, layout logic, and carefully bounded AI assistance.
 
-Component creation and deletion, node movement, connection creation and deletion, and local persistence are implemented. The undo/redo history foundation now records structural edits and coalesced node drags, while visible controls and keyboard shortcuts remain unfinished. Custom nodes, layout logic, AI integration, authentication, and collaboration remain planned only.
+Component creation and deletion, node movement, connection creation and deletion, local persistence, and undo/redo are implemented. Custom nodes, layout logic, AI integration, authentication, and collaboration remain planned only.
 
 ## Architecture principle
 
