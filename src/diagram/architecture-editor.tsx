@@ -1,6 +1,12 @@
 "use client";
 
-import { type FormEvent, useEffect, useState } from "react";
+import {
+  type FormEvent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import type { Connection, NodeChange } from "@xyflow/react";
 
 import {
@@ -9,7 +15,12 @@ import {
   ArchitectureGraph,
 } from "../domain/architecture-graph";
 import type { ComponentId, ConnectionId } from "../domain/identifiers";
-import { loadLocalArchitectureEditorState } from "../persistence/local-architecture-editor-storage";
+import {
+  loadLocalArchitectureEditorState,
+  saveLocalArchitectureEditorState,
+  type SaveLocalArchitectureEditorStateResult,
+  type StorageLike,
+} from "../persistence/local-architecture-editor-storage";
 import {
   addComponentToEditorState,
   addConnectionToEditorState,
@@ -99,10 +110,16 @@ type EditableArchitectureEditorViewState = {
   readonly connectionRejection: AddConnectionRejection | null;
 };
 
+type ArchitectureEditorSaveFailure = Extract<
+  SaveLocalArchitectureEditorStateResult,
+  { readonly ok: false }
+>["error"];
+
 type ArchitectureEditorViewState =
   | { readonly status: "loading" }
   | (EditableArchitectureEditorViewState & {
       readonly status: "ready";
+      readonly saveFailure: ArchitectureEditorSaveFailure | null;
     })
   | (EditableArchitectureEditorViewState & {
       readonly status: "recovery-required";
@@ -114,6 +131,22 @@ type ArchitectureEditorViewState =
       readonly status: "memory-only";
     });
 
+type PersistedEditorStateBaseline = Pick<
+  ArchitectureEditorState,
+  "graph" | "nodePositions"
+>;
+
+const AUTOSAVE_DELAY_MILLISECONDS = 300;
+
+function persistedEditorStateBaseline(
+  editorState: ArchitectureEditorState,
+): PersistedEditorStateBaseline {
+  return {
+    graph: editorState.graph,
+    nodePositions: editorState.nodePositions,
+  };
+}
+
 export function ArchitectureEditor() {
   const [viewState, setViewState] = useState<ArchitectureEditorViewState>({
     status: "loading",
@@ -122,6 +155,9 @@ export function ArchitectureEditor() {
   const [validationMessage, setValidationMessage] = useState<string | null>(
     null,
   );
+  const storageRef = useRef<StorageLike | null>(null);
+  const autosaveBaselineRef = useRef<PersistedEditorStateBaseline | null>(null);
+  const latestEditorStateRef = useRef<ArchitectureEditorState | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -134,6 +170,8 @@ export function ArchitectureEditor() {
       try {
         storage = window.localStorage;
       } catch {
+        storageRef.current = null;
+        autosaveBaselineRef.current = null;
         setViewState({
           status: "memory-only",
           editorState: createExampleArchitectureEditorState(),
@@ -142,13 +180,18 @@ export function ArchitectureEditor() {
         return;
       }
 
+      storageRef.current = storage;
       const loadResult = loadLocalArchitectureEditorState(storage);
 
       if (loadResult.status === "loaded") {
+        autosaveBaselineRef.current = persistedEditorStateBaseline(
+          loadResult.state,
+        );
         setViewState({
           status: "ready",
           editorState: loadResult.state,
           connectionRejection: null,
+          saveFailure: null,
         });
         return;
       }
@@ -156,15 +199,19 @@ export function ArchitectureEditor() {
       const editorState = createExampleArchitectureEditorState();
 
       if (loadResult.status === "missing") {
+        autosaveBaselineRef.current = persistedEditorStateBaseline(editorState);
         setViewState({
           status: "ready",
           editorState,
           connectionRejection: null,
+          saveFailure: null,
         });
         return;
       }
 
       if (loadResult.error.type === "storage-unavailable") {
+        storageRef.current = null;
+        autosaveBaselineRef.current = null;
         setViewState({
           status: "memory-only",
           editorState,
@@ -173,6 +220,7 @@ export function ArchitectureEditor() {
         return;
       }
 
+      autosaveBaselineRef.current = null;
       setViewState({
         status: "recovery-required",
         reason: loadResult.error.type,
@@ -185,6 +233,96 @@ export function ArchitectureEditor() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (viewState.status !== "loading") {
+      latestEditorStateRef.current = viewState.editorState;
+    }
+  }, [viewState]);
+
+  const persistEditorState = useCallback(
+    (editorStateToSave: ArchitectureEditorState) => {
+      const storage = storageRef.current;
+      const saveResult: SaveLocalArchitectureEditorStateResult = storage
+        ? saveLocalArchitectureEditorState(storage, editorStateToSave)
+        : {
+            ok: false,
+            error: { type: "storage-unavailable" },
+          };
+
+      if (saveResult.ok) {
+        autosaveBaselineRef.current =
+          persistedEditorStateBaseline(editorStateToSave);
+      }
+
+      setViewState((currentViewState) => {
+        if (currentViewState.status !== "ready") {
+          return currentViewState;
+        }
+
+        if (!saveResult.ok) {
+          return {
+            ...currentViewState,
+            saveFailure: saveResult.error,
+          };
+        }
+
+        const savedRevisionIsCurrent =
+          currentViewState.editorState.graph === editorStateToSave.graph &&
+          currentViewState.editorState.nodePositions ===
+            editorStateToSave.nodePositions;
+
+        if (!savedRevisionIsCurrent || currentViewState.saveFailure === null) {
+          return currentViewState;
+        }
+
+        return {
+          ...currentViewState,
+          saveFailure: null,
+        };
+      });
+    },
+    [],
+  );
+
+  const autosaveGraph =
+    viewState.status === "ready" ? viewState.editorState.graph : null;
+  const autosaveNodePositions =
+    viewState.status === "ready" ? viewState.editorState.nodePositions : null;
+
+  useEffect(() => {
+    if (autosaveGraph === null || autosaveNodePositions === null) {
+      return;
+    }
+
+    const baseline = autosaveBaselineRef.current;
+    if (
+      baseline?.graph === autosaveGraph &&
+      baseline.nodePositions === autosaveNodePositions
+    ) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      const latestEditorState = latestEditorStateRef.current;
+      const latestBaseline = autosaveBaselineRef.current;
+      if (
+        latestEditorState === null ||
+        latestEditorState.graph !== autosaveGraph ||
+        latestEditorState.nodePositions !== autosaveNodePositions ||
+        (latestBaseline?.graph === autosaveGraph &&
+          latestBaseline.nodePositions === autosaveNodePositions)
+      ) {
+        return;
+      }
+
+      persistEditorState(latestEditorState);
+    }, AUTOSAVE_DELAY_MILLISECONDS);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [autosaveGraph, autosaveNodePositions, persistEditorState]);
 
   if (viewState.status === "loading") {
     return (
@@ -329,6 +467,14 @@ export function ArchitectureEditor() {
     });
   }
 
+  function handleRetrySave() {
+    if (viewState.status !== "ready") {
+      return;
+    }
+
+    persistEditorState(viewState.editorState);
+  }
+
   const components = editorState.graph.getComponents();
   const connections = editorState.graph.getConnections();
   const componentNamesById = new Map(
@@ -360,7 +506,21 @@ export function ArchitectureEditor() {
   return (
     <div className="flex h-full min-h-0 w-full flex-col">
       <div className="shrink-0 border-b border-border bg-surface px-3 py-3 sm:px-4">
-        {persistenceNotice ? (
+        {viewState.status === "ready" && viewState.saveFailure !== null ? (
+          <div
+            className="mb-3 flex items-center justify-between gap-3"
+            role="alert"
+          >
+            <p className="text-sm text-danger">Changes are not saved.</p>
+            <button
+              className="h-9 shrink-0 rounded-md border border-border bg-surface px-3 text-xs font-semibold text-text-primary transition-colors hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+              onClick={handleRetrySave}
+              type="button"
+            >
+              Retry
+            </button>
+          </div>
+        ) : persistenceNotice ? (
           <p
             className={`mb-3 text-sm ${
               viewState.status === "recovery-required"
