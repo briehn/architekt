@@ -205,6 +205,44 @@ describe("toReactFlowDiagram", () => {
     );
   });
 
+  it("derives an updated node label after rename without changing node or edge structure", () => {
+    const api = component("api", "API");
+    const database = component("database", "Database");
+    let graph = ArchitectureGraph.empty();
+
+    graph = addComponent(graph, api);
+    graph = addComponent(graph, database);
+    graph = addConnection(
+      graph,
+      connection("api-to-database", api.id, database.id),
+    );
+    const positions = nodePositions(
+      [api.id, { x: 96, y: 64 }],
+      [database.id, { x: 340, y: 160 }],
+    );
+    const renameResult = graph.renameComponent(api.id, "Public API");
+
+    if (!renameResult.ok) {
+      throw new Error("Expected component rename to succeed.");
+    }
+
+    const diagram = toReactFlowDiagram(renameResult.graph, positions);
+
+    expect(diagram.nodes).toContainEqual({
+      id: "api",
+      position: { x: 96, y: 64 },
+      data: { label: "Public API" },
+    });
+    expect(diagram.edges).toEqual([
+      {
+        id: "api-to-database",
+        source: "api",
+        target: "database",
+        markerEnd: { type: "arrowclosed" },
+      },
+    ]);
+  });
+
   it("is deterministic and does not change its canonical inputs", () => {
     const api = component("api", "API");
     const database = component("database", "Database");

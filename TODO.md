@@ -270,3 +270,24 @@ Allow users to reverse accepted graph and layout edits without making renderer m
 * Command logs, inverse commands, branching history, or a visual timeline
 * Viewport, selection, form, validation, persistence-status, or renderer-measurement history
 * Zustand, AI, projects, authentication, server persistence, or collaboration
+
+## Completed milestone: Component Renaming
+
+### Goal
+
+Allow users to rename an architecture component directly from the editor while
+preserving the graph as canonical state and relying on existing history,
+persistence, and derived-rendering boundaries.
+
+### Completed tasks
+
+* [x] Add immutable, validated component renaming to `ArchitectureGraph`
+* [x] Coordinate renames through `ArchitectureEditorState` without changing layout or transient measurements
+* [x] Record changed renames through the existing undo/redo history model
+* [x] Add accessible inline rename controls with save, cancel, validation, and focus restoration
+* [x] Verify V1 persistence and React Flow derivation remain compatible with renamed components
+
+## Next logical milestone: Component types
+
+Define the smallest useful domain-level component classification without coupling
+the graph to renderer-specific styling or introducing an inspector system.

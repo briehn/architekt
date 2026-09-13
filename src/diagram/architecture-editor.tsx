@@ -29,6 +29,7 @@ import {
   applyReactFlowNodeChangesToEditorState,
   createArchitectureEditorState,
   type ArchitectureEditorState,
+  renameComponentInEditorState,
   removeComponentFromEditorState,
   removeConnectionFromEditorState,
 } from "./architecture-editor-state";
@@ -52,7 +53,11 @@ import {
   toReactFlowDiagram,
   withReactFlowNodeMeasurements,
 } from "./react-flow-adapter";
-import { StaticDiagram } from "./static-diagram";
+import type { CanvasRenamePresentation } from "./architekt-node";
+import {
+  StaticDiagram,
+  type CanvasNodeFocusRequest,
+} from "./static-diagram";
 
 function componentId(value: string): ComponentId {
   return value as ComponentId;
@@ -159,7 +164,49 @@ type PersistedEditorStateBaseline = Pick<
   "graph" | "nodePositions"
 >;
 
+export type RenameDraft = Readonly<{
+  componentId: ComponentId;
+  name: string;
+  validationMessage: string | null;
+}>;
+
+export type RenameOrigin = "list" | "canvas";
+
+export type RenameSession = Readonly<{
+  draft: RenameDraft;
+  origin: RenameOrigin;
+}>;
+
 const AUTOSAVE_DELAY_MILLISECONDS = 300;
+
+export function createRenameDraft(
+  componentId: ComponentId,
+  name: string,
+): RenameDraft {
+  return { componentId, name, validationMessage: null };
+}
+
+export function updateRenameDraftName(
+  draft: RenameDraft,
+  name: string,
+): RenameDraft {
+  return { ...draft, name, validationMessage: null };
+}
+
+export function createRenameSession(
+  componentId: ComponentId,
+  name: string,
+  origin: RenameOrigin,
+): RenameSession {
+  return { draft: createRenameDraft(componentId, name), origin };
+}
+
+export function getRenameDraftValidationMessage(
+  draft: RenameDraft,
+): string | null {
+  return draft.validationMessage ??
+    (draft.name.trim().length === 0 ? "Enter a component name." : null);
+}
 
 function persistedEditorStateBaseline(
   editorState: ArchitectureEditorState,
@@ -189,12 +236,55 @@ export function ArchitectureEditor() {
   const [validationMessage, setValidationMessage] = useState<string | null>(
     null,
   );
+  const [renameSession, setRenameSession] =
+    useState<RenameSession | null>(null);
+  const [canvasNodeFocusRequest, setCanvasNodeFocusRequest] =
+    useState<CanvasNodeFocusRequest | null>(null);
   const [nodeDragIsActive, setNodeDragIsActive] = useState(false);
   const storageRef = useRef<StorageLike | null>(null);
   const autosaveBaselineRef = useRef<PersistedEditorStateBaseline | null>(null);
   const latestEditorStateRef = useRef<ArchitectureEditorState | null>(null);
   const dragStartHistoryRef = useRef<ArchitectureEditorHistory | null>(null);
   const latestViewStateRef = useRef<ArchitectureEditorViewState>(viewState);
+  const renameInputRef = useRef<HTMLInputElement | null>(null);
+  const nameControlRefs = useRef(
+    new Map<ComponentId, HTMLButtonElement>(),
+  );
+  const nameControlToFocusRef = useRef<ComponentId | null>(null);
+
+  const renameDraft = renameSession?.draft ?? null;
+  const activeRenameComponentId = renameDraft?.componentId ?? null;
+
+  const closeRename = useCallback((componentId: ComponentId | null) => {
+    if (renameSession?.origin === "canvas" && componentId !== null) {
+      setCanvasNodeFocusRequest((currentRequest) => ({
+        componentId,
+        requestId: (currentRequest?.requestId ?? 0) + 1,
+      }));
+    } else if (renameSession?.origin === "list") {
+      nameControlToFocusRef.current = componentId;
+    }
+
+    setRenameSession(null);
+  }, [renameSession]);
+
+  useEffect(() => {
+    if (renameSession?.origin === "list" && activeRenameComponentId !== null) {
+      renameInputRef.current?.focus();
+      renameInputRef.current?.select();
+      return;
+    }
+
+    if (renameSession !== null) {
+      return;
+    }
+
+    const componentId = nameControlToFocusRef.current;
+    if (componentId !== null) {
+      nameControlRefs.current.get(componentId)?.focus();
+      nameControlToFocusRef.current = null;
+    }
+  }, [activeRenameComponentId, renameSession]);
 
   useEffect(() => {
     let cancelled = false;
@@ -302,6 +392,8 @@ export function ArchitectureEditor() {
         return false;
       }
 
+      closeRename(activeRenameComponentId);
+
       setViewState((currentViewState) => {
         if (
           currentViewState.status === "loading" ||
@@ -322,7 +414,7 @@ export function ArchitectureEditor() {
 
       return true;
     },
-    [],
+    [activeRenameComponentId, closeRename],
   );
 
   useEffect(() => {
@@ -557,6 +649,10 @@ export function ArchitectureEditor() {
   }
 
   function handleDeleteComponent(componentId: ComponentId) {
+    if (renameDraft?.componentId === componentId) {
+      closeRename(null);
+    }
+
     setViewState((currentViewState) => {
       if (currentViewState.status === "loading") {
         return currentViewState;
@@ -578,6 +674,126 @@ export function ArchitectureEditor() {
         : currentViewState;
     });
   }
+
+  function submitRename() {
+    if (renameDraft === null) {
+      return;
+    }
+
+    const name = renameDraft.name.trim();
+
+    if (!name) {
+      setRenameSession((currentSession) =>
+        currentSession === null
+          ? currentSession
+          : {
+              ...currentSession,
+              draft: {
+                ...currentSession.draft,
+                validationMessage: "Enter a component name.",
+              },
+            },
+      );
+      return;
+    }
+
+    const initialResult = renameComponentInEditorState(
+      editorState,
+      renameDraft.componentId,
+      name,
+    );
+
+    if (!initialResult.ok) {
+      if (initialResult.error.type === "component-id-does-not-exist") {
+        closeRename(null);
+      } else {
+        setRenameSession((currentSession) =>
+          currentSession === null
+            ? currentSession
+            : {
+                ...currentSession,
+                draft: {
+                  ...currentSession.draft,
+                  validationMessage: "Enter a component name.",
+                },
+              },
+        );
+      }
+      return;
+    }
+
+    const componentId = renameDraft.componentId;
+    setViewState((currentViewState) => {
+      if (currentViewState.status === "loading") {
+        return currentViewState;
+      }
+
+      const latestResult = renameComponentInEditorState(
+        currentViewState.history.present,
+        componentId,
+        name,
+      );
+
+      return latestResult.ok
+        ? {
+            ...currentViewState,
+            history: recordArchitectureEditorState(
+              currentViewState.history,
+              latestResult.state,
+            ),
+          }
+        : currentViewState;
+    });
+    closeRename(componentId);
+  }
+
+  function handleRenameSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    submitRename();
+  }
+
+  function startRename(
+    component: Readonly<{ id: ComponentId; name: string }>,
+    origin: RenameOrigin,
+  ) {
+    setRenameSession(createRenameSession(component.id, component.name, origin));
+  }
+
+  function handleRenameDraftChange(componentId: ComponentId, name: string) {
+    setRenameSession((currentSession) => {
+      if (currentSession?.draft.componentId !== componentId) {
+        return currentSession;
+      }
+
+      return {
+        ...currentSession,
+        draft: updateRenameDraftName(currentSession.draft, name),
+      };
+    });
+  }
+
+  function handleNodeRenameRequested(componentId: ComponentId) {
+    const component = editorState.graph
+      .getComponents()
+      .find((existingComponent) => existingComponent.id === componentId);
+
+    if (component) {
+      startRename(component, "canvas");
+    }
+  }
+
+  const canvasRename: CanvasRenamePresentation | null =
+    renameSession?.origin === "canvas" && renameDraft !== null
+      ? {
+          componentId: renameDraft.componentId,
+          name: renameDraft.name,
+          validationMessage: getRenameDraftValidationMessage(renameDraft),
+          onNameChange: (name) =>
+            handleRenameDraftChange(renameDraft.componentId, name),
+          onSubmit: submitRename,
+          onCancel: () => closeRename(renameDraft.componentId),
+        }
+      : null;
 
   function handleDeleteConnection(connectionId: ConnectionId) {
     setViewState((currentViewState) => {
@@ -681,6 +897,7 @@ export function ArchitectureEditor() {
     latestEditorStateRef.current = editorState;
     setComponentName("");
     setValidationMessage(null);
+    closeRename(null);
     setViewState({
       status: "ready",
       history: createArchitectureEditorHistory(editorState),
@@ -844,12 +1061,93 @@ export function ArchitectureEditor() {
               >
                 {components.map((component) => (
                   <li
-                    className="flex h-9 items-center overflow-hidden rounded-md border border-border bg-surface-subtle"
+                    className="flex min-h-9 items-stretch overflow-hidden rounded-md border border-border bg-surface-subtle"
                     key={component.id}
                   >
-                    <span className="px-3 text-sm text-text-primary">
-                      {component.name}
-                    </span>
+                    {renameSession?.origin === "list" &&
+                    renameDraft?.componentId === component.id ? (
+                      <div className="flex min-w-0 flex-1 flex-col justify-center px-2 py-1">
+                        <form
+                          className="flex min-w-0 items-center gap-1"
+                          onSubmit={handleRenameSubmit}
+                        >
+                          <label
+                            className="sr-only"
+                            htmlFor={`rename-component-${component.id}`}
+                          >
+                            Rename {component.name}
+                          </label>
+                          <input
+                            aria-describedby={
+                              getRenameDraftValidationMessage(renameDraft)
+                                ? `rename-component-error-${component.id}`
+                                : undefined
+                            }
+                            aria-invalid={
+                              getRenameDraftValidationMessage(renameDraft)
+                                ? true
+                                : undefined
+                            }
+                            className="h-8 min-w-0 flex-1 rounded-md border border-border bg-surface px-2 text-sm text-text-primary outline-none focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-focus-ring"
+                            id={`rename-component-${component.id}`}
+                            onChange={(event) =>
+                              handleRenameDraftChange(
+                                component.id,
+                                event.target.value,
+                              )
+                            }
+                            onKeyDown={(event) => {
+                              if (event.key === "Escape") {
+                                event.preventDefault();
+                                closeRename(component.id);
+                              }
+                            }}
+                            ref={renameInputRef}
+                            type="text"
+                            value={renameDraft.name}
+                          />
+                          <button
+                            className="h-8 rounded-md bg-accent px-2 text-xs font-semibold text-surface transition-colors hover:bg-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-default disabled:bg-surface-subtle disabled:text-text-muted disabled:hover:bg-surface-subtle"
+                            disabled={renameDraft.name.trim().length === 0}
+                            type="submit"
+                          >
+                            Save
+                          </button>
+                          <button
+                            className="h-8 rounded-md border border-border bg-surface px-2 text-xs font-semibold text-text-primary transition-colors hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                            onClick={() => closeRename(component.id)}
+                            type="button"
+                          >
+                            Cancel
+                          </button>
+                        </form>
+                        {getRenameDraftValidationMessage(renameDraft) ? (
+                          <p
+                            className="mt-1 text-sm text-danger"
+                            id={`rename-component-error-${component.id}`}
+                            role="alert"
+                          >
+                            {getRenameDraftValidationMessage(renameDraft)}
+                          </p>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <button
+                        aria-label={`Rename ${component.name}`}
+                        className="min-w-0 px-3 text-left text-sm text-text-primary transition-colors hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                        onClick={() => startRename(component, "list")}
+                        ref={(element) => {
+                          if (element) {
+                            nameControlRefs.current.set(component.id, element);
+                          } else {
+                            nameControlRefs.current.delete(component.id);
+                          }
+                        }}
+                        type="button"
+                      >
+                        {component.name}
+                      </button>
+                    )}
                     <button
                       aria-label={`Delete ${component.name}`}
                       className="h-full border-l border-border px-3 text-xs font-semibold text-text-secondary transition-colors hover:bg-surface hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
@@ -932,11 +1230,14 @@ export function ArchitectureEditor() {
 
       <div className="min-h-0 flex-1">
         <StaticDiagram
+          canvasNodeFocusRequest={canvasNodeFocusRequest}
+          canvasRename={canvasRename}
           nodes={nodes}
           edges={edges}
           onConnect={handleConnect}
           onNodeDragStart={handleNodeDragStart}
           onNodeDragStop={handleNodeDragStop}
+          onNodeRenameRequested={handleNodeRenameRequested}
           onNodesChange={handleNodesChange}
         />
       </div>

@@ -10,6 +10,7 @@ import {
   applyReactFlowNodeChangesToEditorState,
   createArchitectureEditorState,
   type ArchitectureEditorState,
+  renameComponentInEditorState,
   removeComponentFromEditorState,
   removeConnectionFromEditorState,
 } from "./architecture-editor-state";
@@ -557,6 +558,28 @@ describe("structural editor-state history recording", () => {
     expect(history.present.graph.getComponents()).toEqual([api]);
   });
 
+  it("records one snapshot for an accepted component rename", () => {
+    const state = initialState(api, database);
+    const renamedState = expectEditorStateSuccess(
+      renameComponentInEditorState(state, api.id, "Public API"),
+    );
+
+    const history = recordArchitectureEditorState(
+      createArchitectureEditorHistory(state),
+      renamedState,
+    );
+
+    expect(renamedState).not.toBe(state);
+    expect(history.past).toHaveLength(1);
+    expect(history.past[0]).toEqual({
+      graph: state.graph,
+      nodePositions: state.nodePositions,
+    });
+    expect(history.past[0]).not.toHaveProperty("nodeMeasurements");
+    expect(history.present).toBe(renamedState);
+    expect(history.future).toEqual([]);
+  });
+
   it("records one snapshot for an accepted connection add", () => {
     const state = initialState(api, database);
     const nextState = expectEditorStateSuccess(
@@ -628,6 +651,37 @@ describe("structural editor-state history recording", () => {
     expect(historyWithFuture.future).toBe(futureBeforeRejectedOperations);
   });
 
+  it("leaves history untouched after rejected component renames", () => {
+    const history = createArchitectureEditorHistory(initialState(api));
+    const pastBefore = history.past;
+    const futureBefore = history.future;
+    const blankNameResult = renameComponentInEditorState(
+      history.present,
+      api.id,
+      " ",
+    );
+    const unknownIdResult = renameComponentInEditorState(
+      history.present,
+      componentId("missing"),
+      "Missing",
+    );
+
+    expect(blankNameResult).toEqual({
+      ok: false,
+      error: { type: "component-name-empty", componentId: api.id },
+    });
+    expect(unknownIdResult).toEqual({
+      ok: false,
+      error: {
+        type: "component-id-does-not-exist",
+        componentId: componentId("missing"),
+      },
+    });
+    expect(history.past).toBe(pastBefore);
+    expect(history.present.graph.getComponents()).toEqual([api]);
+    expect(history.future).toBe(futureBefore);
+  });
+
   it("keeps measurement and position changes non-recording", () => {
     const state = initialState(api);
     const historyWithFuture = undoArchitectureEditorHistory(
@@ -690,6 +744,97 @@ describe("structural editor-state history recording", () => {
     expect(history.past).toHaveLength(1);
     expect(history.future).toEqual([]);
     expect(canRedoArchitectureEditorHistory(history)).toBe(false);
+  });
+
+  it("clears redo after a changed rename but preserves it after an exact no-op", () => {
+    const initialHistory = createArchitectureEditorHistory(initialState(api));
+    const historyWithFuture = undoArchitectureEditorHistory(
+      recordArchitectureEditorState(
+        initialHistory,
+        expectEditorStateSuccess(
+          addComponentToEditorState(initialHistory.present, database),
+        ),
+      ),
+    );
+    const noOpRename = expectEditorStateSuccess(
+      renameComponentInEditorState(historyWithFuture.present, api.id, api.name),
+    );
+    const historyAfterNoOp = recordArchitectureEditorState(
+      historyWithFuture,
+      noOpRename,
+    );
+    const renamedState = expectEditorStateSuccess(
+      renameComponentInEditorState(
+        historyAfterNoOp.present,
+        api.id,
+        "Public API",
+      ),
+    );
+    const historyAfterRename = recordArchitectureEditorState(
+      historyAfterNoOp,
+      renamedState,
+    );
+
+    expect(noOpRename).toBe(historyWithFuture.present);
+    expect(historyAfterNoOp).toBe(historyWithFuture);
+    expect(canRedoArchitectureEditorHistory(historyAfterNoOp)).toBe(true);
+    expect(historyAfterRename.past).toHaveLength(1);
+    expect(historyAfterRename.future).toEqual([]);
+    expect(canRedoArchitectureEditorHistory(historyAfterRename)).toBe(false);
+  });
+
+  it("undoes and redoes a rename while preserving graph structure and eligible measurements", () => {
+    const state: ArchitectureEditorState = {
+      ...initialState(api, database),
+      nodeMeasurements: new Map([
+        [api.id, { width: 176, height: 48 }],
+        [database.id, { width: 204, height: 56 }],
+      ]),
+    };
+    const connectedState = expectEditorStateSuccess(
+      addConnectionToEditorState(state, apiToDatabase),
+    );
+    const renamedState = expectEditorStateSuccess(
+      renameComponentInEditorState(
+        connectedState,
+        api.id,
+        "Public API",
+      ),
+    );
+    const history = recordArchitectureEditorState(
+      createArchitectureEditorHistory(connectedState),
+      renamedState,
+    );
+
+    const undoneHistory = undoArchitectureEditorHistory(history);
+    const redoneHistory = redoArchitectureEditorHistory(undoneHistory);
+
+    expect(undoneHistory.present.graph.getComponents()).toEqual([
+      api,
+      database,
+    ]);
+    expect(undoneHistory.present.graph.getConnections()).toEqual([
+      apiToDatabase,
+    ]);
+    expect(undoneHistory.present.nodePositions).toBe(
+      connectedState.nodePositions,
+    );
+    expect(undoneHistory.present.nodeMeasurements).toBe(
+      renamedState.nodeMeasurements,
+    );
+    expect(redoneHistory.present.graph.getComponents()).toEqual([
+      { id: api.id, name: "Public API" },
+      database,
+    ]);
+    expect(redoneHistory.present.graph.getConnections()).toEqual([
+      apiToDatabase,
+    ]);
+    expect(redoneHistory.present.nodePositions).toBe(
+      connectedState.nodePositions,
+    );
+    expect(redoneHistory.present.nodeMeasurements).toBe(
+      renamedState.nodeMeasurements,
+    );
   });
 });
 

@@ -6,6 +6,7 @@ import type {
   AddComponentRejection,
   AddConnectionRejection,
   ArchitectureGraph,
+  RenameComponentRejection,
   RemoveComponentRejection,
   RemoveConnectionRejection,
 } from "../domain/architecture-graph";
@@ -41,6 +42,10 @@ export type AddConnectionToEditorStateResult =
 export type RemoveComponentFromEditorStateResult =
   | { ok: true; state: ArchitectureEditorState }
   | { ok: false; error: RemoveComponentRejection };
+
+export type RenameComponentInEditorStateResult =
+  | { ok: true; state: ArchitectureEditorState }
+  | { ok: false; error: RenameComponentRejection };
 
 export type RemoveConnectionFromEditorStateResult =
   | { ok: true; state: ArchitectureEditorState }
@@ -105,6 +110,31 @@ export function addComponentToEditorState(
     state: {
       graph: graphResult.graph,
       nodePositions,
+      nodeMeasurements: state.nodeMeasurements,
+    },
+  };
+}
+
+export function renameComponentInEditorState(
+  state: ArchitectureEditorState,
+  componentId: ComponentId,
+  name: ArchitectureComponent["name"],
+): RenameComponentInEditorStateResult {
+  const graphResult = state.graph.renameComponent(componentId, name);
+
+  if (!graphResult.ok) {
+    return graphResult;
+  }
+
+  if (graphResult.graph === state.graph) {
+    return { ok: true, state };
+  }
+
+  return {
+    ok: true,
+    state: {
+      graph: graphResult.graph,
+      nodePositions: state.nodePositions,
       nodeMeasurements: state.nodeMeasurements,
     },
   };

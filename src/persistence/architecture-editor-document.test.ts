@@ -4,7 +4,10 @@ import type { ArchitectureComponent } from "../domain/architecture-component";
 import type { ArchitectureConnection } from "../domain/architecture-connection";
 import { ArchitectureGraph } from "../domain/architecture-graph";
 import type { ComponentId, ConnectionId } from "../domain/identifiers";
-import type { ArchitectureEditorState } from "../diagram/architecture-editor-state";
+import {
+  renameComponentInEditorState,
+  type ArchitectureEditorState,
+} from "../diagram/architecture-editor-state";
 import {
   restoreArchitectureEditorState,
   toPersistedArchitectureEditorDocument,
@@ -81,6 +84,20 @@ function editorStateForSerialization(): ArchitectureEditorState {
       ["database", { width: 200, height: 72 }],
     ]),
   };
+}
+
+function renamedEditorStateForSerialization(): ArchitectureEditorState {
+  const result = renameComponentInEditorState(
+    editorStateForSerialization(),
+    componentId("api"),
+    "Public API",
+  );
+
+  if (!result.ok) {
+    throw new Error("Expected component rename to succeed.");
+  }
+
+  return result.state;
 }
 
 function validDocument(): PersistedArchitectureEditorDocumentV1 {
@@ -167,6 +184,29 @@ describe("toPersistedArchitectureEditorDocument", () => {
     ]);
   });
 
+  it("serializes a renamed component through the existing V1 format", () => {
+    const renamedState = renamedEditorStateForSerialization();
+    const document = toPersistedArchitectureEditorDocument(renamedState);
+
+    expect(document.schemaVersion).toBe(1);
+    expect(document.graph.components).toContainEqual({
+      id: "api",
+      name: "Public API",
+    });
+    expect(document.graph.connections).toEqual([
+      {
+        id: "api-database",
+        sourceComponentId: "api",
+        targetComponentId: "database",
+      },
+    ]);
+    expect(document.nodePositions).toEqual([
+      { componentId: "api", x: 40, y: 80 },
+      { componentId: "database", x: 340, y: 160 },
+    ]);
+    expect(JSON.stringify(document)).not.toContain("nodeMeasurements");
+  });
+
   it("does not mutate or retain mutable data from the source state", () => {
     const sourceState = editorStateForSerialization();
     const sourceComponents = sourceState.graph.getComponents();
@@ -227,6 +267,21 @@ describe("restoreArchitectureEditorState", () => {
     const state = restoreSuccessfully(validDocument());
 
     expect(state.nodeMeasurements).toEqual(new Map());
+  });
+
+  it("round trips a renamed workspace while keeping renderer measurements transient", () => {
+    const renamedState = renamedEditorStateForSerialization();
+    const document = toPersistedArchitectureEditorDocument(renamedState);
+    const restoredState = restoreSuccessfully(JSON.parse(JSON.stringify(document)));
+
+    expect(restoredState.graph.getComponents()).toContainEqual(
+      component("api", "Public API"),
+    );
+    expect(restoredState.graph.getConnections()).toEqual([
+      connection("api-database", "api", "database"),
+    ]);
+    expect(restoredState.nodePositions).toEqual(renamedState.nodePositions);
+    expect(restoredState.nodeMeasurements).toEqual(new Map());
   });
 
   it.each([

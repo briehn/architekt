@@ -4,7 +4,10 @@ import type { ArchitectureComponent } from "../domain/architecture-component";
 import type { ArchitectureConnection } from "../domain/architecture-connection";
 import { ArchitectureGraph } from "../domain/architecture-graph";
 import type { ComponentId, ConnectionId } from "../domain/identifiers";
-import type { ArchitectureEditorState } from "../diagram/architecture-editor-state";
+import {
+  renameComponentInEditorState,
+  type ArchitectureEditorState,
+} from "../diagram/architecture-editor-state";
 import {
   clearLocalArchitectureEditorState,
   loadLocalArchitectureEditorState,
@@ -125,6 +128,20 @@ function editorState(): ArchitectureEditorState {
       ["database", { width: 200, height: 72 }],
     ]),
   };
+}
+
+function renamedEditorState(): ArchitectureEditorState {
+  const result = renameComponentInEditorState(
+    editorState(),
+    componentId("api"),
+    "Public API",
+  );
+
+  if (!result.ok) {
+    throw new Error("Expected component rename to succeed.");
+  }
+
+  return result.state;
 }
 
 describe("loadLocalArchitectureEditorState", () => {
@@ -359,6 +376,45 @@ describe("local architecture editor storage round trip", () => {
       expect(loadResult.state.nodePositions).toEqual(
         stateWithRendererData.nodePositions,
       );
+      expect(loadResult.state.nodeMeasurements).toEqual(new Map());
+    }
+  });
+
+  it("stores and restores a renamed component through the existing storage key", () => {
+    const storage = new MemoryStorage();
+    const state = renamedEditorState();
+
+    expect(saveLocalArchitectureEditorState(storage, state)).toEqual({
+      ok: true,
+    });
+    expect(storage.setItemCalls).toHaveLength(1);
+    expect(storage.setItemCalls[0]?.key).toBe(storageKey);
+    expect(JSON.parse(storage.setItemCalls[0]?.value ?? "")).toMatchObject({
+      schemaVersion: 1,
+      graph: {
+        components: expect.arrayContaining([
+          { id: "api", name: "Public API" },
+        ]),
+        connections: [
+          {
+            id: "api-database",
+            sourceComponentId: "api",
+            targetComponentId: "database",
+          },
+        ],
+      },
+    });
+
+    const loadResult = loadLocalArchitectureEditorState(storage);
+    expect(loadResult.status).toBe("loaded");
+    if (loadResult.status === "loaded") {
+      expect(loadResult.state.graph.getComponents()).toContainEqual(
+        component("api", "Public API"),
+      );
+      expect(loadResult.state.graph.getConnections()).toEqual([
+        connection("api-database", "api", "database"),
+      ]);
+      expect(loadResult.state.nodePositions).toEqual(state.nodePositions);
       expect(loadResult.state.nodeMeasurements).toEqual(new Map());
     }
   });

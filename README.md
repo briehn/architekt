@@ -11,6 +11,7 @@ Architekt is my attempt to bring those ideas into one focused workspace. The dia
 Architekt currently supports the core editing loop:
 
 - Create and delete architecture components
+- Rename components inline
 - Move components around the canvas
 - Add and remove directional connections
 - Save the current graph and layout in the browser
@@ -63,7 +64,7 @@ That separation gives the project a few useful properties:
 
 ## Current direction
 
-Architekt is under active development. The next focused feature is component renaming, followed by deeper decisions around component types, connection meaning, layout, and the boundaries of AI-assisted editing.
+Architekt is under active development. The next focused milestone is component types, followed by deeper decisions around connection meaning, layout, and the boundaries of AI-assisted editing.
 
 Screenshots and a live demo will be added when the editor's visual language is mature enough to represent the project well. For now, the repository reflects the working product and the engineering decisions behind it.
 
