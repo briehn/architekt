@@ -24,6 +24,20 @@ export type RemoveComponentResult =
   | { ok: true; graph: ArchitectureGraph }
   | { ok: false; error: RemoveComponentRejection };
 
+export type RenameComponentRejection =
+  | {
+      type: "component-id-does-not-exist";
+      componentId: ArchitectureComponent["id"];
+    }
+  | {
+      type: "component-name-empty";
+      componentId: ArchitectureComponent["id"];
+    };
+
+export type RenameComponentResult =
+  | { ok: true; graph: ArchitectureGraph }
+  | { ok: false; error: RenameComponentRejection };
+
 export type AddConnectionRejection =
   | {
       type: "connection-id-already-exists";
@@ -137,6 +151,48 @@ export class ArchitectureGraph {
         },
       };
     }
+  }
+
+  renameComponent(
+    componentId: ArchitectureComponent["id"],
+    name: ArchitectureComponent["name"],
+  ): RenameComponentResult {
+    const component = this.componentsById.get(componentId);
+
+    if (!component) {
+      return {
+        ok: false,
+        error: {
+          type: "component-id-does-not-exist",
+          componentId,
+        },
+      };
+    }
+
+    if (name.trim().length === 0) {
+      return {
+        ok: false,
+        error: {
+          type: "component-name-empty",
+          componentId,
+        },
+      };
+    }
+
+    if (name === component.name) {
+      return { ok: true, graph: this };
+    }
+
+    return {
+      ok: true,
+      graph: new ArchitectureGraph(
+        new Map(this.componentsById).set(componentId, {
+          ...component,
+          name,
+        }),
+        this.connectionsById,
+      ),
+    };
   }
 
   addConnection(connection: ArchitectureConnection): AddConnectionResult {

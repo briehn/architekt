@@ -209,6 +209,143 @@ describe("ArchitectureGraph.removeComponent", () => {
   });
 });
 
+describe("ArchitectureGraph.renameComponent", () => {
+  it("renames a component while preserving its ID", () => {
+    const api = component("api", "API");
+    const graph = graphWithComponents(api);
+
+    const renamedGraph = expectSuccess(
+      graph.renameComponent(api.id, "Public API"),
+    );
+
+    expect(renamedGraph).not.toBe(graph);
+    expect(renamedGraph.getComponents()).toEqual([
+      { id: api.id, name: "Public API" },
+    ]);
+  });
+
+  it("does not mutate the original graph", () => {
+    const api = component("api", "API");
+    const database = component("database", "Database");
+    const graph = graphWithComponents(api, database);
+
+    const renamedGraph = expectSuccess(
+      graph.renameComponent(api.id, "Public API"),
+    );
+
+    expect(graph.getComponents()).toEqual([api, database]);
+    expect(renamedGraph.getComponents()).toEqual([
+      { id: api.id, name: "Public API" },
+      database,
+    ]);
+  });
+
+  it("rejects an unknown component ID", () => {
+    const missingId = componentId("missing");
+
+    expect(
+      ArchitectureGraph.empty().renameComponent(missingId, "Missing"),
+    ).toEqual({
+      ok: false,
+      error: {
+        type: "component-id-does-not-exist",
+        componentId: missingId,
+      },
+    });
+  });
+
+  it("rejects an empty name", () => {
+    const api = component("api", "API");
+    const graph = graphWithComponents(api);
+
+    expect(graph.renameComponent(api.id, "")).toEqual({
+      ok: false,
+      error: { type: "component-name-empty", componentId: api.id },
+    });
+  });
+
+  it("rejects a whitespace-only name", () => {
+    const api = component("api", "API");
+    const graph = graphWithComponents(api);
+
+    expect(graph.renameComponent(api.id, " \t\n ")).toEqual({
+      ok: false,
+      error: { type: "component-name-empty", componentId: api.id },
+    });
+  });
+
+  it("reports an unknown ID before validating the name", () => {
+    const missingId = componentId("missing");
+
+    expect(
+      ArchitectureGraph.empty().renameComponent(missingId, " "),
+    ).toEqual({
+      ok: false,
+      error: {
+        type: "component-id-does-not-exist",
+        componentId: missingId,
+      },
+    });
+  });
+
+  it("returns the original graph for an exact name match", () => {
+    const api = component("api", "API");
+    const graph = graphWithComponents(api);
+    const result = graph.renameComponent(api.id, api.name);
+
+    expect(result).toEqual({ ok: true, graph });
+    expect(expectSuccess(result)).toBe(graph);
+  });
+
+  it("preserves a valid name exactly", () => {
+    const api = component("api", "API");
+    const graph = graphWithComponents(api);
+
+    const renamedGraph = expectSuccess(
+      graph.renameComponent(api.id, "  Public API  "),
+    );
+
+    expect(renamedGraph.getComponents()).toEqual([
+      { id: api.id, name: "  Public API  " },
+    ]);
+  });
+
+  it("allows duplicate component names", () => {
+    const api = component("api", "API");
+    const database = component("database", "Database");
+    const graph = graphWithComponents(api, database);
+
+    const renamedGraph = expectSuccess(
+      graph.renameComponent(database.id, api.name),
+    );
+
+    expect(renamedGraph.getComponents()).toEqual([
+      api,
+      { id: database.id, name: api.name },
+    ]);
+  });
+
+  it("preserves all connections after renaming", () => {
+    const api = component("api", "API");
+    const database = component("database", "Database");
+    const apiToDatabase = connection(
+      "api-to-database",
+      api.id,
+      database.id,
+    );
+    const graph = expectSuccess(
+      graphWithComponents(api, database).addConnection(apiToDatabase),
+    );
+
+    const renamedGraph = expectSuccess(
+      graph.renameComponent(api.id, "Public API"),
+    );
+
+    expect(renamedGraph.getConnections()).toEqual([apiToDatabase]);
+    expect(graph.getConnections()).toEqual([apiToDatabase]);
+  });
+});
+
 describe("ArchitectureGraph.addConnection", () => {
   const api = component("api", "API");
   const database = component("database", "Database");
