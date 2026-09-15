@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import type { ArchitectureComponent } from "./architecture-component";
+import {
+  ARCHITECTURE_COMPONENT_KINDS,
+  type ArchitectureComponent,
+  type ArchitectureComponentKind,
+} from "./architecture-component";
 import type { ArchitectureConnection } from "./architecture-connection";
 import { ArchitectureGraph } from "./architecture-graph";
 import type { ComponentId, ConnectionId } from "./identifiers";
@@ -13,10 +17,15 @@ function connectionId(value: string): ConnectionId {
   return value as ConnectionId;
 }
 
-function component(id: string, name: string): ArchitectureComponent {
+function component(
+  id: string,
+  name: string,
+  kind: ArchitectureComponentKind = "service",
+): ArchitectureComponent {
   return {
     id: componentId(id),
     name,
+    kind,
   };
 }
 
@@ -210,8 +219,8 @@ describe("ArchitectureGraph.removeComponent", () => {
 });
 
 describe("ArchitectureGraph.renameComponent", () => {
-  it("renames a component while preserving its ID", () => {
-    const api = component("api", "API");
+  it("renames a component while preserving its ID and kind", () => {
+    const api = component("api", "API", "gateway");
     const graph = graphWithComponents(api);
 
     const renamedGraph = expectSuccess(
@@ -220,7 +229,7 @@ describe("ArchitectureGraph.renameComponent", () => {
 
     expect(renamedGraph).not.toBe(graph);
     expect(renamedGraph.getComponents()).toEqual([
-      { id: api.id, name: "Public API" },
+      { id: api.id, name: "Public API", kind: api.kind },
     ]);
   });
 
@@ -235,7 +244,7 @@ describe("ArchitectureGraph.renameComponent", () => {
 
     expect(graph.getComponents()).toEqual([api, database]);
     expect(renamedGraph.getComponents()).toEqual([
-      { id: api.id, name: "Public API" },
+      { id: api.id, name: "Public API", kind: api.kind },
       database,
     ]);
   });
@@ -306,7 +315,7 @@ describe("ArchitectureGraph.renameComponent", () => {
     );
 
     expect(renamedGraph.getComponents()).toEqual([
-      { id: api.id, name: "  Public API  " },
+      { id: api.id, name: "  Public API  ", kind: api.kind },
     ]);
   });
 
@@ -321,7 +330,7 @@ describe("ArchitectureGraph.renameComponent", () => {
 
     expect(renamedGraph.getComponents()).toEqual([
       api,
-      { id: database.id, name: api.name },
+      { id: database.id, name: api.name, kind: database.kind },
     ]);
   });
 
@@ -343,6 +352,121 @@ describe("ArchitectureGraph.renameComponent", () => {
 
     expect(renamedGraph.getConnections()).toEqual([apiToDatabase]);
     expect(graph.getConnections()).toEqual([apiToDatabase]);
+  });
+});
+
+describe("ArchitectureGraph.changeComponentKind", () => {
+  it("changes only the target component kind and preserves connections", () => {
+    const api = component("api", " API ", "service");
+    const database = component("database", "Database", "database");
+    const cache = component("cache", "Cache", "cache");
+    const apiToDatabase = connection(
+      "api-to-database",
+      api.id,
+      database.id,
+    );
+    const databaseToApi = connection(
+      "database-to-api",
+      database.id,
+      api.id,
+    );
+    const databaseToCache = connection(
+      "database-to-cache",
+      database.id,
+      cache.id,
+    );
+    let graph = graphWithComponents(api, database, cache);
+
+    graph = expectSuccess(graph.addConnection(apiToDatabase));
+    graph = expectSuccess(graph.addConnection(databaseToApi));
+    graph = expectSuccess(graph.addConnection(databaseToCache));
+
+    const changedGraph = expectSuccess(
+      graph.changeComponentKind(api.id, "database"),
+    );
+
+    expect(changedGraph).not.toBe(graph);
+    expect(graph.getComponents()).toEqual([api, database, cache]);
+    expect(changedGraph.getComponents()).toEqual([
+      { id: api.id, name: " API ", kind: "database" },
+      database,
+      cache,
+    ]);
+    expect(graph.getConnections()).toEqual([
+      apiToDatabase,
+      databaseToApi,
+      databaseToCache,
+    ]);
+    expect(changedGraph.getConnections()).toEqual([
+      apiToDatabase,
+      databaseToApi,
+      databaseToCache,
+    ]);
+  });
+
+  it("rejects an unknown component ID", () => {
+    const missingId = componentId("missing");
+
+    expect(
+      ArchitectureGraph.empty().changeComponentKind(missingId, "service"),
+    ).toEqual({
+      ok: false,
+      error: {
+        type: "component-id-does-not-exist",
+        componentId: missingId,
+      },
+    });
+  });
+
+  it("returns the original graph for an exact kind match", () => {
+    const api = component("api", "API", "gateway");
+    const graph = graphWithComponents(api);
+    const result = graph.changeComponentKind(api.id, api.kind);
+
+    expect(result).toEqual({ ok: true, graph });
+    expect(expectSuccess(result)).toBe(graph);
+  });
+
+  it.each(ARCHITECTURE_COMPONENT_KINDS)(
+    "accepts the supported %s kind through the typed API",
+    (kind) => {
+      const api = component("api", "API", "generic");
+      const graph = graphWithComponents(api);
+      const changedGraph = expectSuccess(
+        graph.changeComponentKind(api.id, kind),
+      );
+
+      expect(changedGraph.getComponents()).toEqual([
+        { id: api.id, name: api.name, kind },
+      ]);
+    },
+  );
+});
+
+describe("ArchitectureGraph component kind preservation", () => {
+  it("keeps component kinds through connection edits and deletion of another component", () => {
+    const api = component("api", "API", "gateway");
+    const database = component("database", "Database", "database");
+    const apiToDatabase = connection(
+      "api-to-database",
+      api.id,
+      database.id,
+    );
+    const graph = graphWithComponents(api, database);
+
+    const connectedGraph = expectSuccess(
+      graph.addConnection(apiToDatabase),
+    );
+    const disconnectedGraph = expectSuccess(
+      connectedGraph.removeConnection(apiToDatabase.id),
+    );
+    const graphWithoutApi = expectSuccess(
+      connectedGraph.removeComponent(api.id),
+    );
+
+    expect(connectedGraph.getComponents()).toEqual([api, database]);
+    expect(disconnectedGraph.getComponents()).toEqual([api, database]);
+    expect(graphWithoutApi.getComponents()).toEqual([database]);
   });
 });
 

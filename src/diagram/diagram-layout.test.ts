@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import type { ArchitectureComponent } from "../domain/architecture-component";
+import type {
+  ArchitectureComponent,
+  ArchitectureComponentKind,
+} from "../domain/architecture-component";
 import { ArchitectureGraph } from "../domain/architecture-graph";
 import type { ComponentId } from "../domain/identifiers";
 import {
@@ -16,8 +19,12 @@ function componentId(value: string): ComponentId {
   return value as ComponentId;
 }
 
-function component(id: string, name: string): ArchitectureComponent {
-  return { id: componentId(id), name };
+function component(
+  id: string,
+  name: string,
+  kind: ArchitectureComponentKind = "service",
+): ArchitectureComponent {
+  return { id: componentId(id), name, kind };
 }
 
 function addComponent(
@@ -51,8 +58,8 @@ describe("createInitialDiagramNodePositions", () => {
   it("assigns temporary positions using the current component read order", () => {
     const graph = graphWithComponents(
       component("api", "API"),
-      component("database", "Database"),
-      component("cache", "Cache"),
+      component("database", "Database", "database"),
+      component("cache", "Cache", "cache"),
     );
     const [first, second, third] = graph.getComponents();
 

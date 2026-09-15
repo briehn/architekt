@@ -1,7 +1,10 @@
 import type { Connection, NodeChange } from "@xyflow/react";
 import { describe, expect, it } from "vitest";
 
-import type { ArchitectureComponent } from "../domain/architecture-component";
+import type {
+  ArchitectureComponent,
+  ArchitectureComponentKind,
+} from "../domain/architecture-component";
 import type { ArchitectureConnection } from "../domain/architecture-connection";
 import { ArchitectureGraph } from "../domain/architecture-graph";
 import type { ComponentId, ConnectionId } from "../domain/identifiers";
@@ -10,6 +13,7 @@ import {
   addConnectionToEditorState,
   type ArchitectureEditorState,
   applyReactFlowNodeChangesToEditorState,
+  changeComponentKindInEditorState,
   createArchitectureEditorState,
   renameComponentInEditorState,
   removeComponentFromEditorState,
@@ -32,10 +36,15 @@ function connectionId(value: string): ConnectionId {
   return value as ConnectionId;
 }
 
-function component(id: string, name: string): ArchitectureComponent {
+function component(
+  id: string,
+  name: string,
+  kind: ArchitectureComponentKind = "service",
+): ArchitectureComponent {
   return {
     id: componentId(id),
     name,
+    kind,
   };
 }
 
@@ -251,7 +260,7 @@ describe("renameComponentInEditorState", () => {
       previousState.nodeMeasurements,
     );
     expect(nextState.graph.getComponents()).toEqual([
-      { id: api.id, name: "Public API" },
+      { id: api.id, name: "Public API", kind: api.kind },
       database,
     ]);
     expect(nextState.graph.getConnections()).toEqual([apiToDatabase]);
@@ -299,6 +308,102 @@ describe("renameComponentInEditorState", () => {
       state,
       missingId,
       "Missing",
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      error: {
+        type: "component-id-does-not-exist",
+        componentId: missingId,
+      },
+    });
+    expect(state.graph).toBe(graphReference);
+    expect(state.nodePositions).toBe(positionsReference);
+    expect(state.nodeMeasurements).toBe(measurementsReference);
+    expect(state.graph.getComponents()).toEqual([api]);
+  });
+});
+
+describe("changeComponentKindInEditorState", () => {
+  it("changes only the target kind while preserving editor metadata and connections", () => {
+    const api = component("api", " API ", "service");
+    const database = component("database", "Database", "database");
+    const apiToDatabase = connection(
+      "api-to-database",
+      api.id,
+      database.id,
+    );
+    const databaseToApi = connection(
+      "database-to-api",
+      database.id,
+      api.id,
+    );
+    const initializedState = createArchitectureEditorState(
+      graphWithConnections(
+        graphWithComponents(api, database),
+        apiToDatabase,
+        databaseToApi,
+      ),
+    );
+    const previousState: ArchitectureEditorState = {
+      ...initializedState,
+      nodeMeasurements: new Map([[api.id, { width: 176, height: 48 }]]),
+    };
+
+    const nextState = expectEditorStateSuccess(
+      changeComponentKindInEditorState(
+        previousState,
+        api.id,
+        "gateway",
+      ),
+    );
+
+    expect(nextState).not.toBe(previousState);
+    expect(nextState.graph).not.toBe(previousState.graph);
+    expect(nextState.nodePositions).toBe(previousState.nodePositions);
+    expect(nextState.nodeMeasurements).toBe(
+      previousState.nodeMeasurements,
+    );
+    expect(nextState.graph.getComponents()).toEqual([
+      { id: api.id, name: " API ", kind: "gateway" },
+      database,
+    ]);
+    expect(nextState.graph.getConnections()).toEqual([
+      apiToDatabase,
+      databaseToApi,
+    ]);
+    expect(previousState.graph.getComponents()).toEqual([api, database]);
+    expect(previousState.graph.getConnections()).toEqual([
+      apiToDatabase,
+      databaseToApi,
+    ]);
+  });
+
+  it("returns the original state for an exact kind match", () => {
+    const api = component("api", "API", "gateway");
+    const state = createArchitectureEditorState(graphWithComponents(api));
+    const result = changeComponentKindInEditorState(
+      state,
+      api.id,
+      api.kind,
+    );
+
+    expect(result).toEqual({ ok: true, state });
+    expect(expectEditorStateSuccess(result)).toBe(state);
+  });
+
+  it("propagates unknown-ID rejection without changing state", () => {
+    const api = component("api", "API", "service");
+    const state = createArchitectureEditorState(graphWithComponents(api));
+    const missingId = componentId("missing");
+    const graphReference = state.graph;
+    const positionsReference = state.nodePositions;
+    const measurementsReference = state.nodeMeasurements;
+
+    const result = changeComponentKindInEditorState(
+      state,
+      missingId,
+      "database",
     );
 
     expect(result).toEqual({
@@ -686,15 +791,31 @@ describe("removeConnectionFromEditorState", () => {
       toReactFlowDiagram(nextState.graph, nextState.nodePositions),
     ).toEqual({
       nodes: [
-        { id: api.id, data: { label: "API" }, position: { x: 0, y: 0 } },
+        {
+          id: api.id,
+          data: {
+            componentId: api.id,
+            name: "API",
+            kind: api.kind,
+          },
+          position: { x: 0, y: 0 },
+        },
         {
           id: database.id,
-          data: { label: "Database" },
+          data: {
+            componentId: database.id,
+            name: "Database",
+            kind: database.kind,
+          },
           position: { x: 240, y: 0 },
         },
         {
           id: cache.id,
-          data: { label: "Cache" },
+          data: {
+            componentId: cache.id,
+            name: "Cache",
+            kind: cache.kind,
+          },
           position: { x: 480, y: 0 },
         },
       ],

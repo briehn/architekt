@@ -240,7 +240,7 @@ Preserve the current single-workspace graph and node positions across refreshes 
 * IndexedDB, a server or database, authentication, projects, or multi-user infrastructure
 * Cross-device synchronization or cross-tab conflict resolution
 * React Flow nodes, edges, measurements, viewport, or transient UI-state persistence
-* Import/export, migration machinery beyond rejecting unsupported versions, backups, or history
+* Import/export, a general migration framework beyond the explicit V1-to-V2 compatibility path, backups, or history
 * AI, Zustand, undo/redo, or collaboration
 
 ## Completed milestone: Undo/Redo
@@ -287,7 +287,32 @@ persistence, and derived-rendering boundaries.
 * [x] Add accessible inline rename controls with save, cancel, validation, and focus restoration
 * [x] Verify V1 persistence and React Flow derivation remain compatible with renamed components
 
-## Next logical milestone: Component types
+## Completed milestone: Component Types
 
-Define the smallest useful domain-level component classification without coupling
-the graph to renderer-specific styling or introducing an inspector system.
+### Goal
+
+Add a small canonical component classification that survives editing, history,
+persistence, and rendering without making React Flow or presentation metadata
+authoritative.
+
+**Milestone status: Complete.**
+
+### Completed tasks
+
+* [x] Define the nine canonical component kinds and runtime trust-boundary guard
+* [x] Require an explicit kind on every trusted in-memory component
+* [x] Add immutable graph and editor-state operations for changing kind
+* [x] Record changed kinds through ordinary graph history snapshots
+* [x] Persist required kinds in schema V2 while restoring V1 components as Generic
+* [x] Derive kind into React Flow node data without creating renderer-owned state
+* [x] Add neutral canvas icons, visible kind labels, and accessible node naming
+* [x] Add native kind selects for component creation and existing-component list editing
+* [x] Preserve rename, focus, layout, connection, autosave, and undo/redo behavior
+* [x] Verify the milestone across domain, editor, history, persistence, renderer, and UI boundaries
+
+## Future milestone candidates
+
+* Keep canvas kind presentation read-only unless a later product decision changes the established list-editing interaction
+* Consider richer component metadata, provider-specific technologies, or an inspector only when a concrete workflow requires them
+* Design semantic connection analysis or validation separately; component kinds currently classify nodes without restricting connections
+* Treat future AI-generated architectures as untrusted proposals whose component kinds must pass the same runtime validation and domain operations

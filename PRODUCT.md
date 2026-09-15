@@ -20,11 +20,15 @@ Architekt treats an architecture diagram as a real domain graph rather than mere
 
 ## Operating Context
 
-Users model systems with components such as APIs, databases, caches, queues, load balancers, and storage. The architecture canvas is the visual focus of the workspace.
+Users model systems with Generic, Client, Service, Database, Cache, Queue, Gateway, Storage, and External service components. The architecture canvas is the visual focus of the workspace.
 
 ## Capabilities and Constraints
 
 - `ArchitectureGraph` is the canonical source of truth.
+- New components default to Service in the creation UI, and the creation control retains the last successfully used kind.
+- Existing component kinds are edited from the component list. The canvas shows a read-only kind icon and label; canvas double-click remains dedicated to rename.
+- Generic represents migrated or intentionally unclassified components. V1 saved workspaces restore their previously untyped components as Generic.
+- Component kinds classify the architecture for understanding and future analysis; they do not currently restrict connections.
 - React Flow is a renderer only; it is never canonical application state.
 - The domain layer remains independent of React, Next.js, React Flow, Zustand, persistence, and AI.
 - React Flow-specific position and visual-style data stay outside the domain model.

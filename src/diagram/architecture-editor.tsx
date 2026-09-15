@@ -10,6 +10,12 @@ import {
 import type { Connection, NodeChange } from "@xyflow/react";
 
 import {
+  ARCHITECTURE_COMPONENT_KINDS,
+  isArchitectureComponentKind,
+  type ArchitectureComponent,
+  type ArchitectureComponentKind,
+} from "../domain/architecture-component";
+import {
   type AddComponentRejection,
   type AddConnectionRejection,
   ArchitectureGraph,
@@ -27,6 +33,7 @@ import {
   addComponentToEditorState,
   addConnectionToEditorState,
   applyReactFlowNodeChangesToEditorState,
+  changeComponentKindInEditorState,
   createArchitectureEditorState,
   type ArchitectureEditorState,
   renameComponentInEditorState,
@@ -54,6 +61,7 @@ import {
   withReactFlowNodeMeasurements,
 } from "./react-flow-adapter";
 import type { CanvasRenamePresentation } from "./architekt-node";
+import { getComponentKindPresentation } from "./component-kind-presentation";
 import {
   StaticDiagram,
   type CanvasNodeFocusRequest,
@@ -102,8 +110,16 @@ function getAddConnectionErrorMessage(
 
 function createExampleArchitectureGraph(): ArchitectureGraph {
   const graph = ArchitectureGraph.empty();
-  const api = { id: componentId("api"), name: "API" };
-  const database = { id: componentId("database"), name: "Database" };
+  const api: ArchitectureComponent = {
+    id: componentId("api"),
+    name: "API",
+    kind: "service",
+  };
+  const database: ArchitectureComponent = {
+    id: componentId("database"),
+    name: "Database",
+    kind: "database",
+  };
   const apiToDatabase = {
     id: connectionId("api-to-database"),
     sourceComponentId: api.id,
@@ -177,6 +193,11 @@ export type RenameSession = Readonly<{
   origin: RenameOrigin;
 }>;
 
+export type ComponentCreationDraft = Readonly<{
+  name: string;
+  kind: ArchitectureComponentKind;
+}>;
+
 const AUTOSAVE_DELAY_MILLISECONDS = 300;
 
 export function createRenameDraft(
@@ -208,6 +229,150 @@ export function getRenameDraftValidationMessage(
     (draft.name.trim().length === 0 ? "Enter a component name." : null);
 }
 
+export function createComponentCreationDraft(): ComponentCreationDraft {
+  return { name: "", kind: "service" };
+}
+
+export function updateComponentCreationDraftName(
+  draft: ComponentCreationDraft,
+  name: string,
+): ComponentCreationDraft {
+  return { ...draft, name };
+}
+
+export function updateComponentCreationDraftKind(
+  draft: ComponentCreationDraft,
+  rawKind: unknown,
+): ComponentCreationDraft {
+  const kind = getArchitectureComponentKindFromSelectValue(rawKind);
+
+  return kind !== null
+    ? { ...draft, kind }
+    : draft;
+}
+
+export function clearComponentCreationDraftName(
+  draft: ComponentCreationDraft,
+): ComponentCreationDraft {
+  return { ...draft, name: "" };
+}
+
+export function createArchitectureComponentFromCreationDraft(
+  id: ComponentId,
+  draft: ComponentCreationDraft,
+): ArchitectureComponent {
+  return { id, name: draft.name.trim(), kind: draft.kind };
+}
+
+export function getArchitectureComponentKindFromSelectValue(
+  rawKind: unknown,
+): ArchitectureComponentKind | null {
+  return isArchitectureComponentKind(rawKind) ? rawKind : null;
+}
+
+type ComponentKindSelectProps = Readonly<{
+  value: ArchitectureComponentKind;
+  onKindChange(kind: ArchitectureComponentKind): void;
+}>;
+
+function ComponentKindOptions() {
+  return ARCHITECTURE_COMPONENT_KINDS.map((kind) => (
+    <option key={kind} value={kind}>
+      {getComponentKindPresentation(kind).label}
+    </option>
+  ));
+}
+
+export function ComponentKindSelect({
+  value,
+  onKindChange,
+}: ComponentKindSelectProps) {
+  return (
+    <div className="flex w-full flex-col gap-1 sm:w-40">
+      <label
+        className="text-xs font-semibold text-text-secondary"
+        htmlFor="component-kind"
+      >
+        Component type
+      </label>
+      <select
+        className="h-9 w-full rounded-md border border-border bg-surface px-3 pr-8 text-sm text-text-primary outline-none transition-colors focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-focus-ring"
+        id="component-kind"
+        onChange={(event) => {
+          const kind = getArchitectureComponentKindFromSelectValue(
+            event.target.value,
+          );
+
+          if (kind !== null) {
+            onKindChange(kind);
+          }
+        }}
+        value={value}
+      >
+        <ComponentKindOptions />
+      </select>
+    </div>
+  );
+}
+
+type ComponentListKindSelectProps = Readonly<{
+  accessibleName: string;
+  value: ArchitectureComponentKind;
+  onKindChange(kind: ArchitectureComponentKind): void;
+}>;
+
+export function ComponentListKindSelect({
+  accessibleName,
+  value,
+  onKindChange,
+}: ComponentListKindSelectProps) {
+  return (
+    <select
+      aria-label={accessibleName}
+      className="h-full max-w-36 border-l border-border bg-surface px-2 pr-7 text-xs text-text-primary outline-none transition-colors hover:bg-surface focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-focus-ring"
+      onChange={(event) => {
+        const kind = getArchitectureComponentKindFromSelectValue(
+          event.target.value,
+        );
+
+        if (kind !== null) {
+          onKindChange(kind);
+        }
+      }}
+      value={value}
+    >
+      <ComponentKindOptions />
+    </select>
+  );
+}
+
+export function getComponentListKindSelectAccessibleName(
+  component: Pick<ArchitectureComponent, "id" | "name">,
+  hasDuplicateName: boolean,
+): string {
+  const componentName = hasDuplicateName
+    ? `${component.name} (${component.id})`
+    : component.name;
+
+  return `Change type for ${componentName}`;
+}
+
+export function recordComponentKindChangeFromList(
+  history: ArchitectureEditorHistory,
+  componentId: ComponentId,
+  kind: ArchitectureComponentKind,
+): ArchitectureEditorHistory {
+  const result = changeComponentKindInEditorState(
+    history.present,
+    componentId,
+    kind,
+  );
+
+  return result.ok
+    ? recordArchitectureEditorState(history, result.state)
+    : history;
+}
+
 function persistedEditorStateBaseline(
   editorState: ArchitectureEditorState,
 ): PersistedEditorStateBaseline {
@@ -232,7 +397,9 @@ export function ArchitectureEditor() {
   const [viewState, setViewState] = useState<ArchitectureEditorViewState>({
     status: "loading",
   });
-  const [componentName, setComponentName] = useState("");
+  const [componentCreationDraft, setComponentCreationDraft] = useState(
+    createComponentCreationDraft,
+  );
   const [validationMessage, setValidationMessage] = useState<string | null>(
     null,
   );
@@ -255,18 +422,28 @@ export function ArchitectureEditor() {
   const renameDraft = renameSession?.draft ?? null;
   const activeRenameComponentId = renameDraft?.componentId ?? null;
 
-  const closeRename = useCallback((componentId: ComponentId | null) => {
-    if (renameSession?.origin === "canvas" && componentId !== null) {
-      setCanvasNodeFocusRequest((currentRequest) => ({
-        componentId,
-        requestId: (currentRequest?.requestId ?? 0) + 1,
-      }));
-    } else if (renameSession?.origin === "list") {
-      nameControlToFocusRef.current = componentId;
-    }
+  const closeRename = useCallback(
+    (
+      componentId: ComponentId | null,
+      focusBehavior: "restore" | "preserve-current" = "restore",
+    ) => {
+      if (focusBehavior === "restore") {
+        if (renameSession?.origin === "canvas" && componentId !== null) {
+          setCanvasNodeFocusRequest((currentRequest) => ({
+            componentId,
+            requestId: (currentRequest?.requestId ?? 0) + 1,
+          }));
+        } else if (renameSession?.origin === "list") {
+          nameControlToFocusRef.current = componentId;
+        }
+      } else {
+        nameControlToFocusRef.current = null;
+      }
 
-    setRenameSession(null);
-  }, [renameSession]);
+      setRenameSession(null);
+    },
+    [renameSession],
+  );
 
   useEffect(() => {
     if (renameSession?.origin === "list" && activeRenameComponentId !== null) {
@@ -609,14 +786,17 @@ export function ArchitectureEditor() {
   function handleAddComponent(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    const name = componentName.trim();
+    const name = componentCreationDraft.name.trim();
 
     if (!name) {
       setValidationMessage("Enter a component name.");
       return;
     }
 
-    const component = { id: createComponentId(), name };
+    const component = createArchitectureComponentFromCreationDraft(
+      createComponentId(),
+      componentCreationDraft,
+    );
     const result = addComponentToEditorState(editorState, component);
 
     if (!result.ok) {
@@ -644,7 +824,7 @@ export function ArchitectureEditor() {
           }
         : currentViewState;
     });
-    setComponentName("");
+    setComponentCreationDraft(clearComponentCreationDraftName);
     setValidationMessage(null);
   }
 
@@ -672,6 +852,31 @@ export function ArchitectureEditor() {
             ),
           }
         : currentViewState;
+    });
+  }
+
+  function handleComponentKindChange(
+    componentId: ComponentId,
+    kind: ArchitectureComponentKind,
+  ) {
+    // A select change is the user's current action, so it must retain focus rather
+    // than restoring focus to an abandoned rename control.
+    closeRename(null, "preserve-current");
+
+    setViewState((currentViewState) => {
+      if (currentViewState.status === "loading") {
+        return currentViewState;
+      }
+
+      const history = recordComponentKindChangeFromList(
+        currentViewState.history,
+        componentId,
+        kind,
+      );
+
+      return history === currentViewState.history
+        ? currentViewState
+        : { ...currentViewState, history };
     });
   }
 
@@ -895,7 +1100,7 @@ export function ArchitectureEditor() {
     const editorState = createExampleArchitectureEditorState();
     autosaveBaselineRef.current = persistedEditorStateBaseline(editorState);
     latestEditorStateRef.current = editorState;
-    setComponentName("");
+    setComponentCreationDraft(clearComponentCreationDraftName);
     setValidationMessage(null);
     closeRename(null);
     setViewState({
@@ -908,6 +1113,13 @@ export function ArchitectureEditor() {
 
   const components = editorState.graph.getComponents();
   const connections = editorState.graph.getConnections();
+  const componentNameCounts = new Map<string, number>();
+  for (const component of components) {
+    componentNameCounts.set(
+      component.name,
+      (componentNameCounts.get(component.name) ?? 0) + 1,
+    );
+  }
   const componentNamesById = new Map(
     components.map((component) => [component.id, component.name]),
   );
@@ -999,14 +1211,27 @@ export function ArchitectureEditor() {
               className="h-9 w-full rounded-md border border-border bg-surface px-3 text-sm text-text-primary outline-none transition-colors placeholder:text-text-muted focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-focus-ring"
               id="component-name"
               onChange={(event) => {
-                setComponentName(event.target.value);
+                setComponentCreationDraft((currentDraft) =>
+                  updateComponentCreationDraftName(
+                    currentDraft,
+                    event.target.value,
+                  ),
+                );
                 setValidationMessage(null);
               }}
               placeholder="e.g. Cache"
               type="text"
-              value={componentName}
+              value={componentCreationDraft.name}
             />
           </div>
+          <ComponentKindSelect
+            onKindChange={(kind) => {
+              setComponentCreationDraft((currentDraft) =>
+                updateComponentCreationDraftKind(currentDraft, kind),
+              );
+            }}
+            value={componentCreationDraft.kind}
+          />
           <button
             className="h-9 rounded-md bg-accent px-3 text-xs font-semibold text-surface transition-colors hover:bg-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
             type="submit"
@@ -1148,6 +1373,16 @@ export function ArchitectureEditor() {
                         {component.name}
                       </button>
                     )}
+                    <ComponentListKindSelect
+                      accessibleName={getComponentListKindSelectAccessibleName(
+                        component,
+                        (componentNameCounts.get(component.name) ?? 0) > 1,
+                      )}
+                      onKindChange={(kind) =>
+                        handleComponentKindChange(component.id, kind)
+                      }
+                      value={component.kind}
+                    />
                     <button
                       aria-label={`Delete ${component.name}`}
                       className="h-full border-l border-border px-3 text-xs font-semibold text-text-secondary transition-colors hover:bg-surface hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"

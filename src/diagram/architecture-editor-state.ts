@@ -1,11 +1,15 @@
 import type { NodeChange } from "@xyflow/react";
 
-import type { ArchitectureComponent } from "../domain/architecture-component";
+import type {
+  ArchitectureComponent,
+  ArchitectureComponentKind,
+} from "../domain/architecture-component";
 import type { ArchitectureConnection } from "../domain/architecture-connection";
 import type {
   AddComponentRejection,
   AddConnectionRejection,
   ArchitectureGraph,
+  ChangeComponentKindRejection,
   RenameComponentRejection,
   RemoveComponentRejection,
   RemoveConnectionRejection,
@@ -46,6 +50,10 @@ export type RemoveComponentFromEditorStateResult =
 export type RenameComponentInEditorStateResult =
   | { ok: true; state: ArchitectureEditorState }
   | { ok: false; error: RenameComponentRejection };
+
+export type ChangeComponentKindInEditorStateResult =
+  | { ok: true; state: ArchitectureEditorState }
+  | { ok: false; error: ChangeComponentKindRejection };
 
 export type RemoveConnectionFromEditorStateResult =
   | { ok: true; state: ArchitectureEditorState }
@@ -121,6 +129,31 @@ export function renameComponentInEditorState(
   name: ArchitectureComponent["name"],
 ): RenameComponentInEditorStateResult {
   const graphResult = state.graph.renameComponent(componentId, name);
+
+  if (!graphResult.ok) {
+    return graphResult;
+  }
+
+  if (graphResult.graph === state.graph) {
+    return { ok: true, state };
+  }
+
+  return {
+    ok: true,
+    state: {
+      graph: graphResult.graph,
+      nodePositions: state.nodePositions,
+      nodeMeasurements: state.nodeMeasurements,
+    },
+  };
+}
+
+export function changeComponentKindInEditorState(
+  state: ArchitectureEditorState,
+  componentId: ComponentId,
+  kind: ArchitectureComponentKind,
+): ChangeComponentKindInEditorStateResult {
+  const graphResult = state.graph.changeComponentKind(componentId, kind);
 
   if (!graphResult.ok) {
     return graphResult;

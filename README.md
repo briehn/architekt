@@ -11,6 +11,7 @@ Architekt is my attempt to bring those ideas into one focused workspace. The dia
 Architekt currently supports the core editing loop:
 
 - Create and delete architecture components
+- Classify components as clients, services, databases, caches, queues, gateways, storage, external services, or generic building blocks
 - Rename components inline
 - Move components around the canvas
 - Add and remove directional connections
@@ -46,6 +47,7 @@ That separation gives the project a few useful properties:
 ## Technical highlights
 
 - Immutable graph operations with explicit success and rejection results
+- A canonical component-type model carried through editing, undo/redo, persistence, and derived canvas presentation
 - Branded TypeScript identifiers for components and connections
 - Controlled React Flow rendering backed by application-owned state
 - A versioned persistence format with runtime validation
@@ -64,7 +66,7 @@ That separation gives the project a few useful properties:
 
 ## Current direction
 
-Architekt is under active development. The next focused milestone is component types, followed by deeper decisions around connection meaning, layout, and the boundaries of AI-assisted editing.
+Architekt is under active development. Component Types is complete; future work will make separate, deliberate decisions around connection meaning, layout, and the boundaries of AI-assisted editing.
 
 Screenshots and a live demo will be added when the editor's visual language is mature enough to represent the project well. For now, the repository reflects the working product and the engineering decisions behind it.
 

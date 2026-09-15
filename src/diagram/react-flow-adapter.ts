@@ -7,6 +7,10 @@ import {
   type NodeChange,
 } from "@xyflow/react";
 
+import type {
+  ArchitectureComponent,
+  ArchitectureComponentKind,
+} from "../domain/architecture-component";
 import type { ArchitectureConnection } from "../domain/architecture-connection";
 import type { ArchitectureGraph } from "../domain/architecture-graph";
 import type { ComponentId, ConnectionId } from "../domain/identifiers";
@@ -22,6 +26,14 @@ export type ReactFlowNodeMeasurements = ReadonlyMap<
   string,
   Readonly<Dimensions>
 >;
+
+export type ArchitectureFlowNodeData = Readonly<{
+  componentId: ArchitectureComponent["id"];
+  name: ArchitectureComponent["name"];
+  kind: ArchitectureComponentKind;
+}>;
+
+export type ArchitectureFlowNode = Node<ArchitectureFlowNodeData>;
 
 export function toArchitectureConnection(
   connection: Connection,
@@ -53,15 +65,17 @@ export function toReactFlowDiagram(
   graph: ArchitectureGraph,
   nodePositions: DiagramNodePositions,
 ): {
-  nodes: Node[];
+  nodes: ArchitectureFlowNode[];
   edges: Edge[];
 } {
   const components = graph.getComponents();
   const connections = graph.getConnections();
-  const nodes: Node[] = components.map((component) => ({
+  const nodes: ArchitectureFlowNode[] = components.map((component) => ({
     id: component.id,
     data: {
-      label: component.name,
+      componentId: component.id,
+      name: component.name,
+      kind: component.kind,
     },
     position: getDiagramPosition(nodePositions, component.id),
   }));
@@ -141,9 +155,9 @@ export function removeReactFlowNodeMeasurement(
 }
 
 export function withReactFlowNodeMeasurements(
-  nodes: readonly Node[],
+  nodes: readonly ArchitectureFlowNode[],
   measurements: ReactFlowNodeMeasurements,
-): Node[] {
+): ArchitectureFlowNode[] {
   return nodes.map((node) => {
     const measured = measurements.get(node.id);
 

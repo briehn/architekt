@@ -1,4 +1,8 @@
-import type { ArchitectureComponent } from "../domain/architecture-component";
+import {
+  isArchitectureComponentKind,
+  type ArchitectureComponent,
+  type ArchitectureComponentKind,
+} from "../domain/architecture-component";
 import type { ArchitectureConnection } from "../domain/architecture-connection";
 import {
   type AddComponentRejection,
@@ -8,33 +12,43 @@ import {
 import type { ComponentId, ConnectionId } from "../domain/identifiers";
 import type { ArchitectureEditorState } from "../diagram/architecture-editor-state";
 
-export const ARCHITECTURE_EDITOR_DOCUMENT_SCHEMA_VERSION = 1;
+export const ARCHITECTURE_EDITOR_DOCUMENT_SCHEMA_VERSION = 2;
 
-export type PersistedArchitectureEditorDocumentV1 = Readonly<{
-  schemaVersion: 1;
-  graph: Readonly<{
-    components: ReadonlyArray<
-      Readonly<{
-        id: string;
-        name: string;
-      }>
-    >;
-    connections: ReadonlyArray<
-      Readonly<{
-        id: string;
-        sourceComponentId: string;
-        targetComponentId: string;
-      }>
-    >;
-  }>;
-  nodePositions: ReadonlyArray<
-    Readonly<{
-      componentId: string;
-      x: number;
-      y: number;
-    }>
-  >;
+type PersistedArchitectureConnection = Readonly<{
+  id: string;
+  sourceComponentId: string;
+  targetComponentId: string;
 }>;
+
+type PersistedNodePosition = Readonly<{
+  componentId: string;
+  x: number;
+  y: number;
+}>;
+
+type PersistedArchitectureEditorDocument<
+  SchemaVersion extends 1 | 2,
+  PersistedComponent,
+> = Readonly<{
+  schemaVersion: SchemaVersion;
+  graph: Readonly<{
+    components: ReadonlyArray<Readonly<PersistedComponent>>;
+    connections: ReadonlyArray<PersistedArchitectureConnection>;
+  }>;
+  nodePositions: ReadonlyArray<PersistedNodePosition>;
+}>;
+
+export type PersistedArchitectureEditorDocumentV1 =
+  PersistedArchitectureEditorDocument<
+    1,
+    { id: string; name: string }
+  >;
+
+export type PersistedArchitectureEditorDocumentV2 =
+  PersistedArchitectureEditorDocument<
+    2,
+    { id: string; name: string; kind: ArchitectureComponentKind }
+  >;
 
 export type RestoreArchitectureEditorStateError =
   | {
@@ -52,12 +66,12 @@ export type RestoreArchitectureEditorStateResult =
   | { ok: true; state: ArchitectureEditorState }
   | { ok: false; error: RestoreArchitectureEditorStateError };
 
-type PersistedComponent =
+type PersistedComponentV1 =
   PersistedArchitectureEditorDocumentV1["graph"]["components"][number];
+type PersistedComponentV2 =
+  PersistedArchitectureEditorDocumentV2["graph"]["components"][number];
 type PersistedConnection =
   PersistedArchitectureEditorDocumentV1["graph"]["connections"][number];
-type PersistedNodePosition =
-  PersistedArchitectureEditorDocumentV1["nodePositions"][number];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -67,11 +81,24 @@ function hasOwn(record: Record<string, unknown>, key: string): boolean {
   return Object.prototype.hasOwnProperty.call(record, key);
 }
 
-function isPersistedComponent(value: unknown): value is PersistedComponent {
+function isPersistedComponentV1(
+  value: unknown,
+): value is PersistedComponentV1 {
   return (
     isRecord(value) &&
     typeof value.id === "string" &&
     typeof value.name === "string"
+  );
+}
+
+function isPersistedComponentV2(
+  value: unknown,
+): value is PersistedComponentV2 {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    typeof value.name === "string" &&
+    isArchitectureComponentKind(value.kind)
   );
 }
 
@@ -107,7 +134,7 @@ function invalidNodePositions(): RestoreArchitectureEditorStateResult {
 
 export function toPersistedArchitectureEditorDocument(
   state: Pick<ArchitectureEditorState, "graph" | "nodePositions">,
-): PersistedArchitectureEditorDocumentV1 {
+): PersistedArchitectureEditorDocumentV2 {
   const components = state.graph.getComponents();
   const connections = state.graph.getConnections();
   const componentIds = new Set(components.map((component) => component.id));
@@ -149,6 +176,7 @@ export function toPersistedArchitectureEditorDocument(
       components: components.map((component) => ({
         id: component.id,
         name: component.name,
+        kind: component.kind,
       })),
       connections: connections.map((connection) => ({
         id: connection.id,
@@ -167,9 +195,7 @@ export function restoreArchitectureEditorState(
     return invalidDocument();
   }
 
-  if (
-    value.schemaVersion !== ARCHITECTURE_EDITOR_DOCUMENT_SCHEMA_VERSION
-  ) {
+  if (value.schemaVersion !== 1 && value.schemaVersion !== 2) {
     return {
       ok: false,
       error: {
@@ -179,10 +205,31 @@ export function restoreArchitectureEditorState(
     };
   }
 
+  if (!isRecord(value.graph) || !Array.isArray(value.graph.components)) {
+    return invalidDocument();
+  }
+
+  let persistedComponents: readonly PersistedComponentV2[];
+
+  if (value.schemaVersion === 1) {
+    if (!value.graph.components.every(isPersistedComponentV1)) {
+      return invalidDocument();
+    }
+
+    persistedComponents = value.graph.components.map((component) => ({
+      id: component.id,
+      name: component.name,
+      kind: "generic",
+    }));
+  } else {
+    if (!value.graph.components.every(isPersistedComponentV2)) {
+      return invalidDocument();
+    }
+
+    persistedComponents = value.graph.components;
+  }
+
   if (
-    !isRecord(value.graph) ||
-    !Array.isArray(value.graph.components) ||
-    !value.graph.components.every(isPersistedComponent) ||
     !Array.isArray(value.graph.connections) ||
     !value.graph.connections.every(isPersistedConnection) ||
     !Array.isArray(value.nodePositions) ||
@@ -202,10 +249,11 @@ export function restoreArchitectureEditorState(
 
   let graph = ArchitectureGraph.empty();
 
-  for (const persistedComponent of value.graph.components) {
+  for (const persistedComponent of persistedComponents) {
     const component: ArchitectureComponent = {
       id: persistedComponent.id as ComponentId,
       name: persistedComponent.name,
+      kind: persistedComponent.kind,
     };
     const result = graph.addComponent(component);
 

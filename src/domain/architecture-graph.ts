@@ -1,4 +1,7 @@
-import type { ArchitectureComponent } from "./architecture-component";
+import type {
+  ArchitectureComponent,
+  ArchitectureComponentKind,
+} from "./architecture-component";
 import type { ArchitectureConnection } from "./architecture-connection";
 
 export type AddComponentRejection =
@@ -37,6 +40,15 @@ export type RenameComponentRejection =
 export type RenameComponentResult =
   | { ok: true; graph: ArchitectureGraph }
   | { ok: false; error: RenameComponentRejection };
+
+export type ChangeComponentKindRejection = {
+  type: "component-id-does-not-exist";
+  componentId: ArchitectureComponent["id"];
+};
+
+export type ChangeComponentKindResult =
+  | { ok: true; graph: ArchitectureGraph }
+  | { ok: false; error: ChangeComponentKindRejection };
 
 export type AddConnectionRejection =
   | {
@@ -189,6 +201,38 @@ export class ArchitectureGraph {
         new Map(this.componentsById).set(componentId, {
           ...component,
           name,
+        }),
+        this.connectionsById,
+      ),
+    };
+  }
+
+  changeComponentKind(
+    componentId: ArchitectureComponent["id"],
+    kind: ArchitectureComponentKind,
+  ): ChangeComponentKindResult {
+    const component = this.componentsById.get(componentId);
+
+    if (!component) {
+      return {
+        ok: false,
+        error: {
+          type: "component-id-does-not-exist",
+          componentId,
+        },
+      };
+    }
+
+    if (kind === component.kind) {
+      return { ok: true, graph: this };
+    }
+
+    return {
+      ok: true,
+      graph: new ArchitectureGraph(
+        new Map(this.componentsById).set(componentId, {
+          ...component,
+          kind,
         }),
         this.connectionsById,
       ),

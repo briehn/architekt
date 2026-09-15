@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import type { ArchitectureComponent } from "../domain/architecture-component";
+import {
+  ARCHITECTURE_COMPONENT_KINDS,
+  type ArchitectureComponent,
+  type ArchitectureComponentKind,
+} from "../domain/architecture-component";
 import type { ArchitectureConnection } from "../domain/architecture-connection";
 import { ArchitectureGraph } from "../domain/architecture-graph";
 import type { ComponentId, ConnectionId } from "../domain/identifiers";
@@ -12,6 +16,7 @@ import {
   restoreArchitectureEditorState,
   toPersistedArchitectureEditorDocument,
   type PersistedArchitectureEditorDocumentV1,
+  type PersistedArchitectureEditorDocumentV2,
   type RestoreArchitectureEditorStateError,
 } from "./architecture-editor-document";
 
@@ -23,8 +28,12 @@ function connectionId(value: string): ConnectionId {
   return value as ConnectionId;
 }
 
-function component(id: string, name: string): ArchitectureComponent {
-  return { id: componentId(id), name };
+function component(
+  id: string,
+  name: string,
+  kind: ArchitectureComponentKind = "service",
+): ArchitectureComponent {
+  return { id: componentId(id), name, kind };
 }
 
 function connection(
@@ -68,7 +77,10 @@ function addConnection(
 function graphForSerialization(): ArchitectureGraph {
   let graph = ArchitectureGraph.empty();
   graph = addComponent(graph, component("api", "API"));
-  graph = addComponent(graph, component("database", "Database"));
+  graph = addComponent(
+    graph,
+    component("database", "Database", "database"),
+  );
   return addConnection(graph, connection("api-database", "api", "database"));
 }
 
@@ -123,6 +135,29 @@ function validDocument(): PersistedArchitectureEditorDocumentV1 {
   };
 }
 
+function validV2Document(): PersistedArchitectureEditorDocumentV2 {
+  return {
+    schemaVersion: 2,
+    graph: {
+      components: [
+        { id: "api", name: "API", kind: "service" },
+        { id: "database", name: "Database", kind: "database" },
+      ],
+      connections: [
+        {
+          id: "api-database",
+          sourceComponentId: "api",
+          targetComponentId: "database",
+        },
+      ],
+    },
+    nodePositions: [
+      { componentId: "api", x: 40, y: 80 },
+      { componentId: "database", x: 340, y: 160 },
+    ],
+  };
+}
+
 function restoreSuccessfully(value: unknown): ArchitectureEditorState {
   const result = restoreArchitectureEditorState(value);
 
@@ -150,21 +185,21 @@ function expectGraphMembers(
 ): void {
   expect(graph.getComponents()).toHaveLength(expectedComponents.length);
   expect(graph.getComponents()).toEqual(
-    expect.arrayContaining(expectedComponents),
+    expect.arrayContaining([...expectedComponents]),
   );
   expect(graph.getConnections()).toHaveLength(expectedConnections.length);
   expect(graph.getConnections()).toEqual(
-    expect.arrayContaining(expectedConnections),
+    expect.arrayContaining([...expectedConnections]),
   );
 }
 
 describe("toPersistedArchitectureEditorDocument", () => {
-  it("serializes graph structure and positions as a plain V1 document", () => {
+  it("serializes graph structure, kinds, and positions as a plain V2 document", () => {
     const document = toPersistedArchitectureEditorDocument(
       editorStateForSerialization(),
     );
 
-    expect(document).toEqual(validDocument());
+    expect(document).toEqual(validV2Document());
     expect(JSON.parse(JSON.stringify(document))).toEqual(document);
   });
 
@@ -177,6 +212,10 @@ describe("toPersistedArchitectureEditorDocument", () => {
     expect(serialized).not.toContain("nodeMeasurements");
     expect(serialized).not.toContain("width");
     expect(serialized).not.toContain("height");
+    expect(document.graph.components).toEqual([
+      { id: "api", name: "API", kind: "service" },
+      { id: "database", name: "Database", kind: "database" },
+    ]);
     expect(Object.keys(document)).toEqual([
       "schemaVersion",
       "graph",
@@ -184,14 +223,15 @@ describe("toPersistedArchitectureEditorDocument", () => {
     ]);
   });
 
-  it("serializes a renamed component through the existing V1 format", () => {
+  it("serializes a renamed component with its kind in V2", () => {
     const renamedState = renamedEditorStateForSerialization();
     const document = toPersistedArchitectureEditorDocument(renamedState);
 
-    expect(document.schemaVersion).toBe(1);
+    expect(document.schemaVersion).toBe(2);
     expect(document.graph.components).toContainEqual({
       id: "api",
       name: "Public API",
+      kind: "service",
     });
     expect(document.graph.connections).toEqual([
       {
@@ -233,12 +273,15 @@ describe("toPersistedArchitectureEditorDocument", () => {
 });
 
 describe("restoreArchitectureEditorState", () => {
-  it("restores a valid graph and its node positions", () => {
+  it("restores V1 components with the generic compatibility kind", () => {
     const state = restoreSuccessfully(validDocument());
 
     expectGraphMembers(
       state.graph,
-      [component("api", "API"), component("database", "Database")],
+      [
+        component("api", "API", "generic"),
+        component("database", "Database", "generic"),
+      ],
       [connection("api-database", "api", "database")],
     );
     expect(state.nodePositions).toEqual(
@@ -247,6 +290,87 @@ describe("restoreArchitectureEditorState", () => {
         [componentId("database"), { x: 340, y: 160 }],
       ]),
     );
+  });
+
+  it("preserves V1 IDs and names exactly without inferring kinds", () => {
+    const document = validDocument();
+    const state = restoreSuccessfully({
+      ...document,
+      graph: {
+        ...document.graph,
+        components: [
+          { id: "api", name: " API " },
+          { id: "database", name: "Redis Primary" },
+        ],
+      },
+    });
+
+    expect(state.graph.getComponents()).toEqual([
+      component("api", " API ", "generic"),
+      component("database", "Redis Primary", "generic"),
+    ]);
+    expect(state.graph.getConnections()).toEqual([
+      connection("api-database", "api", "database"),
+    ]);
+    expect(state.nodePositions).toEqual(
+      new Map([
+        [componentId("api"), { x: 40, y: 80 }],
+        [componentId("database"), { x: 340, y: 160 }],
+      ]),
+    );
+    expect(state.nodeMeasurements).toEqual(new Map());
+  });
+
+  it("restores a valid V2 document with required component kinds", () => {
+    const state = restoreSuccessfully(validV2Document());
+
+    expectGraphMembers(
+      state.graph,
+      [
+        component("api", "API", "service"),
+        component("database", "Database", "database"),
+      ],
+      [connection("api-database", "api", "database")],
+    );
+    expect(state.nodePositions).toEqual(
+      new Map([
+        [componentId("api"), { x: 40, y: 80 }],
+        [componentId("database"), { x: 340, y: 160 }],
+      ]),
+    );
+    expect(state.nodeMeasurements).toEqual(new Map());
+  });
+
+  it("round trips every supported component kind through V2", () => {
+    let graph = ArchitectureGraph.empty();
+    const nodePositions = new Map<
+      ComponentId,
+      Readonly<{ x: number; y: number }>
+    >();
+    const expectedComponents: ArchitectureComponent[] = [];
+
+    ARCHITECTURE_COMPONENT_KINDS.forEach((kind, index) => {
+      const architectureComponent = component(kind, kind, kind);
+      graph = addComponent(graph, architectureComponent);
+      nodePositions.set(architectureComponent.id, {
+        x: index * 100,
+        y: index * 50,
+      });
+      expectedComponents.push(architectureComponent);
+    });
+
+    const document = toPersistedArchitectureEditorDocument({
+      graph,
+      nodePositions,
+    });
+    const restoredState = restoreSuccessfully(
+      JSON.parse(JSON.stringify(document)),
+    );
+
+    expect(document.schemaVersion).toBe(2);
+    expect(restoredState.graph.getComponents()).toEqual(expectedComponents);
+    expect(restoredState.nodePositions).toEqual(nodePositions);
+    expect(restoredState.nodeMeasurements).toEqual(new Map());
   });
 
   it("round trips through JSON deterministically", () => {
@@ -275,7 +399,7 @@ describe("restoreArchitectureEditorState", () => {
     const restoredState = restoreSuccessfully(JSON.parse(JSON.stringify(document)));
 
     expect(restoredState.graph.getComponents()).toContainEqual(
-      component("api", "Public API"),
+      component("api", "Public API", "service"),
     );
     expect(restoredState.graph.getConnections()).toEqual([
       connection("api-database", "api", "database"),
@@ -329,6 +453,60 @@ describe("restoreArchitectureEditorState", () => {
     expect(restoreFailure(value)).toEqual({ type: "invalid-document" });
   });
 
+  it("rejects a V2 component with a missing kind", () => {
+    const document = validV2Document();
+    const componentWithoutKind = { id: "api", name: "API" };
+
+    expect(
+      restoreFailure({
+        ...document,
+        graph: {
+          ...document.graph,
+          components: [
+            componentWithoutKind,
+            document.graph.components[1],
+          ],
+        },
+      }),
+    ).toEqual({ type: "invalid-document" });
+  });
+
+  it.each(["redis", "", 123, null])(
+    "rejects the invalid V2 component kind %j",
+    (kind) => {
+      const document = validV2Document();
+
+      expect(
+        restoreFailure({
+          ...document,
+          graph: {
+            ...document.graph,
+            components: [
+              { ...document.graph.components[0], kind },
+              document.graph.components[1],
+            ],
+          },
+        }),
+      ).toEqual({ type: "invalid-document" });
+    },
+  );
+
+  it("rejects malformed V2 component fields", () => {
+    const document = validV2Document();
+
+    expect(
+      restoreFailure({
+        ...document,
+        graph: {
+          ...document.graph,
+          components: [{ id: 7, name: "API", kind: "service" }],
+          connections: [],
+        },
+        nodePositions: [],
+      }),
+    ).toEqual({ type: "invalid-document" });
+  });
+
   it("distinguishes a missing schema version from an unsupported version", () => {
     const document = validDocument();
     const withoutVersion = {
@@ -340,10 +518,10 @@ describe("restoreArchitectureEditorState", () => {
       type: "invalid-document",
     });
     expect(
-      restoreFailure({ ...validDocument(), schemaVersion: 2 }),
+      restoreFailure({ ...validDocument(), schemaVersion: 3 }),
     ).toEqual({
       type: "unsupported-schema-version",
-      schemaVersion: 2,
+      schemaVersion: 3,
     });
   });
 
@@ -581,7 +759,10 @@ describe("restoreArchitectureEditorState", () => {
 
     expectGraphMembers(
       state.graph,
-      [component("api", "API"), component("database", "Database")],
+      [
+        component("api", "API", "generic"),
+        component("database", "Database", "generic"),
+      ],
       [
         connection("api-database", "api", "database"),
         connection("database-api", "database", "api"),
@@ -616,7 +797,7 @@ describe("restoreArchitectureEditorState", () => {
     document.nodePositions[0].x = 999;
 
     expect(state.graph.getComponents()).toContainEqual(
-      component("api", "API"),
+      component("api", "API", "generic"),
     );
     expect(state.nodePositions.get(componentId("api"))).toEqual({
       x: 40,

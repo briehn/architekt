@@ -1,12 +1,15 @@
 import {
   type Connection,
   type Edge,
-  type Node,
   type NodeChange,
 } from "@xyflow/react";
 import { describe, expect, it } from "vitest";
 
-import type { ArchitectureComponent } from "../domain/architecture-component";
+import {
+  ARCHITECTURE_COMPONENT_KINDS,
+  type ArchitectureComponent,
+  type ArchitectureComponentKind,
+} from "../domain/architecture-component";
 import type { ArchitectureConnection } from "../domain/architecture-connection";
 import { ArchitectureGraph } from "../domain/architecture-graph";
 import type { ComponentId, ConnectionId } from "../domain/identifiers";
@@ -14,6 +17,7 @@ import type { DiagramNodePositions } from "./diagram-layout";
 import {
   applyReactFlowNodeMeasurementChanges,
   applyReactFlowNodePositionChanges,
+  type ArchitectureFlowNode,
   removeReactFlowNodeMeasurement,
   type ReactFlowNodeMeasurements,
   toArchitectureConnection,
@@ -29,8 +33,12 @@ function connectionId(value: string): ConnectionId {
   return value as ConnectionId;
 }
 
-function component(id: string, name: string): ArchitectureComponent {
-  return { id: componentId(id), name };
+function component(
+  id: string,
+  name: string,
+  kind: ArchitectureComponentKind = "service",
+): ArchitectureComponent {
+  return { id: componentId(id), name, kind };
 }
 
 function connection(
@@ -129,16 +137,24 @@ describe("toReactFlowDiagram", () => {
       [api.id, { x: 96, y: 64 }],
       [database.id, { x: -120, y: 200 }],
     );
-    const expectedNodes: Node[] = [
+    const expectedNodes: ArchitectureFlowNode[] = [
       {
         id: "api",
         position: { x: 96, y: 64 },
-        data: { label: "API" },
+        data: {
+          componentId: api.id,
+          name: "API",
+          kind: "service",
+        },
       },
       {
         id: "database",
         position: { x: -120, y: 200 },
-        data: { label: "Database" },
+        data: {
+          componentId: database.id,
+          name: "Database",
+          kind: "service",
+        },
       },
     ];
 
@@ -146,6 +162,39 @@ describe("toReactFlowDiagram", () => {
       expectedNodes,
     );
   });
+
+  it.each(ARCHITECTURE_COMPONENT_KINDS)(
+    "copies the canonical %s kind into derived node data",
+    (kind) => {
+      const architectureComponent = component(
+        `component-${kind}`,
+        `Name ${kind}`,
+        kind,
+      );
+      const graph = addComponent(
+        ArchitectureGraph.empty(),
+        architectureComponent,
+      );
+      const position = { x: 72, y: -24 };
+
+      expect(
+        toReactFlowDiagram(
+          graph,
+          nodePositions([architectureComponent.id, position]),
+        ).nodes,
+      ).toEqual([
+        {
+          id: architectureComponent.id,
+          position,
+          data: {
+            componentId: architectureComponent.id,
+            name: architectureComponent.name,
+            kind,
+          },
+        },
+      ]);
+    },
+  );
 
   it("rejects a graph component without a diagram position", () => {
     const api = component("api", "API");
@@ -231,7 +280,11 @@ describe("toReactFlowDiagram", () => {
     expect(diagram.nodes).toContainEqual({
       id: "api",
       position: { x: 96, y: 64 },
-      data: { label: "Public API" },
+      data: {
+        componentId: api.id,
+        name: "Public API",
+        kind: api.kind,
+      },
     });
     expect(diagram.edges).toEqual([
       {
@@ -241,6 +294,57 @@ describe("toReactFlowDiagram", () => {
         markerEnd: { type: "arrowclosed" },
       },
     ]);
+  });
+
+  it("changes only the targeted derived kind when the canonical kind changes", () => {
+    const api = component("api", " API ", "service");
+    const database = component("database", "Database", "database");
+    const apiToDatabase = connection(
+      "api-to-database",
+      api.id,
+      database.id,
+    );
+    let graph = ArchitectureGraph.empty();
+
+    graph = addComponent(graph, api);
+    graph = addComponent(graph, database);
+    graph = addConnection(graph, apiToDatabase);
+
+    const positions = nodePositions(
+      [api.id, { x: 96, y: 64 }],
+      [database.id, { x: 340, y: 160 }],
+    );
+    const originalDiagram = toReactFlowDiagram(graph, positions);
+    const changeResult = graph.changeComponentKind(api.id, "gateway");
+
+    if (!changeResult.ok) {
+      throw new Error("Expected component kind change to succeed.");
+    }
+
+    const changedDiagram = toReactFlowDiagram(
+      changeResult.graph,
+      positions,
+    );
+
+    expect(changedDiagram.nodes).toEqual([
+      {
+        ...originalDiagram.nodes[0],
+        data: {
+          ...originalDiagram.nodes[0]?.data,
+          kind: "gateway",
+        },
+      },
+      originalDiagram.nodes[1],
+    ]);
+    expect(changedDiagram.edges).toEqual(originalDiagram.edges);
+    expect(graph.getComponents()).toEqual([api, database]);
+    expect(graph.getConnections()).toEqual([apiToDatabase]);
+    expect(positions).toEqual(
+      nodePositions(
+        [api.id, { x: 96, y: 64 }],
+        [database.id, { x: 340, y: 160 }],
+      ),
+    );
   });
 
   it("is deterministic and does not change its canonical inputs", () => {
@@ -470,12 +574,24 @@ describe("React Flow node measurements", () => {
   });
 
   it("adds measurements to matching derived nodes only", () => {
-    const nodes: Node[] = [
-      { id: "api", position: { x: 10, y: 20 }, data: { label: "API" } },
+    const nodes: ArchitectureFlowNode[] = [
+      {
+        id: "api",
+        position: { x: 10, y: 20 },
+        data: {
+          componentId: componentId("api"),
+          name: "API",
+          kind: "service",
+        },
+      },
       {
         id: "database",
         position: { x: 250, y: 20 },
-        data: { label: "Database" },
+        data: {
+          componentId: componentId("database"),
+          name: "Database",
+          kind: "database",
+        },
       },
     ];
 
@@ -491,13 +607,21 @@ describe("React Flow node measurements", () => {
       {
         id: "api",
         position: { x: 10, y: 20 },
-        data: { label: "API" },
+        data: {
+          componentId: componentId("api"),
+          name: "API",
+          kind: "service",
+        },
         measured: { width: 176, height: 48 },
       },
       {
         id: "database",
         position: { x: 250, y: 20 },
-        data: { label: "Database" },
+        data: {
+          componentId: componentId("database"),
+          name: "Database",
+          kind: "database",
+        },
       },
     ]);
   });
@@ -529,7 +653,11 @@ describe("React Flow node measurements", () => {
       {
         id: api.id,
         position: { x: 120, y: 80 },
-        data: { label: "API" },
+        data: {
+          componentId: api.id,
+          name: "API",
+          kind: api.kind,
+        },
         measured: { width: 176, height: 48 },
       },
     ]);

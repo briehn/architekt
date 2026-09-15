@@ -18,6 +18,8 @@ import {
   type ArchitektFlowNode,
   type CanvasRenamePresentation,
 } from "./architekt-node";
+import { getArchitectureNodeAccessibleLabel } from "./component-kind-presentation";
+import type { ArchitectureFlowNode } from "./react-flow-adapter";
 
 const nodeTypes = { architekt: ArchitektNode };
 
@@ -34,7 +36,7 @@ export function requestComponentRenameFromNode(
 }
 
 type StaticDiagramProps = {
-  nodes: Node[];
+  nodes: ArchitectureFlowNode[];
   edges: Edge[];
   onConnect: OnConnect;
   onNodeDragStart: OnNodeDrag;
@@ -58,9 +60,15 @@ export function StaticDiagram({
 }: StaticDiagramProps) {
   const architektNodes: ArchitektFlowNode[] = nodes.map((node) => ({
     ...node,
+    ariaLabel: getArchitectureNodeAccessibleLabel(
+      node.data.name,
+      node.data.kind,
+    ),
     type: "architekt",
     data: {
-      label: node.data.label as string,
+      componentId: node.data.componentId,
+      name: node.data.name,
+      kind: node.data.kind,
       rename:
         canvasRename?.componentId === node.id ? canvasRename : null,
       focusRequestId:

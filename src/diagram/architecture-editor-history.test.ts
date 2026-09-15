@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import type { ArchitectureComponent } from "../domain/architecture-component";
+import type {
+  ArchitectureComponent,
+  ArchitectureComponentKind,
+} from "../domain/architecture-component";
 import type { ArchitectureConnection } from "../domain/architecture-connection";
 import { ArchitectureGraph } from "../domain/architecture-graph";
 import type { ComponentId, ConnectionId } from "../domain/identifiers";
@@ -8,6 +11,7 @@ import {
   addComponentToEditorState,
   addConnectionToEditorState,
   applyReactFlowNodeChangesToEditorState,
+  changeComponentKindInEditorState,
   createArchitectureEditorState,
   type ArchitectureEditorState,
   renameComponentInEditorState,
@@ -36,8 +40,12 @@ function connectionId(value: string): ConnectionId {
   return value as ConnectionId;
 }
 
-function component(id: string, name: string): ArchitectureComponent {
-  return { id: componentId(id), name };
+function component(
+  id: string,
+  name: string,
+  kind: ArchitectureComponentKind = "service",
+): ArchitectureComponent {
+  return { id: componentId(id), name, kind };
 }
 
 function connection(
@@ -78,7 +86,7 @@ function expectEditorStateSuccess(
 }
 
 const api = component("api", "API");
-const database = component("database", "Database");
+const database = component("database", "Database", "database");
 const apiToDatabase = connection(
   "api-to-database",
   api.id,
@@ -538,6 +546,19 @@ describe("structural editor-state history recording", () => {
       nodePositions: state.nodePositions,
     });
     expect(history.present).toBe(nextState);
+    expect(history.present.graph.getComponents()).toEqual([
+      api,
+      database,
+    ]);
+
+    const undoneHistory = undoArchitectureEditorHistory(history);
+    const redoneHistory = redoArchitectureEditorHistory(undoneHistory);
+
+    expect(undoneHistory.present.graph.getComponents()).toEqual([api]);
+    expect(redoneHistory.present.graph.getComponents()).toEqual([
+      api,
+      database,
+    ]);
   });
 
   it("records one snapshot for an accepted component delete", () => {
@@ -578,6 +599,90 @@ describe("structural editor-state history recording", () => {
     expect(history.past[0]).not.toHaveProperty("nodeMeasurements");
     expect(history.present).toBe(renamedState);
     expect(history.future).toEqual([]);
+  });
+
+  it("records, undoes, and redoes a kind change with ordinary graph snapshots", () => {
+    const api = component("api", " API ", "service");
+    const database = component("database", "Database", "database");
+    const apiToDatabase = connection(
+      "api-to-database",
+      api.id,
+      database.id,
+    );
+    const databaseToApi = connection(
+      "database-to-api",
+      database.id,
+      api.id,
+    );
+    const state: ArchitectureEditorState = {
+      ...initialState(api, database),
+      nodeMeasurements: new Map([
+        [api.id, { width: 176, height: 48 }],
+        [database.id, { width: 204, height: 56 }],
+      ]),
+    };
+    const connectedState = expectEditorStateSuccess(
+      addConnectionToEditorState(
+        expectEditorStateSuccess(
+          addConnectionToEditorState(state, apiToDatabase),
+        ),
+        databaseToApi,
+      ),
+    );
+    const changedState = expectEditorStateSuccess(
+      changeComponentKindInEditorState(
+        connectedState,
+        api.id,
+        "gateway",
+      ),
+    );
+    const history = recordArchitectureEditorState(
+      createArchitectureEditorHistory(connectedState),
+      changedState,
+    );
+
+    expect(changedState).not.toBe(connectedState);
+    expect(history.past).toEqual([
+      {
+        graph: connectedState.graph,
+        nodePositions: connectedState.nodePositions,
+      },
+    ]);
+    expect(history.past[0]).not.toHaveProperty("nodeMeasurements");
+    expect(history.present).toBe(changedState);
+    expect(history.future).toEqual([]);
+
+    const undoneHistory = undoArchitectureEditorHistory(history);
+    const redoneHistory = redoArchitectureEditorHistory(undoneHistory);
+
+    expect(undoneHistory.present.graph.getComponents()).toEqual([
+      api,
+      database,
+    ]);
+    expect(undoneHistory.present.graph.getConnections()).toEqual([
+      apiToDatabase,
+      databaseToApi,
+    ]);
+    expect(undoneHistory.present.nodePositions).toBe(
+      connectedState.nodePositions,
+    );
+    expect(undoneHistory.present.nodeMeasurements).toBe(
+      changedState.nodeMeasurements,
+    );
+    expect(redoneHistory.present.graph.getComponents()).toEqual([
+      { id: api.id, name: " API ", kind: "gateway" },
+      database,
+    ]);
+    expect(redoneHistory.present.graph.getConnections()).toEqual([
+      apiToDatabase,
+      databaseToApi,
+    ]);
+    expect(redoneHistory.present.nodePositions).toBe(
+      connectedState.nodePositions,
+    );
+    expect(redoneHistory.present.nodeMeasurements).toBe(
+      changedState.nodeMeasurements,
+    );
   });
 
   it("records one snapshot for an accepted connection add", () => {
@@ -783,6 +888,66 @@ describe("structural editor-state history recording", () => {
     expect(canRedoArchitectureEditorHistory(historyAfterRename)).toBe(false);
   });
 
+  it("preserves redo for a same-kind no-op and clears it for a changed kind", () => {
+    const initialHistory = createArchitectureEditorHistory(initialState(api));
+    const historyWithFuture = undoArchitectureEditorHistory(
+      recordArchitectureEditorState(
+        initialHistory,
+        expectEditorStateSuccess(
+          addComponentToEditorState(initialHistory.present, database),
+        ),
+      ),
+    );
+    const pastBeforeNoOp = historyWithFuture.past;
+    const futureBeforeNoOp = historyWithFuture.future;
+    const noOpState = expectEditorStateSuccess(
+      changeComponentKindInEditorState(
+        historyWithFuture.present,
+        api.id,
+        api.kind,
+      ),
+    );
+    const historyAfterNoOp = recordArchitectureEditorState(
+      historyWithFuture,
+      noOpState,
+    );
+    const rejectedChange = changeComponentKindInEditorState(
+      historyAfterNoOp.present,
+      componentId("missing"),
+      "gateway",
+    );
+    const changedState = expectEditorStateSuccess(
+      changeComponentKindInEditorState(
+        historyAfterNoOp.present,
+        api.id,
+        "gateway",
+      ),
+    );
+    const historyAfterChangedKind = recordArchitectureEditorState(
+      historyAfterNoOp,
+      changedState,
+    );
+
+    expect(noOpState).toBe(historyWithFuture.present);
+    expect(historyAfterNoOp).toBe(historyWithFuture);
+    expect(historyAfterNoOp.past).toBe(pastBeforeNoOp);
+    expect(historyAfterNoOp.future).toBe(futureBeforeNoOp);
+    expect(canRedoArchitectureEditorHistory(historyAfterNoOp)).toBe(true);
+    expect(rejectedChange).toEqual({
+      ok: false,
+      error: {
+        type: "component-id-does-not-exist",
+        componentId: componentId("missing"),
+      },
+    });
+    expect(historyAfterNoOp.present).toBe(historyWithFuture.present);
+    expect(historyAfterNoOp.past).toBe(pastBeforeNoOp);
+    expect(historyAfterNoOp.future).toBe(futureBeforeNoOp);
+    expect(historyAfterChangedKind.past).toHaveLength(1);
+    expect(historyAfterChangedKind.future).toEqual([]);
+    expect(canRedoArchitectureEditorHistory(historyAfterChangedKind)).toBe(false);
+  });
+
   it("undoes and redoes a rename while preserving graph structure and eligible measurements", () => {
     const state: ArchitectureEditorState = {
       ...initialState(api, database),
@@ -823,7 +988,7 @@ describe("structural editor-state history recording", () => {
       renamedState.nodeMeasurements,
     );
     expect(redoneHistory.present.graph.getComponents()).toEqual([
-      { id: api.id, name: "Public API" },
+      { id: api.id, name: "Public API", kind: api.kind },
       database,
     ]);
     expect(redoneHistory.present.graph.getConnections()).toEqual([

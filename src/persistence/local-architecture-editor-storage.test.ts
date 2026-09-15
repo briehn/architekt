@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import type { ArchitectureComponent } from "../domain/architecture-component";
+import type {
+  ArchitectureComponent,
+  ArchitectureComponentKind,
+} from "../domain/architecture-component";
 import type { ArchitectureConnection } from "../domain/architecture-connection";
 import { ArchitectureGraph } from "../domain/architecture-graph";
 import type { ComponentId, ConnectionId } from "../domain/identifiers";
@@ -66,8 +69,12 @@ function connectionId(value: string): ConnectionId {
   return value as ConnectionId;
 }
 
-function component(id: string, name: string): ArchitectureComponent {
-  return { id: componentId(id), name };
+function component(
+  id: string,
+  name: string,
+  kind: ArchitectureComponentKind = "service",
+): ArchitectureComponent {
+  return { id: componentId(id), name, kind };
 }
 
 function connection(
@@ -111,7 +118,10 @@ function addConnection(
 function editorState(): ArchitectureEditorState {
   let graph = ArchitectureGraph.empty();
   graph = addComponent(graph, component("api", "API"));
-  graph = addComponent(graph, component("database", "Database"));
+  graph = addComponent(
+    graph,
+    component("database", "Database", "database"),
+  );
   graph = addConnection(
     graph,
     connection("api-database", "api", "database"),
@@ -144,6 +154,29 @@ function renamedEditorState(): ArchitectureEditorState {
   return result.state;
 }
 
+function persistedV1Document(): unknown {
+  return {
+    schemaVersion: 1,
+    graph: {
+      components: [
+        { id: "api", name: "API" },
+        { id: "database", name: "Database" },
+      ],
+      connections: [
+        {
+          id: "api-database",
+          sourceComponentId: "api",
+          targetComponentId: "database",
+        },
+      ],
+    },
+    nodePositions: [
+      { componentId: "api", x: 40, y: 80 },
+      { componentId: "database", x: 340, y: 160 },
+    ],
+  };
+}
+
 describe("loadLocalArchitectureEditorState", () => {
   it("returns missing when the storage key does not exist", () => {
     const storage = new MemoryStorage();
@@ -156,19 +189,19 @@ describe("loadLocalArchitectureEditorState", () => {
 
   it("loads a saved V1 editor document", () => {
     const storage = new MemoryStorage();
-    expect(saveLocalArchitectureEditorState(storage, editorState())).toEqual({
-      ok: true,
-    });
+    storage.values.set(storageKey, JSON.stringify(persistedV1Document()));
 
     const result = loadLocalArchitectureEditorState(storage);
 
+    expect(storage.getItemCalls).toEqual([storageKey]);
+    expect(storage.setItemCalls).toEqual([]);
     expect(result.status).toBe("loaded");
     if (result.status === "loaded") {
       expect(result.state.graph.getComponents()).toHaveLength(2);
       expect(result.state.graph.getComponents()).toEqual(
         expect.arrayContaining([
-          component("api", "API"),
-          component("database", "Database"),
+          component("api", "API", "generic"),
+          component("database", "Database", "generic"),
         ]),
       );
       expect(result.state.graph.getConnections()).toEqual([
@@ -180,7 +213,43 @@ describe("loadLocalArchitectureEditorState", () => {
           [componentId("database"), { x: 340, y: 160 }],
         ]),
       );
+      expect(result.state.nodeMeasurements).toEqual(new Map());
     }
+  });
+
+  it("upgrades a loaded V1 document only on the next canonical save", () => {
+    const storage = new MemoryStorage();
+    storage.values.set(storageKey, JSON.stringify(persistedV1Document()));
+
+    const loadResult = loadLocalArchitectureEditorState(storage);
+
+    expect(storage.setItemCalls).toEqual([]);
+    if (loadResult.status !== "loaded") {
+      throw new Error("Expected V1 document to load.");
+    }
+
+    const renameResult = renameComponentInEditorState(
+      loadResult.state,
+      componentId("api"),
+      "Public API",
+    );
+    if (!renameResult.ok) {
+      throw new Error("Expected canonical edit to succeed.");
+    }
+
+    expect(
+      saveLocalArchitectureEditorState(storage, renameResult.state),
+    ).toEqual({ ok: true });
+    expect(storage.setItemCalls).toHaveLength(1);
+    expect(JSON.parse(storage.setItemCalls[0]?.value ?? "")).toMatchObject({
+      schemaVersion: 2,
+      graph: {
+        components: [
+          { id: "api", name: "Public API", kind: "generic" },
+          { id: "database", name: "Database", kind: "generic" },
+        ],
+      },
+    });
   });
 
   it("maps corrupted JSON to saved-state-invalid", () => {
@@ -210,15 +279,35 @@ describe("loadLocalArchitectureEditorState", () => {
     });
   });
 
+  it("maps an invalid V2 component kind to saved-state-invalid", () => {
+    const storage = new MemoryStorage();
+    storage.values.set(
+      storageKey,
+      JSON.stringify({
+        schemaVersion: 2,
+        graph: {
+          components: [{ id: "api", name: "API", kind: "redis" }],
+          connections: [],
+        },
+        nodePositions: [{ componentId: "api", x: 0, y: 0 }],
+      }),
+    );
+
+    expect(loadLocalArchitectureEditorState(storage)).toEqual({
+      status: "failed",
+      error: { type: "saved-state-invalid" },
+    });
+  });
+
   it("preserves unsupported schema versions as a distinct failure", () => {
     const storage = new MemoryStorage();
-    storage.values.set(storageKey, JSON.stringify({ schemaVersion: 2 }));
+    storage.values.set(storageKey, JSON.stringify({ schemaVersion: 3 }));
 
     expect(loadLocalArchitectureEditorState(storage)).toEqual({
       status: "failed",
       error: {
         type: "unsupported-schema-version",
-        schemaVersion: 2,
+        schemaVersion: 3,
       },
     });
   });
@@ -244,11 +333,11 @@ describe("saveLocalArchitectureEditorState", () => {
     expect(storage.setItemCalls).toHaveLength(1);
     expect(storage.setItemCalls[0]?.key).toBe(storageKey);
     expect(JSON.parse(storage.setItemCalls[0]?.value ?? "")).toEqual({
-      schemaVersion: 1,
+      schemaVersion: 2,
       graph: {
         components: [
-          { id: "api", name: "API" },
-          { id: "database", name: "Database" },
+          { id: "api", name: "API", kind: "service" },
+          { id: "database", name: "Database", kind: "database" },
         ],
         connections: [
           {
@@ -371,7 +460,9 @@ describe("local architecture editor storage round trip", () => {
     const loadResult = loadLocalArchitectureEditorState(storage);
     expect(loadResult.status).toBe("loaded");
     if (loadResult.status === "loaded") {
-      expect(loadResult.state.graph.getComponents()).toHaveLength(2);
+      expect(loadResult.state.graph.getComponents()).toEqual(
+        stateWithRendererData.graph.getComponents(),
+      );
       expect(loadResult.state.graph.getConnections()).toHaveLength(1);
       expect(loadResult.state.nodePositions).toEqual(
         stateWithRendererData.nodePositions,
@@ -390,10 +481,10 @@ describe("local architecture editor storage round trip", () => {
     expect(storage.setItemCalls).toHaveLength(1);
     expect(storage.setItemCalls[0]?.key).toBe(storageKey);
     expect(JSON.parse(storage.setItemCalls[0]?.value ?? "")).toMatchObject({
-      schemaVersion: 1,
+      schemaVersion: 2,
       graph: {
         components: expect.arrayContaining([
-          { id: "api", name: "Public API" },
+          { id: "api", name: "Public API", kind: "service" },
         ]),
         connections: [
           {
@@ -409,7 +500,7 @@ describe("local architecture editor storage round trip", () => {
     expect(loadResult.status).toBe("loaded");
     if (loadResult.status === "loaded") {
       expect(loadResult.state.graph.getComponents()).toContainEqual(
-        component("api", "Public API"),
+        component("api", "Public API", "service"),
       );
       expect(loadResult.state.graph.getConnections()).toEqual([
         connection("api-database", "api", "database"),

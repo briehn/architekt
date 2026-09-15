@@ -7,6 +7,11 @@ import {
 import { useEffect, useRef } from "react";
 
 import type { ComponentId } from "../domain/identifiers";
+import {
+  getArchitectureNodeAccessibleLabel,
+  getComponentKindPresentation,
+} from "./component-kind-presentation";
+import type { ArchitectureFlowNodeData } from "./react-flow-adapter";
 
 export type CanvasRenamePresentation = Readonly<{
   componentId: ComponentId;
@@ -17,8 +22,7 @@ export type CanvasRenamePresentation = Readonly<{
   onCancel(): void;
 }>;
 
-export type ArchitektNodeData = Readonly<{
-  label: string;
+export type ArchitektNodeData = ArchitectureFlowNodeData & Readonly<{
   rename: CanvasRenamePresentation | null;
   focusRequestId: number | null;
 }>;
@@ -40,6 +44,8 @@ export function ArchitektNode({
   const inputRef = useRef<HTMLInputElement | null>(null);
   const rename = data.rename;
   const isRenaming = rename !== null;
+  const kindPresentation = getComponentKindPresentation(data.kind);
+  const KindIcon = kindPresentation.Icon;
   const handlesAreConnectable = areArchitektNodeHandlesConnectable(
     isConnectable,
     isRenaming,
@@ -62,8 +68,10 @@ export function ArchitektNode({
 
   return (
     <div
+      aria-label={getArchitectureNodeAccessibleLabel(data.name, data.kind)}
       className="react-flow__node-default relative"
       ref={nodeRef}
+      role="group"
       tabIndex={-1}
     >
       <Handle
@@ -72,7 +80,21 @@ export function ArchitektNode({
         type="target"
       />
       {rename === null ? (
-        data.label
+        <div className="flex flex-col items-start gap-1 text-left">
+          <span className="text-sm font-semibold text-text-primary">
+            {data.name}
+          </span>
+          <span className="flex items-center gap-1.5 text-xs leading-4 text-text-muted">
+            <KindIcon
+              aria-hidden="true"
+              className="shrink-0"
+              focusable="false"
+              size={16}
+              strokeWidth={1.75}
+            />
+            <span>{kindPresentation.label}</span>
+          </span>
+        </div>
       ) : (
         <form
           className="nodrag nopan nowheel flex flex-col gap-1"
