@@ -1,6 +1,5 @@
 import {
   type Connection,
-  type Edge,
   type NodeChange,
 } from "@xyflow/react";
 import { describe, expect, it } from "vitest";
@@ -10,13 +9,18 @@ import {
   type ArchitectureComponent,
   type ArchitectureComponentKind,
 } from "../domain/architecture-component";
-import type { ArchitectureConnection } from "../domain/architecture-connection";
+import type {
+  ArchitectureConnection,
+  ArchitectureConnectionKind,
+} from "../domain/architecture-connection";
+import { ARCHITECTURE_CONNECTION_KINDS } from "../domain/architecture-connection";
 import { ArchitectureGraph } from "../domain/architecture-graph";
 import type { ComponentId, ConnectionId } from "../domain/identifiers";
 import type { DiagramNodePositions } from "./diagram-layout";
 import {
   applyReactFlowNodeMeasurementChanges,
   applyReactFlowNodePositionChanges,
+  type ArchitectureFlowEdge,
   type ArchitectureFlowNode,
   removeReactFlowNodeMeasurement,
   type ReactFlowNodeMeasurements,
@@ -45,11 +49,13 @@ function connection(
   id: string,
   sourceComponentId: ComponentId,
   targetComponentId: ComponentId,
+  kind: ArchitectureConnectionKind = "generic",
 ): ArchitectureConnection {
   return {
     id: connectionId(id),
     sourceComponentId,
     targetComponentId,
+    kind,
   };
 }
 
@@ -114,6 +120,7 @@ describe("toArchitectureConnection", () => {
       id: generatedConnectionId,
       sourceComponentId: componentId("api"),
       targetComponentId: componentId("database"),
+      kind: "generic",
     });
   });
 });
@@ -234,18 +241,20 @@ describe("toReactFlowDiagram", () => {
       [database.id, { x: 240, y: 0 }],
     );
 
-    const expectedEdges: Edge[] = [
+    const expectedEdges: ArchitectureFlowEdge[] = [
       {
         id: "api-to-database",
         source: "api",
         target: "database",
         markerEnd: { type: "arrowclosed" },
+        data: { kind: "generic" },
       },
       {
         id: "database-to-api",
         source: "database",
         target: "api",
         markerEnd: { type: "arrowclosed" },
+        data: { kind: "generic" },
       },
     ];
 
@@ -292,6 +301,7 @@ describe("toReactFlowDiagram", () => {
         source: "api",
         target: "database",
         markerEnd: { type: "arrowclosed" },
+        data: { kind: "generic" },
       },
     ]);
   });
@@ -343,6 +353,102 @@ describe("toReactFlowDiagram", () => {
       nodePositions(
         [api.id, { x: 96, y: 64 }],
         [database.id, { x: 340, y: 160 }],
+      ),
+    );
+  });
+
+  it.each(ARCHITECTURE_CONNECTION_KINDS)(
+    "copies the canonical %s kind into derived edge data",
+    (kind) => {
+      const api = component("api", "API");
+      const database = component("database", "Database", "database");
+      const architectureConnection = connection(
+        "api-to-database",
+        api.id,
+        database.id,
+        kind,
+      );
+      let graph = ArchitectureGraph.empty();
+
+      graph = addComponent(graph, api);
+      graph = addComponent(graph, database);
+      graph = addConnection(graph, architectureConnection);
+
+      expect(
+        toReactFlowDiagram(
+          graph,
+          nodePositions(
+            [api.id, { x: 0, y: 0 }],
+            [database.id, { x: 240, y: 0 }],
+          ),
+        ).edges,
+      ).toEqual([
+        {
+          id: architectureConnection.id,
+          source: api.id,
+          target: database.id,
+          markerEnd: { type: "arrowclosed" },
+          data: { kind },
+        },
+      ]);
+    },
+  );
+
+  it("changes only the targeted derived edge data when a connection kind changes", () => {
+    const api = component("api", "API");
+    const database = component("database", "Database", "database");
+    const apiToDatabase = connection(
+      "api-to-database",
+      api.id,
+      database.id,
+      "generic",
+    );
+    const databaseToApi = connection(
+      "database-to-api",
+      database.id,
+      api.id,
+      "streaming",
+    );
+    let graph = ArchitectureGraph.empty();
+
+    graph = addComponent(graph, api);
+    graph = addComponent(graph, database);
+    graph = addConnection(graph, apiToDatabase);
+    graph = addConnection(graph, databaseToApi);
+    const positions = nodePositions(
+      [api.id, { x: 0, y: 0 }],
+      [database.id, { x: 240, y: 0 }],
+    );
+    const originalDiagram = toReactFlowDiagram(graph, positions);
+    const changeResult = graph.changeConnectionKind(
+      apiToDatabase.id,
+      "request-response",
+    );
+
+    if (!changeResult.ok) {
+      throw new Error("Expected connection kind change to succeed.");
+    }
+
+    const changedDiagram = toReactFlowDiagram(
+      changeResult.graph,
+      positions,
+    );
+
+    expect(changedDiagram.edges).toEqual([
+      {
+        ...originalDiagram.edges[0],
+        data: { kind: "request-response" },
+      },
+      originalDiagram.edges[1],
+    ]);
+    expect(graph.getConnections()).toEqual([
+      apiToDatabase,
+      databaseToApi,
+    ]);
+    expect(positions).toEqual(
+      nodePositions(
+        [api.id, { x: 0, y: 0 }],
+        [database.id, { x: 240, y: 0 }],
       ),
     );
   });

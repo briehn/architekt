@@ -5,19 +5,27 @@ import {
   ARCHITECTURE_COMPONENT_KINDS,
   type ArchitectureComponentKind,
 } from "../domain/architecture-component";
+import {
+  ARCHITECTURE_CONNECTION_KINDS,
+} from "../domain/architecture-connection";
 import { ArchitectureGraph } from "../domain/architecture-graph";
 import {
   ArchitectureEditor,
   clearComponentCreationDraftName,
   ComponentKindSelect,
   ComponentListKindSelect,
+  ConnectionListKindSelect,
   createArchitectureComponentFromCreationDraft,
+  createExampleArchitectureEditorState,
   createComponentCreationDraft,
   createRenameDraft,
   createRenameSession,
   getArchitectureComponentKindFromSelectValue,
+  getArchitectureConnectionKindFromSelectValue,
   getComponentListKindSelectAccessibleName,
+  getConnectionListKindSelectAccessibleName,
   recordComponentKindChangeFromList,
+  recordConnectionKindChangeFromList,
   getRenameDraftValidationMessage,
   updateComponentCreationDraftKind,
   updateComponentCreationDraftName,
@@ -34,6 +42,12 @@ import {
   undoArchitectureEditorHistory,
 } from "./architecture-editor-history";
 import { getComponentKindPresentation } from "./component-kind-presentation";
+import { getConnectionKindPresentation } from "./connection-kind-presentation";
+import {
+  toArchitectureConnection,
+  toReactFlowDiagram,
+} from "./react-flow-adapter";
+import { withArchitectureEdgePresentation } from "./static-diagram";
 import type { ComponentId, ConnectionId } from "../domain/identifiers";
 
 describe("ArchitectureEditor", () => {
@@ -45,6 +59,64 @@ describe("ArchitectureEditor", () => {
     expect(markup).not.toContain("Component name");
     expect(markup).not.toContain("architekt-diagram");
     expect(markup).not.toContain("react-flow");
+  });
+
+  it("seeds API to Database as data access without changing the fresh example topology", () => {
+    const exampleState = createExampleArchitectureEditorState();
+    const repeatedExampleState = createExampleArchitectureEditorState();
+
+    expect(exampleState.graph.getComponents()).toEqual([
+      { id: "api" as ComponentId, name: "API", kind: "service" },
+      {
+        id: "database" as ComponentId,
+        name: "Database",
+        kind: "database",
+      },
+    ]);
+    expect(exampleState.graph.getConnections()).toEqual([
+      {
+        id: "api-to-database" as ConnectionId,
+        sourceComponentId: "api" as ComponentId,
+        targetComponentId: "database" as ComponentId,
+        kind: "data-access",
+      },
+    ]);
+    expect(repeatedExampleState.graph).toBe(exampleState.graph);
+    expect(repeatedExampleState.nodePositions).toEqual(
+      exampleState.nodePositions,
+    );
+
+    const diagram = toReactFlowDiagram(
+      exampleState.graph,
+      exampleState.nodePositions,
+    );
+    const edge = diagram.edges[0];
+    const presentedEdge = withArchitectureEdgePresentation(
+      diagram.edges,
+      diagram.nodes,
+    )[0];
+
+    expect(edge).toMatchObject({
+      id: "api-to-database",
+      source: "api",
+      target: "database",
+      data: { kind: "data-access" },
+    });
+    expect(presentedEdge).toMatchObject({
+      label: "Data access",
+      ariaLabel: "API to Database, Data access",
+    });
+    expect(
+      toArchitectureConnection(
+        {
+          source: "api",
+          target: "database",
+          sourceHandle: null,
+          targetHandle: null,
+        },
+        "new-connection" as ConnectionId,
+      ),
+    ).toMatchObject({ kind: "generic" });
   });
 
   it("starts a fresh draft when switching rename targets", () => {
@@ -169,6 +241,66 @@ describe("ArchitectureEditor", () => {
     }
   });
 
+  it("renders each connection row type control with its canonical kind and every presentation label", () => {
+    const markup = renderToStaticMarkup(
+      <ConnectionListKindSelect
+        accessibleName="Change connection type from Payments API to Users DB"
+        onKindChange={() => {}}
+        value="request-response"
+      />,
+    );
+
+    expect(markup).toContain(
+      'aria-label="Change connection type from Payments API to Users DB"',
+    );
+    expect(markup).toContain(
+      '<option value="request-response" selected="">Request/response</option>',
+    );
+
+    for (const kind of ARCHITECTURE_CONNECTION_KINDS) {
+      expect(markup).toContain(`value="${kind}"`);
+      expect(markup).toContain(
+        `>${getConnectionKindPresentation(kind).accessibleLabel}</option>`,
+      );
+    }
+  });
+
+  it("conditionally disambiguates duplicate visible connection endpoints in the select name", () => {
+    const connection = {
+      sourceComponentId: "api-one" as ComponentId,
+      targetComponentId: "database-one" as ComponentId,
+    };
+
+    expect(
+      getConnectionListKindSelectAccessibleName(
+        connection,
+        "API",
+        "Database",
+        false,
+      ),
+    ).toBe("Change connection type from API to Database");
+    expect(
+      getConnectionListKindSelectAccessibleName(
+        connection,
+        "API",
+        "Database",
+        true,
+      ),
+    ).toBe(
+      "Change connection type from API (api-one) to Database (database-one)",
+    );
+  });
+
+  it("narrows raw connection-list values before they reach the typed editor-state operation", () => {
+    expect(getArchitectureConnectionKindFromSelectValue("streaming")).toBe(
+      "streaming",
+    );
+
+    for (const invalidKind of ["websocket", "", 123, null]) {
+      expect(getArchitectureConnectionKindFromSelectValue(invalidKind)).toBeNull();
+    }
+  });
+
   it("records a real list kind change while preserving canonical graph and layout data", () => {
     const api = {
       id: "api" as ComponentId,
@@ -192,6 +324,7 @@ describe("ArchitectureEditor", () => {
       id: "api-to-database" as ConnectionId,
       sourceComponentId: api.id,
       targetComponentId: database.id,
+      kind: "generic",
     });
     expect(connectedGraph.ok).toBe(true);
     if (!connectedGraph.ok) return;
@@ -245,6 +378,173 @@ describe("ArchitectureEditor", () => {
       kind: "cache",
     });
   });
+
+  it("records connection-list kind changes through generic history without changing topology or layout", () => {
+    const api = {
+      id: "api" as ComponentId,
+      name: "Payments API",
+      kind: "service" as const,
+    };
+    const database = {
+      id: "database" as ComponentId,
+      name: "Users DB",
+      kind: "database" as const,
+    };
+    const apiToDatabase = {
+      id: "api-to-database" as ConnectionId,
+      sourceComponentId: api.id,
+      targetComponentId: database.id,
+      kind: "generic" as const,
+    };
+    const databaseToApi = {
+      id: "database-to-api" as ConnectionId,
+      sourceComponentId: database.id,
+      targetComponentId: api.id,
+      kind: "streaming" as const,
+    };
+    const graphWithApi = ArchitectureGraph.empty().addComponent(api);
+    expect(graphWithApi.ok).toBe(true);
+    if (!graphWithApi.ok) return;
+
+    const graphWithDatabase = graphWithApi.graph.addComponent(database);
+    expect(graphWithDatabase.ok).toBe(true);
+    if (!graphWithDatabase.ok) return;
+
+    const graphWithForwardConnection = graphWithDatabase.graph.addConnection(
+      apiToDatabase,
+    );
+    expect(graphWithForwardConnection.ok).toBe(true);
+    if (!graphWithForwardConnection.ok) return;
+
+    const graph = graphWithForwardConnection.graph.addConnection(databaseToApi);
+    expect(graph.ok).toBe(true);
+    if (!graph.ok) return;
+
+    const createdState = createArchitectureEditorState(graph.graph);
+    const initialState = {
+      ...createdState,
+      nodeMeasurements: new Map([[api.id, { width: 220, height: 84 }]]),
+    };
+    const initialHistory = createArchitectureEditorHistory(initialState);
+    const requestResponseHistory = recordConnectionKindChangeFromList(
+      initialHistory,
+      apiToDatabase.id,
+      "request-response",
+    );
+    const asyncMessagingHistory = recordConnectionKindChangeFromList(
+      requestResponseHistory,
+      apiToDatabase.id,
+      "async-messaging",
+    );
+    const undoneHistory = undoArchitectureEditorHistory(asyncMessagingHistory);
+    const redoneHistory = redoArchitectureEditorHistory(undoneHistory);
+
+    expect(requestResponseHistory.past).toHaveLength(1);
+    expect(asyncMessagingHistory.past).toHaveLength(2);
+    expect(asyncMessagingHistory.present.graph.getConnections()).toEqual([
+      { ...apiToDatabase, kind: "async-messaging" },
+      databaseToApi,
+    ]);
+    expect(asyncMessagingHistory.present.graph.getComponents()).toEqual([
+      api,
+      database,
+    ]);
+    expect(asyncMessagingHistory.present.nodePositions).toBe(
+      initialState.nodePositions,
+    );
+    expect(asyncMessagingHistory.present.nodeMeasurements).toBe(
+      initialState.nodeMeasurements,
+    );
+    expect(undoneHistory.present.graph.getConnections()).toEqual([
+      { ...apiToDatabase, kind: "request-response" },
+      databaseToApi,
+    ]);
+    expect(redoneHistory.present.graph.getConnections()).toEqual([
+      { ...apiToDatabase, kind: "async-messaging" },
+      databaseToApi,
+    ]);
+
+    const noOpAfterUndo = recordConnectionKindChangeFromList(
+      undoneHistory,
+      apiToDatabase.id,
+      "request-response",
+    );
+    const rejected = recordConnectionKindChangeFromList(
+      undoneHistory,
+      "missing" as ConnectionId,
+      "data-access",
+    );
+    const changedAfterUndo = recordConnectionKindChangeFromList(
+      undoneHistory,
+      apiToDatabase.id,
+      "data-access",
+    );
+
+    expect(noOpAfterUndo).toBe(undoneHistory);
+    expect(rejected).toBe(undoneHistory);
+    expect(changedAfterUndo.future).toEqual([]);
+    expect(changedAfterUndo.present.graph.getConnections()).toEqual([
+      { ...apiToDatabase, kind: "data-access" },
+      databaseToApi,
+    ]);
+
+    const genericHistory = recordConnectionKindChangeFromList(
+      requestResponseHistory,
+      apiToDatabase.id,
+      "generic",
+    );
+    const genericDiagram = toReactFlowDiagram(
+      genericHistory.present.graph,
+      genericHistory.present.nodePositions,
+    );
+    const genericEdge = withArchitectureEdgePresentation(
+      genericDiagram.edges,
+      genericDiagram.nodes,
+    ).find((edge) => edge.id === apiToDatabase.id);
+
+    expect(genericEdge).toMatchObject({
+      data: { kind: "generic" },
+      label: undefined,
+      ariaLabel: "Payments API to Users DB, Generic",
+    });
+  });
+
+  it.each(ARCHITECTURE_CONNECTION_KINDS)(
+    "allows %s to be selected through the connection-list history bridge",
+    (kind) => {
+      const api = {
+        id: "api" as ComponentId,
+        name: "API",
+        kind: "service" as const,
+      };
+      const database = {
+        id: "database" as ComponentId,
+        name: "Database",
+        kind: "database" as const,
+      };
+      const withApi = ArchitectureGraph.empty().addComponent(api);
+      if (!withApi.ok) return;
+      const withDatabase = withApi.graph.addComponent(database);
+      if (!withDatabase.ok) return;
+      const withConnection = withDatabase.graph.addConnection({
+        id: "api-to-database" as ConnectionId,
+        sourceComponentId: api.id,
+        targetComponentId: database.id,
+        kind: "generic",
+      });
+      if (!withConnection.ok) return;
+
+      const history = recordConnectionKindChangeFromList(
+        createArchitectureEditorHistory(
+        createArchitectureEditorState(withConnection.graph),
+        ),
+        "api-to-database" as ConnectionId,
+        kind,
+      );
+
+      expect(history.present.graph.getConnections()[0]?.kind).toBe(kind);
+    },
+  );
 
   it("creates the selected kind canonically and retains it after a successful creation", () => {
     const draft = updateComponentCreationDraftKind(

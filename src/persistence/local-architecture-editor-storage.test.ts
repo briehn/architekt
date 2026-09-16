@@ -4,7 +4,10 @@ import type {
   ArchitectureComponent,
   ArchitectureComponentKind,
 } from "../domain/architecture-component";
-import type { ArchitectureConnection } from "../domain/architecture-connection";
+import type {
+  ArchitectureConnection,
+  ArchitectureConnectionKind,
+} from "../domain/architecture-connection";
 import { ArchitectureGraph } from "../domain/architecture-graph";
 import type { ComponentId, ConnectionId } from "../domain/identifiers";
 import {
@@ -81,11 +84,13 @@ function connection(
   id: string,
   sourceComponentId: string,
   targetComponentId: string,
+  kind: ArchitectureConnectionKind = "generic",
 ): ArchitectureConnection {
   return {
     id: connectionId(id),
     sourceComponentId: componentId(sourceComponentId),
     targetComponentId: componentId(targetComponentId),
+    kind,
   };
 }
 
@@ -124,7 +129,12 @@ function editorState(): ArchitectureEditorState {
   );
   graph = addConnection(
     graph,
-    connection("api-database", "api", "database"),
+    connection(
+      "api-database",
+      "api",
+      "database",
+      "request-response",
+    ),
   );
 
   return {
@@ -161,6 +171,29 @@ function persistedV1Document(): unknown {
       components: [
         { id: "api", name: "API" },
         { id: "database", name: "Database" },
+      ],
+      connections: [
+        {
+          id: "api-database",
+          sourceComponentId: "api",
+          targetComponentId: "database",
+        },
+      ],
+    },
+    nodePositions: [
+      { componentId: "api", x: 40, y: 80 },
+      { componentId: "database", x: 340, y: 160 },
+    ],
+  };
+}
+
+function persistedV2Document(): unknown {
+  return {
+    schemaVersion: 2,
+    graph: {
+      components: [
+        { id: "api", name: "API", kind: "service" },
+        { id: "database", name: "Database", kind: "database" },
       ],
       connections: [
         {
@@ -242,11 +275,79 @@ describe("loadLocalArchitectureEditorState", () => {
     ).toEqual({ ok: true });
     expect(storage.setItemCalls).toHaveLength(1);
     expect(JSON.parse(storage.setItemCalls[0]?.value ?? "")).toMatchObject({
-      schemaVersion: 2,
+      schemaVersion: 3,
       graph: {
         components: [
           { id: "api", name: "Public API", kind: "generic" },
           { id: "database", name: "Database", kind: "generic" },
+        ],
+        connections: [
+          {
+            id: "api-database",
+            sourceComponentId: "api",
+            targetComponentId: "database",
+            kind: "generic",
+          },
+        ],
+      },
+    });
+  });
+
+  it("loads V2 without writing and upgrades it only on the next canonical save", () => {
+    const storage = new MemoryStorage();
+    storage.values.set(storageKey, JSON.stringify(persistedV2Document()));
+
+    const loadResult = loadLocalArchitectureEditorState(storage);
+
+    expect(storage.getItemCalls).toEqual([storageKey]);
+    expect(storage.setItemCalls).toEqual([]);
+    expect(loadResult.status).toBe("loaded");
+    if (loadResult.status !== "loaded") {
+      throw new Error("Expected V2 document to load.");
+    }
+
+    expect(loadResult.state.graph.getComponents()).toEqual([
+      component("api", "API", "service"),
+      component("database", "Database", "database"),
+    ]);
+    expect(loadResult.state.graph.getConnections()).toEqual([
+      connection("api-database", "api", "database", "generic"),
+    ]);
+    expect(loadResult.state.nodePositions).toEqual(
+      new Map([
+        [componentId("api"), { x: 40, y: 80 }],
+        [componentId("database"), { x: 340, y: 160 }],
+      ]),
+    );
+    expect(loadResult.state.nodeMeasurements).toEqual(new Map());
+
+    const renameResult = renameComponentInEditorState(
+      loadResult.state,
+      componentId("api"),
+      "Public API",
+    );
+    if (!renameResult.ok) {
+      throw new Error("Expected canonical edit to succeed.");
+    }
+
+    expect(
+      saveLocalArchitectureEditorState(storage, renameResult.state),
+    ).toEqual({ ok: true });
+    expect(storage.setItemCalls).toHaveLength(1);
+    expect(JSON.parse(storage.setItemCalls[0]?.value ?? "")).toMatchObject({
+      schemaVersion: 3,
+      graph: {
+        components: [
+          { id: "api", name: "Public API", kind: "service" },
+          { id: "database", name: "Database", kind: "database" },
+        ],
+        connections: [
+          {
+            id: "api-database",
+            sourceComponentId: "api",
+            targetComponentId: "database",
+            kind: "generic",
+          },
         ],
       },
     });
@@ -299,15 +400,48 @@ describe("loadLocalArchitectureEditorState", () => {
     });
   });
 
+  it("maps an invalid V3 connection kind to saved-state-invalid", () => {
+    const storage = new MemoryStorage();
+    storage.values.set(
+      storageKey,
+      JSON.stringify({
+        schemaVersion: 3,
+        graph: {
+          components: [
+            { id: "api", name: "API", kind: "service" },
+            { id: "database", name: "Database", kind: "database" },
+          ],
+          connections: [
+            {
+              id: "api-database",
+              sourceComponentId: "api",
+              targetComponentId: "database",
+              kind: "grpc",
+            },
+          ],
+        },
+        nodePositions: [
+          { componentId: "api", x: 40, y: 80 },
+          { componentId: "database", x: 340, y: 160 },
+        ],
+      }),
+    );
+
+    expect(loadLocalArchitectureEditorState(storage)).toEqual({
+      status: "failed",
+      error: { type: "saved-state-invalid" },
+    });
+  });
+
   it("preserves unsupported schema versions as a distinct failure", () => {
     const storage = new MemoryStorage();
-    storage.values.set(storageKey, JSON.stringify({ schemaVersion: 3 }));
+    storage.values.set(storageKey, JSON.stringify({ schemaVersion: 4 }));
 
     expect(loadLocalArchitectureEditorState(storage)).toEqual({
       status: "failed",
       error: {
         type: "unsupported-schema-version",
-        schemaVersion: 3,
+        schemaVersion: 4,
       },
     });
   });
@@ -333,7 +467,7 @@ describe("saveLocalArchitectureEditorState", () => {
     expect(storage.setItemCalls).toHaveLength(1);
     expect(storage.setItemCalls[0]?.key).toBe(storageKey);
     expect(JSON.parse(storage.setItemCalls[0]?.value ?? "")).toEqual({
-      schemaVersion: 2,
+      schemaVersion: 3,
       graph: {
         components: [
           { id: "api", name: "API", kind: "service" },
@@ -344,6 +478,7 @@ describe("saveLocalArchitectureEditorState", () => {
             id: "api-database",
             sourceComponentId: "api",
             targetComponentId: "database",
+            kind: "request-response",
           },
         ],
       },
@@ -464,6 +599,9 @@ describe("local architecture editor storage round trip", () => {
         stateWithRendererData.graph.getComponents(),
       );
       expect(loadResult.state.graph.getConnections()).toHaveLength(1);
+      expect(loadResult.state.graph.getConnections()).toEqual(
+        stateWithRendererData.graph.getConnections(),
+      );
       expect(loadResult.state.nodePositions).toEqual(
         stateWithRendererData.nodePositions,
       );
@@ -481,7 +619,7 @@ describe("local architecture editor storage round trip", () => {
     expect(storage.setItemCalls).toHaveLength(1);
     expect(storage.setItemCalls[0]?.key).toBe(storageKey);
     expect(JSON.parse(storage.setItemCalls[0]?.value ?? "")).toMatchObject({
-      schemaVersion: 2,
+      schemaVersion: 3,
       graph: {
         components: expect.arrayContaining([
           { id: "api", name: "Public API", kind: "service" },
@@ -491,6 +629,7 @@ describe("local architecture editor storage round trip", () => {
             id: "api-database",
             sourceComponentId: "api",
             targetComponentId: "database",
+            kind: "request-response",
           },
         ],
       },
@@ -503,7 +642,12 @@ describe("local architecture editor storage round trip", () => {
         component("api", "Public API", "service"),
       );
       expect(loadResult.state.graph.getConnections()).toEqual([
-        connection("api-database", "api", "database"),
+        connection(
+          "api-database",
+          "api",
+          "database",
+          "request-response",
+        ),
       ]);
       expect(loadResult.state.nodePositions).toEqual(state.nodePositions);
       expect(loadResult.state.nodeMeasurements).toEqual(new Map());

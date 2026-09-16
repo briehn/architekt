@@ -20,7 +20,7 @@ Architekt treats an architecture diagram as a real domain graph rather than mere
 
 ## Operating Context
 
-Users model systems with Generic, Client, Service, Database, Cache, Queue, Gateway, Storage, and External service components. The architecture canvas is the visual focus of the workspace.
+Users model systems with Generic, Client, Service, Database, Cache, Queue, Gateway, Storage, and External service components. Directional connections can be classified as Generic, Request/response, Async messaging, Streaming, or Data access. The architecture canvas is the visual focus of the workspace.
 
 ## Capabilities and Constraints
 
@@ -29,6 +29,11 @@ Users model systems with Generic, Client, Service, Database, Cache, Queue, Gatew
 - Existing component kinds are edited from the component list. The canvas shows a read-only kind icon and label; canvas double-click remains dedicated to rename.
 - Generic represents migrated or intentionally unclassified components. V1 saved workspaces restore their previously untyped components as Generic.
 - Component kinds classify the architecture for understanding and future analysis; they do not currently restrict connections.
+- New drag-created connections begin as Generic so users are never forced to claim information they do not know. Existing connection kinds are edited immediately from compact native selects in the connection list; there is no post-create modal or canvas edge editor.
+- Connection semantics describe the architectural relationship rather than its transport: Generic is intentionally unclassified, Request/response is a directed interaction that expects a response, Async messaging is decoupled message delivery, Streaming is an ongoing flow of values or events, and Data access is a read/write relationship with a data-holding component.
+- Generic connections remain canonical, persisted, accessible, and editable but have no visible canvas label. Request/response, Async messaging, Streaming, and Data access use concise visible edge labels.
+- Connection semantics classify intent without restricting valid topology. Any supported kind can describe any structurally valid directional connection, and Request/response does not imply a reverse edge.
+- Protocols and arbitrary free-form connection annotations are not supported yet. They remain separate future product decisions rather than being inferred from semantic kind.
 - React Flow is a renderer only; it is never canonical application state.
 - The domain layer remains independent of React, Next.js, React Flow, Zustand, persistence, and AI.
 - React Flow-specific position and visual-style data stay outside the domain model.

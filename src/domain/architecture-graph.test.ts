@@ -5,7 +5,11 @@ import {
   type ArchitectureComponent,
   type ArchitectureComponentKind,
 } from "./architecture-component";
-import type { ArchitectureConnection } from "./architecture-connection";
+import {
+  ARCHITECTURE_CONNECTION_KINDS,
+  type ArchitectureConnection,
+  type ArchitectureConnectionKind,
+} from "./architecture-connection";
 import { ArchitectureGraph } from "./architecture-graph";
 import type { ComponentId, ConnectionId } from "./identifiers";
 
@@ -33,11 +37,13 @@ function connection(
   id: string,
   sourceComponentId: ComponentId,
   targetComponentId: ComponentId,
+  kind: ArchitectureConnectionKind = "generic",
 ): ArchitectureConnection {
   return {
     id: connectionId(id),
     sourceComponentId,
     targetComponentId,
+    kind,
   };
 }
 
@@ -334,13 +340,14 @@ describe("ArchitectureGraph.renameComponent", () => {
     ]);
   });
 
-  it("preserves all connections after renaming", () => {
+  it("preserves connection kinds after renaming", () => {
     const api = component("api", "API");
     const database = component("database", "Database");
     const apiToDatabase = connection(
       "api-to-database",
       api.id,
       database.id,
+      "request-response",
     );
     const graph = expectSuccess(
       graphWithComponents(api, database).addConnection(apiToDatabase),
@@ -364,16 +371,19 @@ describe("ArchitectureGraph.changeComponentKind", () => {
       "api-to-database",
       api.id,
       database.id,
+      "data-access",
     );
     const databaseToApi = connection(
       "database-to-api",
       database.id,
       api.id,
+      "streaming",
     );
     const databaseToCache = connection(
       "database-to-cache",
       database.id,
       cache.id,
+      "async-messaging",
     );
     let graph = graphWithComponents(api, database, cache);
 
@@ -468,6 +478,117 @@ describe("ArchitectureGraph component kind preservation", () => {
     expect(disconnectedGraph.getComponents()).toEqual([api, database]);
     expect(graphWithoutApi.getComponents()).toEqual([database]);
   });
+});
+
+describe("ArchitectureGraph.changeConnectionKind", () => {
+  const api = component("api", "API", "service");
+  const database = component("database", "Database", "database");
+  const cache = component("cache", "Cache", "cache");
+  const apiToDatabase = connection(
+    "api-to-database",
+    api.id,
+    database.id,
+    "generic",
+  );
+  const databaseToApi = connection(
+    "database-to-api",
+    database.id,
+    api.id,
+    "streaming",
+  );
+  const databaseToCache = connection(
+    "database-to-cache",
+    database.id,
+    cache.id,
+    "data-access",
+  );
+
+  function graphWithConnections(): ArchitectureGraph {
+    let graph = graphWithComponents(api, database, cache);
+    graph = expectSuccess(graph.addConnection(apiToDatabase));
+    graph = expectSuccess(graph.addConnection(databaseToApi));
+    return expectSuccess(graph.addConnection(databaseToCache));
+  }
+
+  it("replaces only the targeted connection kind while preserving graph structure", () => {
+    const graph = graphWithConnections();
+
+    const result = graph.changeConnectionKind(
+      apiToDatabase.id,
+      "request-response",
+    );
+
+    expect(result.ok).toBe(true);
+    const changedGraph = expectSuccess(result);
+
+    expect(changedGraph).not.toBe(graph);
+    expect(graph.getComponents()).toEqual([api, database, cache]);
+    expect(changedGraph.getComponents()).toEqual([api, database, cache]);
+    expect(graph.getConnections()).toEqual([
+      apiToDatabase,
+      databaseToApi,
+      databaseToCache,
+    ]);
+    expect(changedGraph.getConnections()).toEqual([
+      { ...apiToDatabase, kind: "request-response" },
+      databaseToApi,
+      databaseToCache,
+    ]);
+  });
+
+  it("rejects an unknown connection ID without changing the graph", () => {
+    const graph = graphWithConnections();
+    const missingConnectionId = connectionId("missing");
+
+    expect(
+      graph.changeConnectionKind(missingConnectionId, "async-messaging"),
+    ).toEqual({
+      ok: false,
+      error: {
+        type: "connection-id-does-not-exist",
+        connectionId: missingConnectionId,
+      },
+    });
+    expect(graph.getConnections()).toEqual([
+      apiToDatabase,
+      databaseToApi,
+      databaseToCache,
+    ]);
+  });
+
+  it("returns the original graph for an exact connection kind match", () => {
+    const graph = graphWithConnections();
+    const result = graph.changeConnectionKind(
+      databaseToApi.id,
+      databaseToApi.kind,
+    );
+
+    expect(result).toEqual({ ok: true, graph });
+    expect(expectSuccess(result)).toBe(graph);
+  });
+
+  it.each(ARCHITECTURE_CONNECTION_KINDS)(
+    "accepts the supported %s kind through the typed API",
+    (kind) => {
+      const graph = graphWithComponents(api, database);
+      const genericConnection = connection(
+        "api-to-database",
+        api.id,
+        database.id,
+        "generic",
+      );
+      const connectedGraph = expectSuccess(
+        graph.addConnection(genericConnection),
+      );
+      const changedGraph = expectSuccess(
+        connectedGraph.changeConnectionKind(genericConnection.id, kind),
+      );
+
+      expect(changedGraph.getConnections()).toEqual([
+        { ...genericConnection, kind },
+      ]);
+    },
+  );
 });
 
 describe("ArchitectureGraph.addConnection", () => {
@@ -606,28 +727,34 @@ describe("ArchitectureGraph.addConnection", () => {
     });
   });
 
-  it("allows the reverse direction as a separate connection", () => {
+  it("allows reverse-direction connections to have independent kinds", () => {
     const graph = graphWithComponents(api, database);
+    const apiToDatabase = connection(
+      "api-to-database",
+      api.id,
+      database.id,
+      "request-response",
+    );
+    const databaseToApi = connection(
+      "database-to-api",
+      database.id,
+      api.id,
+      "streaming",
+    );
 
     const graphWithForwardConnection = expectSuccess(
-      graph.addConnection(
-        connection(
-          "api-to-database",
-          api.id,
-          database.id,
-        ),
-      ),
+      graph.addConnection(apiToDatabase),
     );
 
     const result = graphWithForwardConnection.addConnection(
-      connection(
-        "database-to-api",
-        database.id,
-        api.id,
-      ),
+      databaseToApi,
     );
 
     expect(result.ok).toBe(true);
+    expect(expectSuccess(result).getConnections()).toEqual([
+      apiToDatabase,
+      databaseToApi,
+    ]);
   });
 
   it("does not mutate the original graph", () => {
@@ -684,11 +811,13 @@ describe("ArchitectureGraph.removeConnection", () => {
       "api-to-database",
       api.id,
       database.id,
+      "data-access",
     );
     const databaseToCache = connection(
       "database-to-cache",
       database.id,
       cache.id,
+      "streaming",
     );
 
     const connectedGraph = expectSuccess(
@@ -797,6 +926,7 @@ describe("ArchitectureGraph component cascade removal", () => {
           "database-to-cache",
           database.id,
           cache.id,
+          "async-messaging",
         ),
       ),
     );
@@ -804,6 +934,15 @@ describe("ArchitectureGraph component cascade removal", () => {
     const graphWithoutApi = expectSuccess(
       graph.removeComponent(api.id),
     );
+
+    expect(graphWithoutApi.getConnections()).toEqual([
+      connection(
+        "database-to-cache",
+        database.id,
+        cache.id,
+        "async-messaging",
+      ),
+    ]);
 
     expect(
       graphWithoutApi.addConnection(
@@ -880,11 +1019,12 @@ describe("ArchitectureGraph read boundary", () => {
     expect(firstConnectionRead).not.toBe(graph.getConnections());
   });
 
-  it("returns all admitted components and connections", () => {
+  it("retains connection kinds through the read boundary", () => {
     const apiToDatabase = connection(
       "api-to-database",
       api.id,
       database.id,
+      "data-access",
     );
     const graph = expectSuccess(
       graphWithComponents(api, database).addConnection(apiToDatabase),
@@ -902,6 +1042,7 @@ describe("ArchitectureGraph read boundary", () => {
       "api-to-database",
       api.id,
       database.id,
+      "async-messaging",
     );
     let graph = expectSuccess(
       graphWithComponents(api, database, cache).addConnection(
@@ -1012,6 +1153,7 @@ describe("ArchitectureGraph read boundary", () => {
     expect(mutableConnection).not.toBe(secondRead[0]);
 
     mutableConnection.targetComponentId = api.id;
+    mutableConnection.kind = "streaming";
 
     expect(graph.getConnections()).toEqual([apiToDatabase]);
   });

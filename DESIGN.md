@@ -133,12 +133,12 @@ Use `sm` for chips and compact controls, `md` for inputs, buttons, and diagram n
 ## Components
 
 - **Buttons:** primary and secondary buttons are 36px high with `md` radius. Primary uses accent fill and light text; secondary uses a surface fill and border. Icon buttons are 32-36px, transparent or on a subtle surface.
-- **Inputs:** text inputs and select triggers are 36px, `md` radius, surface fill, 1px border, and visible focus ring. Component-kind controls use compact native text-only selects: one labeled creation control and one accessible per-component list control. They do not place icons inside select options. Textareas/prompts have `lg` radius, generous padding, and a 72px minimum height.
+- **Inputs:** text inputs and select triggers are 36px, `md` radius, surface fill, 1px border, and visible focus ring. Component-kind controls use compact native text-only selects: one labeled creation control and one accessible per-component list control. Connection rows use the same native, text-only pattern for immediate semantic-kind editing, with endpoint-based accessible names and conditional ID disambiguation only when visible endpoint names are ambiguous. These controls do not place icons inside select options. Textareas/prompts have `lg` radius, generous padding, and a 72px minimum height.
 - **Panels and navigation:** panels, menus, cards, and dropdowns use surface backgrounds, structural borders, and `lg` radius. Navigation/sidebar chrome stays visually quiet and scrolls independently when necessary. Exact navigation item styling is undecided.
 - **Iconography:** use one restrained outline family (Lucide preferred): 16px inline/button icons, 18px toolbar icons, 24-32px empty-state icons. Do not mix filled and outline systems. Ambiguous or destructive icon actions require an accessible name and tooltip.
 - **React Flow canvas:** use the canvas tokens and a subtle 16-24px dot grid at very low contrast. Keep canvas controls compact 32-36px icon buttons on a bordered surface.
 - **Nodes:** nodes remain uniform rectangles, 160-200px wide, at least 48px tall, with `md` radius, a shared neutral surface, and a shared 1px border. The component name is 14px/600 primary text. A 12px muted kind row pairs a restrained 16px Lucide outline icon with a visible human-readable label. Kind icons are canvas-only and decorative; control surfaces use native text labels. Types do not receive unique colors, gradients, borders, or semantic shapes.
-- **Edges:** use a 1.5-2px neutral directional stroke with small, clear, consistent arrowheads. Selected edges use accent. Handles remain hidden or subtle until hover/connection mode.
+- **Edges:** use a 1.5-2px neutral directional stroke with small, clear, consistent arrowheads. Non-Generic connection semantics appear as compact 12px/600 text at or near the edge midpoint, using shared `surface`, `border`, and `text-secondary` tokens for a light/dark-safe neutral label treatment. Generic is visually unlabeled to limit clutter, but remains present in accessible descriptions. Semantic kinds never change edge color, iconography, animation, line pattern, stroke, or arrowhead. Every edge exposes an ARIA description containing current endpoint names and the human-readable semantic kind; visible labels supplement rather than replace that description. Selected edges use accent. Handles remain hidden or subtle until hover/connection mode.
 - **States:** hover uses a small surface/accent shift; pressed is slightly darker; selected uses an accent border plus accent-soft background/ring where appropriate; disabled reduces contrast while remaining legible and removes pointer affordance; errors use danger border/text with concise explanation; success uses success icon/text rather than full green surfaces.
 
 ## Do's and Don'ts
@@ -148,6 +148,8 @@ Use `sm` for chips and compact controls, `md` for inputs, buttons, and diagram n
 - Do give every interactive icon an accessible name; tooltips do not replace screen-reader labels.
 - Do provide a non-color cue for selected, error, and success states.
 - Do communicate component kind with visible text; the icon supplements the label and is never the sole semantic cue.
+- Do communicate non-Generic connection semantics with concise text and expose every connection kind, including Generic, through an accessible edge description.
+- Don't assign semantic colors, icons, animation, or line patterns to connection kinds.
 - Do keep touch targets around 40px or larger when icons appear smaller.
 - Do keep React Flow styling and coordinates outside the domain model.
 - Don't show controls or visual detail for behavior the product does not yet implement.

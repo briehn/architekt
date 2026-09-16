@@ -16,6 +16,12 @@ import {
   type ArchitectureComponentKind,
 } from "../domain/architecture-component";
 import {
+  ARCHITECTURE_CONNECTION_KINDS,
+  isArchitectureConnectionKind,
+  type ArchitectureConnection,
+  type ArchitectureConnectionKind,
+} from "../domain/architecture-connection";
+import {
   type AddComponentRejection,
   type AddConnectionRejection,
   ArchitectureGraph,
@@ -34,6 +40,7 @@ import {
   addConnectionToEditorState,
   applyReactFlowNodeChangesToEditorState,
   changeComponentKindInEditorState,
+  changeConnectionKindInEditorState,
   createArchitectureEditorState,
   type ArchitectureEditorState,
   renameComponentInEditorState,
@@ -62,6 +69,7 @@ import {
 } from "./react-flow-adapter";
 import type { CanvasRenamePresentation } from "./architekt-node";
 import { getComponentKindPresentation } from "./component-kind-presentation";
+import { getConnectionKindPresentation } from "./connection-kind-presentation";
 import {
   StaticDiagram,
   type CanvasNodeFocusRequest,
@@ -120,10 +128,11 @@ function createExampleArchitectureGraph(): ArchitectureGraph {
     name: "Database",
     kind: "database",
   };
-  const apiToDatabase = {
+  const apiToDatabase: ArchitectureConnection = {
     id: connectionId("api-to-database"),
     sourceComponentId: api.id,
     targetComponentId: database.id,
+    kind: "data-access",
   };
 
   const apiResult = graph.addComponent(api);
@@ -139,7 +148,7 @@ function createExampleArchitectureGraph(): ArchitectureGraph {
 // This module-level value remains stable when position state causes a re-render.
 const exampleArchitectureGraph = createExampleArchitectureGraph();
 
-function createExampleArchitectureEditorState(): ArchitectureEditorState {
+export function createExampleArchitectureEditorState(): ArchitectureEditorState {
   return createArchitectureEditorState(exampleArchitectureGraph);
 }
 
@@ -270,6 +279,12 @@ export function getArchitectureComponentKindFromSelectValue(
   return isArchitectureComponentKind(rawKind) ? rawKind : null;
 }
 
+export function getArchitectureConnectionKindFromSelectValue(
+  rawKind: unknown,
+): ArchitectureConnectionKind | null {
+  return isArchitectureConnectionKind(rawKind) ? rawKind : null;
+}
+
 type ComponentKindSelectProps = Readonly<{
   value: ArchitectureComponentKind;
   onKindChange(kind: ArchitectureComponentKind): void;
@@ -279,6 +294,14 @@ function ComponentKindOptions() {
   return ARCHITECTURE_COMPONENT_KINDS.map((kind) => (
     <option key={kind} value={kind}>
       {getComponentKindPresentation(kind).label}
+    </option>
+  ));
+}
+
+function ConnectionKindOptions() {
+  return ARCHITECTURE_CONNECTION_KINDS.map((kind) => (
+    <option key={kind} value={kind}>
+      {getConnectionKindPresentation(kind).accessibleLabel}
     </option>
   ));
 }
@@ -365,6 +388,72 @@ export function recordComponentKindChangeFromList(
   const result = changeComponentKindInEditorState(
     history.present,
     componentId,
+    kind,
+  );
+
+  return result.ok
+    ? recordArchitectureEditorState(history, result.state)
+    : history;
+}
+
+type ConnectionListKindSelectProps = Readonly<{
+  accessibleName: string;
+  value: ArchitectureConnectionKind;
+  onKindChange(kind: ArchitectureConnectionKind): void;
+}>;
+
+export function ConnectionListKindSelect({
+  accessibleName,
+  value,
+  onKindChange,
+}: ConnectionListKindSelectProps) {
+  return (
+    <select
+      aria-label={accessibleName}
+      className="h-full max-w-40 shrink-0 border-l border-border bg-surface px-2 pr-7 text-xs text-text-primary outline-none transition-colors hover:bg-surface focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-focus-ring"
+      onChange={(event) => {
+        const kind = getArchitectureConnectionKindFromSelectValue(
+          event.target.value,
+        );
+
+        if (kind !== null) {
+          onKindChange(kind);
+        }
+      }}
+      value={value}
+    >
+      <ConnectionKindOptions />
+    </select>
+  );
+}
+
+export function getConnectionListKindSelectAccessibleName(
+  connection: Pick<
+    ArchitectureConnection,
+    "sourceComponentId" | "targetComponentId"
+  >,
+  sourceName: string,
+  targetName: string,
+  hasAmbiguousEndpointNames: boolean,
+): string {
+  const source = hasAmbiguousEndpointNames
+    ? `${sourceName} (${connection.sourceComponentId})`
+    : sourceName;
+  const target = hasAmbiguousEndpointNames
+    ? `${targetName} (${connection.targetComponentId})`
+    : targetName;
+
+  return `Change connection type from ${source} to ${target}`;
+}
+
+export function recordConnectionKindChangeFromList(
+  history: ArchitectureEditorHistory,
+  connectionId: ConnectionId,
+  kind: ArchitectureConnectionKind,
+): ArchitectureEditorHistory {
+  const result = changeConnectionKindInEditorState(
+    history.present,
+    connectionId,
     kind,
   );
 
@@ -1024,6 +1113,27 @@ export function ArchitectureEditor() {
     });
   }
 
+  function handleConnectionKindChange(
+    connectionId: ConnectionId,
+    kind: ArchitectureConnectionKind,
+  ) {
+    setViewState((currentViewState) => {
+      if (currentViewState.status === "loading") {
+        return currentViewState;
+      }
+
+      const history = recordConnectionKindChangeFromList(
+        currentViewState.history,
+        connectionId,
+        kind,
+      );
+
+      return history === currentViewState.history
+        ? currentViewState
+        : { ...currentViewState, history };
+    });
+  }
+
   function handleConnect(connection: Connection) {
     const architectureConnection = toArchitectureConnection(
       connection,
@@ -1421,7 +1531,7 @@ export function ArchitectureEditor() {
                       className="flex min-h-9 items-stretch overflow-hidden rounded-md border border-border bg-surface-subtle"
                       key={connection.id}
                     >
-                      <span className="flex min-w-0 flex-col justify-center px-3 py-2">
+                      <span className="flex min-w-0 flex-1 flex-col justify-center px-3 py-2">
                         <span className="text-sm text-text-primary">
                           {sourceName} <span aria-hidden="true">→</span>
                           <span className="sr-only"> to </span>{" "}
@@ -1436,6 +1546,18 @@ export function ArchitectureEditor() {
                           </span>
                         ) : null}
                       </span>
+                      <ConnectionListKindSelect
+                        accessibleName={getConnectionListKindSelectAccessibleName(
+                          connection,
+                          sourceName,
+                          targetName,
+                          isAmbiguous,
+                        )}
+                        onKindChange={(kind) =>
+                          handleConnectionKindChange(connection.id, kind)
+                        }
+                        value={connection.kind}
+                      />
                       <button
                         aria-label={
                           isAmbiguous

@@ -4,12 +4,16 @@ import type {
   ArchitectureComponent,
   ArchitectureComponentKind,
 } from "../domain/architecture-component";
-import type { ArchitectureConnection } from "../domain/architecture-connection";
+import type {
+  ArchitectureConnection,
+  ArchitectureConnectionKind,
+} from "../domain/architecture-connection";
 import type {
   AddComponentRejection,
   AddConnectionRejection,
   ArchitectureGraph,
   ChangeComponentKindRejection,
+  ChangeConnectionKindRejection,
   RenameComponentRejection,
   RemoveComponentRejection,
   RemoveConnectionRejection,
@@ -54,6 +58,10 @@ export type RenameComponentInEditorStateResult =
 export type ChangeComponentKindInEditorStateResult =
   | { ok: true; state: ArchitectureEditorState }
   | { ok: false; error: ChangeComponentKindRejection };
+
+export type ChangeConnectionKindInEditorStateResult =
+  | { ok: true; state: ArchitectureEditorState }
+  | { ok: false; error: ChangeConnectionKindRejection };
 
 export type RemoveConnectionFromEditorStateResult =
   | { ok: true; state: ArchitectureEditorState }
@@ -154,6 +162,31 @@ export function changeComponentKindInEditorState(
   kind: ArchitectureComponentKind,
 ): ChangeComponentKindInEditorStateResult {
   const graphResult = state.graph.changeComponentKind(componentId, kind);
+
+  if (!graphResult.ok) {
+    return graphResult;
+  }
+
+  if (graphResult.graph === state.graph) {
+    return { ok: true, state };
+  }
+
+  return {
+    ok: true,
+    state: {
+      graph: graphResult.graph,
+      nodePositions: state.nodePositions,
+      nodeMeasurements: state.nodeMeasurements,
+    },
+  };
+}
+
+export function changeConnectionKindInEditorState(
+  state: ArchitectureEditorState,
+  connectionId: ConnectionId,
+  kind: ArchitectureConnectionKind,
+): ChangeConnectionKindInEditorStateResult {
+  const graphResult = state.graph.changeConnectionKind(connectionId, kind);
 
   if (!graphResult.ok) {
     return graphResult;

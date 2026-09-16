@@ -310,9 +310,42 @@ authoritative.
 * [x] Preserve rename, focus, layout, connection, autosave, and undo/redo behavior
 * [x] Verify the milestone across domain, editor, history, persistence, renderer, and UI boundaries
 
+## Completed milestone: Connection Semantics
+
+### Goal
+
+Add a small provider-independent semantic classification to directional connections
+without forcing protocol details, restricting valid topology, or making React Flow
+canonical.
+
+**Milestone status: Complete.**
+
+### Completed tasks
+
+* [x] Define the five canonical connection kinds and runtime trust-boundary guard
+* [x] Require an explicit kind on every trusted in-memory connection
+* [x] Add immutable graph and editor-state operations for changing connection kind
+* [x] Record changed connection kinds through ordinary graph history snapshots
+* [x] Persist required connection kinds in schema V3 while restoring V1/V2 connections as Generic
+* [x] Derive connection kind into React Flow edge data without creating renderer-owned state
+* [x] Add neutral non-Generic edge labels and accessible semantic descriptions
+* [x] Add compact native connection-list selects with runtime DOM-value narrowing
+* [x] Seed the fresh API to Database example as Data access while keeping drag creation Generic
+* [x] Preserve topology, direction, layout, measurements, autosave, undo/redo, and legacy restoration behavior
+* [x] Verify the milestone across domain, editor state, history, persistence, renderer, UI, and accessibility boundaries
+
+### Deliberately deferred
+
+* Protocol or transport fields and arbitrary free-form connection annotations
+* Canvas edge selection, direct edge editing, context menus, and inspectors/properties panels
+* Ports, per-port connection rules, bandwidth, traffic, latency, and capacity metadata
+* Semantic colors, icons, animation, line patterns, or provider-specific connection styling
+* Architecture linting, kind-based topology restrictions, and automated semantic analysis
+* Grouped boundaries, automatic layout, AI generation, collaboration, and server persistence
+
 ## Future milestone candidates
 
 * Keep canvas kind presentation read-only unless a later product decision changes the established list-editing interaction
 * Consider richer component metadata, provider-specific technologies, or an inspector only when a concrete workflow requires them
-* Design semantic connection analysis or validation separately; component kinds currently classify nodes without restricting connections
-* Treat future AI-generated architectures as untrusted proposals whose component kinds must pass the same runtime validation and domain operations
+* Design semantic connection analysis or validation separately; component and connection kinds currently classify the graph without restricting topology
+* Treat future AI-generated architectures as untrusted proposals whose component and connection kinds must pass the same runtime validation and domain operations

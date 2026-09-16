@@ -5,7 +5,11 @@ import {
   type ArchitectureComponent,
   type ArchitectureComponentKind,
 } from "../domain/architecture-component";
-import type { ArchitectureConnection } from "../domain/architecture-connection";
+import type {
+  ArchitectureConnection,
+  ArchitectureConnectionKind,
+} from "../domain/architecture-connection";
+import { ARCHITECTURE_CONNECTION_KINDS } from "../domain/architecture-connection";
 import { ArchitectureGraph } from "../domain/architecture-graph";
 import type { ComponentId, ConnectionId } from "../domain/identifiers";
 import {
@@ -17,6 +21,7 @@ import {
   toPersistedArchitectureEditorDocument,
   type PersistedArchitectureEditorDocumentV1,
   type PersistedArchitectureEditorDocumentV2,
+  type PersistedArchitectureEditorDocumentV3,
   type RestoreArchitectureEditorStateError,
 } from "./architecture-editor-document";
 
@@ -40,11 +45,13 @@ function connection(
   id: string,
   sourceComponentId: string,
   targetComponentId: string,
+  kind: ArchitectureConnectionKind = "generic",
 ): ArchitectureConnection {
   return {
     id: connectionId(id),
     sourceComponentId: componentId(sourceComponentId),
     targetComponentId: componentId(targetComponentId),
+    kind,
   };
 }
 
@@ -81,7 +88,15 @@ function graphForSerialization(): ArchitectureGraph {
     graph,
     component("database", "Database", "database"),
   );
-  return addConnection(graph, connection("api-database", "api", "database"));
+  return addConnection(
+    graph,
+    connection(
+      "api-database",
+      "api",
+      "database",
+      "request-response",
+    ),
+  );
 }
 
 function editorStateForSerialization(): ArchitectureEditorState {
@@ -158,6 +173,30 @@ function validV2Document(): PersistedArchitectureEditorDocumentV2 {
   };
 }
 
+function validV3Document(): PersistedArchitectureEditorDocumentV3 {
+  return {
+    schemaVersion: 3,
+    graph: {
+      components: [
+        { id: "api", name: "API", kind: "service" },
+        { id: "database", name: "Database", kind: "database" },
+      ],
+      connections: [
+        {
+          id: "api-database",
+          sourceComponentId: "api",
+          targetComponentId: "database",
+          kind: "request-response",
+        },
+      ],
+    },
+    nodePositions: [
+      { componentId: "api", x: 40, y: 80 },
+      { componentId: "database", x: 340, y: 160 },
+    ],
+  };
+}
+
 function restoreSuccessfully(value: unknown): ArchitectureEditorState {
   const result = restoreArchitectureEditorState(value);
 
@@ -194,12 +233,12 @@ function expectGraphMembers(
 }
 
 describe("toPersistedArchitectureEditorDocument", () => {
-  it("serializes graph structure, kinds, and positions as a plain V2 document", () => {
+  it("serializes graph structure, kinds, and positions as a plain V3 document", () => {
     const document = toPersistedArchitectureEditorDocument(
       editorStateForSerialization(),
     );
 
-    expect(document).toEqual(validV2Document());
+    expect(document).toEqual(validV3Document());
     expect(JSON.parse(JSON.stringify(document))).toEqual(document);
   });
 
@@ -223,11 +262,11 @@ describe("toPersistedArchitectureEditorDocument", () => {
     ]);
   });
 
-  it("serializes a renamed component with its kind in V2", () => {
+  it("serializes a renamed component and connection kinds in V3", () => {
     const renamedState = renamedEditorStateForSerialization();
     const document = toPersistedArchitectureEditorDocument(renamedState);
 
-    expect(document.schemaVersion).toBe(2);
+    expect(document.schemaVersion).toBe(3);
     expect(document.graph.components).toContainEqual({
       id: "api",
       name: "Public API",
@@ -238,6 +277,7 @@ describe("toPersistedArchitectureEditorDocument", () => {
         id: "api-database",
         sourceComponentId: "api",
         targetComponentId: "database",
+        kind: "request-response",
       },
     ]);
     expect(document.nodePositions).toEqual([
@@ -273,7 +313,7 @@ describe("toPersistedArchitectureEditorDocument", () => {
 });
 
 describe("restoreArchitectureEditorState", () => {
-  it("restores V1 components with the generic compatibility kind", () => {
+  it("restores V1 components and connections with generic compatibility kinds", () => {
     const state = restoreSuccessfully(validDocument());
 
     expectGraphMembers(
@@ -321,7 +361,7 @@ describe("restoreArchitectureEditorState", () => {
     expect(state.nodeMeasurements).toEqual(new Map());
   });
 
-  it("restores a valid V2 document with required component kinds", () => {
+  it("restores V2 component kinds and gives legacy connections the generic compatibility kind", () => {
     const state = restoreSuccessfully(validV2Document());
 
     expectGraphMembers(
@@ -341,7 +381,34 @@ describe("restoreArchitectureEditorState", () => {
     expect(state.nodeMeasurements).toEqual(new Map());
   });
 
-  it("round trips every supported component kind through V2", () => {
+  it("restores V3 component and connection kinds exactly", () => {
+    const state = restoreSuccessfully(validV3Document());
+
+    expectGraphMembers(
+      state.graph,
+      [
+        component("api", "API", "service"),
+        component("database", "Database", "database"),
+      ],
+      [
+        connection(
+          "api-database",
+          "api",
+          "database",
+          "request-response",
+        ),
+      ],
+    );
+    expect(state.nodePositions).toEqual(
+      new Map([
+        [componentId("api"), { x: 40, y: 80 }],
+        [componentId("database"), { x: 340, y: 160 }],
+      ]),
+    );
+    expect(state.nodeMeasurements).toEqual(new Map());
+  });
+
+  it("round trips every supported component kind through V3", () => {
     let graph = ArchitectureGraph.empty();
     const nodePositions = new Map<
       ComponentId,
@@ -367,8 +434,50 @@ describe("restoreArchitectureEditorState", () => {
       JSON.parse(JSON.stringify(document)),
     );
 
-    expect(document.schemaVersion).toBe(2);
+    expect(document.schemaVersion).toBe(3);
     expect(restoredState.graph.getComponents()).toEqual(expectedComponents);
+    expect(restoredState.nodePositions).toEqual(nodePositions);
+    expect(restoredState.nodeMeasurements).toEqual(new Map());
+  });
+
+  it("round trips all five connection kinds through V3", () => {
+    let graph = ArchitectureGraph.empty();
+    const source = component("source", "Source", "service");
+    graph = addComponent(graph, source);
+    const nodePositions = new Map<
+      ComponentId,
+      Readonly<{ x: number; y: number }>
+    >([[source.id, { x: 0, y: 0 }]]);
+    const expectedConnections: ArchitectureConnection[] = [];
+
+    ARCHITECTURE_CONNECTION_KINDS.forEach((kind, index) => {
+      const target = component(`target-${index}`, `Target ${index}`);
+      const architectureConnection = connection(
+        `connection-${index}`,
+        source.id,
+        target.id,
+        kind,
+      );
+      graph = addComponent(graph, target);
+      graph = addConnection(graph, architectureConnection);
+      nodePositions.set(target.id, { x: 300, y: index * 100 });
+      expectedConnections.push(architectureConnection);
+    });
+
+    const document = toPersistedArchitectureEditorDocument({
+      graph,
+      nodePositions,
+    });
+    const restoredState = restoreSuccessfully(
+      JSON.parse(JSON.stringify(document)),
+    );
+
+    expect(document.graph.connections.map(({ kind }) => kind)).toEqual(
+      ARCHITECTURE_CONNECTION_KINDS,
+    );
+    expect(restoredState.graph.getConnections()).toEqual(
+      expectedConnections,
+    );
     expect(restoredState.nodePositions).toEqual(nodePositions);
     expect(restoredState.nodeMeasurements).toEqual(new Map());
   });
@@ -402,7 +511,12 @@ describe("restoreArchitectureEditorState", () => {
       component("api", "Public API", "service"),
     );
     expect(restoredState.graph.getConnections()).toEqual([
-      connection("api-database", "api", "database"),
+      connection(
+        "api-database",
+        "api",
+        "database",
+        "request-response",
+      ),
     ]);
     expect(restoredState.nodePositions).toEqual(renamedState.nodePositions);
     expect(restoredState.nodeMeasurements).toEqual(new Map());
@@ -507,6 +621,61 @@ describe("restoreArchitectureEditorState", () => {
     ).toEqual({ type: "invalid-document" });
   });
 
+  it("rejects a V3 connection with a missing kind", () => {
+    const document = validV3Document();
+    const connectionWithoutKind = {
+      id: "api-database",
+      sourceComponentId: "api",
+      targetComponentId: "database",
+    };
+
+    expect(
+      restoreFailure({
+        ...document,
+        graph: {
+          ...document.graph,
+          connections: [connectionWithoutKind],
+        },
+      }),
+    ).toEqual({ type: "invalid-document" });
+  });
+
+  it.each(["grpc", "", 123, null])(
+    "rejects the invalid V3 connection kind %j",
+    (kind) => {
+      const document = validV3Document();
+
+      expect(
+        restoreFailure({
+          ...document,
+          graph: {
+            ...document.graph,
+            connections: [
+              { ...document.graph.connections[0], kind },
+            ],
+          },
+        }),
+      ).toEqual({ type: "invalid-document" });
+    },
+  );
+
+  it("rejects a malformed V3 component kind", () => {
+    const document = validV3Document();
+
+    expect(
+      restoreFailure({
+        ...document,
+        graph: {
+          ...document.graph,
+          components: [
+            { ...document.graph.components[0], kind: "redis" },
+            document.graph.components[1],
+          ],
+        },
+      }),
+    ).toEqual({ type: "invalid-document" });
+  });
+
   it("distinguishes a missing schema version from an unsupported version", () => {
     const document = validDocument();
     const withoutVersion = {
@@ -518,10 +687,10 @@ describe("restoreArchitectureEditorState", () => {
       type: "invalid-document",
     });
     expect(
-      restoreFailure({ ...validDocument(), schemaVersion: 3 }),
+      restoreFailure({ ...validDocument(), schemaVersion: 4 }),
     ).toEqual({
       type: "unsupported-schema-version",
-      schemaVersion: 3,
+      schemaVersion: 4,
     });
   });
 

@@ -5,7 +5,10 @@ import type {
   ArchitectureComponent,
   ArchitectureComponentKind,
 } from "../domain/architecture-component";
-import type { ArchitectureConnection } from "../domain/architecture-connection";
+import type {
+  ArchitectureConnection,
+  ArchitectureConnectionKind,
+} from "../domain/architecture-connection";
 import { ArchitectureGraph } from "../domain/architecture-graph";
 import type { ComponentId, ConnectionId } from "../domain/identifiers";
 import {
@@ -14,6 +17,7 @@ import {
   type ArchitectureEditorState,
   applyReactFlowNodeChangesToEditorState,
   changeComponentKindInEditorState,
+  changeConnectionKindInEditorState,
   createArchitectureEditorState,
   renameComponentInEditorState,
   removeComponentFromEditorState,
@@ -52,11 +56,13 @@ function connection(
   id: string,
   sourceComponentId: ComponentId,
   targetComponentId: ComponentId,
+  kind: ArchitectureConnectionKind = "generic",
 ): ArchitectureConnection {
   return {
     id: connectionId(id),
     sourceComponentId,
     targetComponentId,
+    kind,
   };
 }
 
@@ -420,6 +426,140 @@ describe("changeComponentKindInEditorState", () => {
   });
 });
 
+describe("changeConnectionKindInEditorState", () => {
+  it("changes only the target connection kind while preserving editor metadata and components", () => {
+    const api = component("api", "API", "service");
+    const database = component("database", "Database", "database");
+    const cache = component("cache", "Cache", "cache");
+    const apiToDatabase = connection(
+      "api-to-database",
+      api.id,
+      database.id,
+      "generic",
+    );
+    const databaseToApi = connection(
+      "database-to-api",
+      database.id,
+      api.id,
+      "streaming",
+    );
+    const databaseToCache = connection(
+      "database-to-cache",
+      database.id,
+      cache.id,
+      "data-access",
+    );
+    const initializedState = createArchitectureEditorState(
+      graphWithConnections(
+        graphWithComponents(api, database, cache),
+        apiToDatabase,
+        databaseToApi,
+        databaseToCache,
+      ),
+    );
+    const previousState: ArchitectureEditorState = {
+      ...initializedState,
+      nodeMeasurements: new Map([[api.id, { width: 176, height: 48 }]]),
+    };
+
+    const nextState = expectEditorStateSuccess(
+      changeConnectionKindInEditorState(
+        previousState,
+        apiToDatabase.id,
+        "request-response",
+      ),
+    );
+
+    expect(nextState).not.toBe(previousState);
+    expect(nextState.graph).not.toBe(previousState.graph);
+    expect(nextState.nodePositions).toBe(previousState.nodePositions);
+    expect(nextState.nodeMeasurements).toBe(
+      previousState.nodeMeasurements,
+    );
+    expect(nextState.graph.getComponents()).toEqual([api, database, cache]);
+    expect(nextState.graph.getConnections()).toEqual([
+      { ...apiToDatabase, kind: "request-response" },
+      databaseToApi,
+      databaseToCache,
+    ]);
+    expect(previousState.graph.getComponents()).toEqual([
+      api,
+      database,
+      cache,
+    ]);
+    expect(previousState.graph.getConnections()).toEqual([
+      apiToDatabase,
+      databaseToApi,
+      databaseToCache,
+    ]);
+  });
+
+  it("returns the original state for an exact connection kind match", () => {
+    const api = component("api", "API");
+    const database = component("database", "Database", "database");
+    const apiToDatabase = connection(
+      "api-to-database",
+      api.id,
+      database.id,
+      "async-messaging",
+    );
+    const state = createArchitectureEditorState(
+      graphWithConnections(
+        graphWithComponents(api, database),
+        apiToDatabase,
+      ),
+    );
+
+    const result = changeConnectionKindInEditorState(
+      state,
+      apiToDatabase.id,
+      apiToDatabase.kind,
+    );
+
+    expect(result).toEqual({ ok: true, state });
+    expect(expectEditorStateSuccess(result)).toBe(state);
+  });
+
+  it("propagates unknown-ID rejection without changing state", () => {
+    const api = component("api", "API");
+    const database = component("database", "Database", "database");
+    const apiToDatabase = connection(
+      "api-to-database",
+      api.id,
+      database.id,
+    );
+    const state = createArchitectureEditorState(
+      graphWithConnections(
+        graphWithComponents(api, database),
+        apiToDatabase,
+      ),
+    );
+    const missingId = connectionId("missing");
+    const graphReference = state.graph;
+    const positionsReference = state.nodePositions;
+    const measurementsReference = state.nodeMeasurements;
+
+    const result = changeConnectionKindInEditorState(
+      state,
+      missingId,
+      "data-access",
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      error: {
+        type: "connection-id-does-not-exist",
+        connectionId: missingId,
+      },
+    });
+    expect(state.graph).toBe(graphReference);
+    expect(state.nodePositions).toBe(positionsReference);
+    expect(state.nodeMeasurements).toBe(measurementsReference);
+    expect(state.graph.getComponents()).toEqual([api, database]);
+    expect(state.graph.getConnections()).toEqual([apiToDatabase]);
+  });
+});
+
 describe("removeComponentFromEditorState", () => {
   it("removes the component, incident connections, and metadata atomically", () => {
     const api = component("api", "API");
@@ -706,6 +846,7 @@ describe("addConnectionToEditorState", () => {
         source: api.id,
         target: database.id,
         markerEnd: { type: "arrowclosed" },
+        data: { kind: "generic" },
       },
     ]);
     expect(previousState.graph.getConnections()).toEqual([]);
@@ -825,6 +966,7 @@ describe("removeConnectionFromEditorState", () => {
           source: api.id,
           target: cache.id,
           markerEnd: { type: "arrowclosed" },
+          data: { kind: "generic" },
         },
       ],
     });

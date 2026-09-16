@@ -11,7 +11,10 @@ import type {
   ArchitectureComponent,
   ArchitectureComponentKind,
 } from "../domain/architecture-component";
-import type { ArchitectureConnection } from "../domain/architecture-connection";
+import type {
+  ArchitectureConnection,
+  ArchitectureConnectionKind,
+} from "../domain/architecture-connection";
 import type { ArchitectureGraph } from "../domain/architecture-graph";
 import type { ComponentId, ConnectionId } from "../domain/identifiers";
 import {
@@ -35,6 +38,13 @@ export type ArchitectureFlowNodeData = Readonly<{
 
 export type ArchitectureFlowNode = Node<ArchitectureFlowNodeData>;
 
+export type ArchitectureFlowEdgeData = Readonly<{
+  kind: ArchitectureConnectionKind;
+}>;
+
+export type ArchitectureFlowEdge = Edge<ArchitectureFlowEdgeData> &
+  Readonly<{ data: ArchitectureFlowEdgeData }>;
+
 export function toArchitectureConnection(
   connection: Connection,
   connectionId: ConnectionId,
@@ -43,6 +53,7 @@ export function toArchitectureConnection(
     id: connectionId,
     sourceComponentId: connection.source as ComponentId,
     targetComponentId: connection.target as ComponentId,
+    kind: "generic",
   };
 }
 
@@ -66,7 +77,7 @@ export function toReactFlowDiagram(
   nodePositions: DiagramNodePositions,
 ): {
   nodes: ArchitectureFlowNode[];
-  edges: Edge[];
+  edges: ArchitectureFlowEdge[];
 } {
   const components = graph.getComponents();
   const connections = graph.getConnections();
@@ -80,11 +91,12 @@ export function toReactFlowDiagram(
     position: getDiagramPosition(nodePositions, component.id),
   }));
 
-  const edges: Edge[] = connections.map((connection) => ({
+  const edges: ArchitectureFlowEdge[] = connections.map((connection) => ({
     id: connection.id,
     source: connection.sourceComponentId,
     target: connection.targetComponentId,
     markerEnd: closedArrowMarker,
+    data: { kind: connection.kind },
   }));
 
   return { nodes, edges };

@@ -2,7 +2,10 @@ import type {
   ArchitectureComponent,
   ArchitectureComponentKind,
 } from "./architecture-component";
-import type { ArchitectureConnection } from "./architecture-connection";
+import type {
+  ArchitectureConnection,
+  ArchitectureConnectionKind,
+} from "./architecture-connection";
 
 export type AddComponentRejection =
   | {
@@ -49,6 +52,15 @@ export type ChangeComponentKindRejection = {
 export type ChangeComponentKindResult =
   | { ok: true; graph: ArchitectureGraph }
   | { ok: false; error: ChangeComponentKindRejection };
+
+export type ChangeConnectionKindRejection = {
+  type: "connection-id-does-not-exist";
+  connectionId: ArchitectureConnection["id"];
+};
+
+export type ChangeConnectionKindResult =
+  | { ok: true; graph: ArchitectureGraph }
+  | { ok: false; error: ChangeConnectionKindRejection };
 
 export type AddConnectionRejection =
   | {
@@ -235,6 +247,38 @@ export class ArchitectureGraph {
           kind,
         }),
         this.connectionsById,
+      ),
+    };
+  }
+
+  changeConnectionKind(
+    connectionId: ArchitectureConnection["id"],
+    kind: ArchitectureConnectionKind,
+  ): ChangeConnectionKindResult {
+    const connection = this.connectionsById.get(connectionId);
+
+    if (!connection) {
+      return {
+        ok: false,
+        error: {
+          type: "connection-id-does-not-exist",
+          connectionId,
+        },
+      };
+    }
+
+    if (kind === connection.kind) {
+      return { ok: true, graph: this };
+    }
+
+    return {
+      ok: true,
+      graph: new ArchitectureGraph(
+        this.componentsById,
+        new Map(this.connectionsById).set(connectionId, {
+          ...connection,
+          kind,
+        }),
       ),
     };
   }

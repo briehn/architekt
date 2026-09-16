@@ -15,6 +15,7 @@ Architekt currently supports the core editing loop:
 - Rename components inline
 - Move components around the canvas
 - Add and remove directional connections
+- Classify connections as request/response, async messaging, streaming, data-access, or intentionally generic relationships
 - Save the current graph and layout in the browser
 - Recover safely when saved data is invalid or unavailable
 - Undo and redo structural edits and completed node drags
@@ -48,6 +49,7 @@ That separation gives the project a few useful properties:
 
 - Immutable graph operations with explicit success and rejection results
 - A canonical component-type model carried through editing, undo/redo, persistence, and derived canvas presentation
+- Canonical connection semantics carried through immutable editing, undo/redo, versioned persistence, and accessible derived edge labels
 - Branded TypeScript identifiers for components and connections
 - Controlled React Flow rendering backed by application-owned state
 - A versioned persistence format with runtime validation
@@ -66,7 +68,7 @@ That separation gives the project a few useful properties:
 
 ## Current direction
 
-Architekt is under active development. Component Types is complete; future work will make separate, deliberate decisions around connection meaning, layout, and the boundaries of AI-assisted editing.
+Architekt is under active development. Component Types and Connection Semantics are complete; future work will make separate, deliberate decisions around layout and the boundaries of AI-assisted editing.
 
 Screenshots and a live demo will be added when the editor's visual language is mature enough to represent the project well. For now, the repository reflects the working product and the engineering decisions behind it.
 
