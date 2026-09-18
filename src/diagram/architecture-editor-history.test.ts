@@ -14,6 +14,7 @@ import {
   addComponentToEditorState,
   addConnectionToEditorState,
   applyReactFlowNodeChangesToEditorState,
+  autoLayoutArchitectureEditorState,
   changeComponentKindInEditorState,
   changeConnectionKindInEditorState,
   createArchitectureEditorState,
@@ -1168,6 +1169,178 @@ describe("structural editor-state history recording", () => {
     expect(redoneHistory.present.nodeMeasurements).toBe(
       renamedState.nodeMeasurements,
     );
+  });
+});
+
+describe("ArchitectureEditorHistory auto-layout", () => {
+  function connectedMeasuredState(): ArchitectureEditorState {
+    const graph = graphWithComponents(api, database);
+    const connectionResult = graph.addConnection(apiToDatabase);
+
+    if (!connectionResult.ok) {
+      throw new Error("Expected connection to be added.");
+    }
+
+    return {
+      ...createArchitectureEditorState(connectionResult.graph),
+      nodeMeasurements: new Map([
+        [api.id, { width: 220, height: 90 }],
+        [database.id, { width: 140, height: 60 }],
+      ]),
+    };
+  }
+
+  it("records one changed layout and restores its complete position maps through undo and redo", () => {
+    const initialState = connectedMeasuredState();
+    const graphComponents = initialState.graph.getComponents();
+    const graphConnections = initialState.graph.getConnections();
+    const layoutState = expectEditorStateSuccess(
+      autoLayoutArchitectureEditorState(initialState),
+    );
+    const history = recordArchitectureEditorState(
+      createArchitectureEditorHistory(initialState),
+      layoutState,
+    );
+
+    expect(layoutState).not.toBe(initialState);
+    expect(history.past).toHaveLength(1);
+    expect(history.past[0]).toEqual({
+      graph: initialState.graph,
+      nodePositions: initialState.nodePositions,
+    });
+    expect(history.past[0]).not.toHaveProperty("nodeMeasurements");
+    expect(history.present).toBe(layoutState);
+    expect(history.present.nodePositions).toEqual(
+      new Map([
+        [api.id, { x: 32, y: 32 }],
+        [database.id, { x: 412, y: 47 }],
+      ]),
+    );
+    expect(history.future).toEqual([]);
+    expect(canUndoArchitectureEditorHistory(history)).toBe(true);
+
+    const undoneHistory = undoArchitectureEditorHistory(history);
+
+    expect(undoneHistory.present.nodePositions).toEqual(
+      initialState.nodePositions,
+    );
+    expect(undoneHistory.present.nodePositions.size).toBe(2);
+    expect(undoneHistory.present.graph).toBe(initialState.graph);
+    expect(undoneHistory.present.graph.getComponents()).toEqual(
+      graphComponents,
+    );
+    expect(undoneHistory.present.graph.getConnections()).toEqual(
+      graphConnections,
+    );
+    expect(undoneHistory.present.nodeMeasurements).toBe(
+      initialState.nodeMeasurements,
+    );
+    expect(canRedoArchitectureEditorHistory(undoneHistory)).toBe(true);
+
+    const redoneHistory = redoArchitectureEditorHistory(undoneHistory);
+
+    expect(redoneHistory.present.nodePositions).toEqual(
+      layoutState.nodePositions,
+    );
+    expect(redoneHistory.present.nodePositions.size).toBe(2);
+    expect(redoneHistory.present.graph).toBe(initialState.graph);
+    expect(redoneHistory.present.graph.getComponents()).toEqual(
+      graphComponents,
+    );
+    expect(redoneHistory.present.graph.getConnections()).toEqual(
+      graphConnections,
+    );
+    expect(redoneHistory.present.nodeMeasurements).toBe(
+      initialState.nodeMeasurements,
+    );
+    expect(canRedoArchitectureEditorHistory(redoneHistory)).toBe(false);
+  });
+
+  it("preserves redo after a coordinate-identical layout", () => {
+    const initialState = connectedMeasuredState();
+    const layoutState = expectEditorStateSuccess(
+      autoLayoutArchitectureEditorState(initialState),
+    );
+    const movedState: ArchitectureEditorState = {
+      ...layoutState,
+      nodePositions: moveDiagramNode(
+        layoutState.nodePositions,
+        api.id,
+        { x: 96, y: 144 },
+      ),
+    };
+    const historyWithFuture = undoArchitectureEditorHistory(
+      recordArchitectureEditorState(
+        createArchitectureEditorHistory(layoutState),
+        movedState,
+      ),
+    );
+    const pastBeforeLayout = historyWithFuture.past;
+    const futureBeforeLayout = historyWithFuture.future;
+    const noOpLayoutState = expectEditorStateSuccess(
+      autoLayoutArchitectureEditorState(historyWithFuture.present),
+    );
+    const historyAfterNoOp = recordArchitectureEditorState(
+      historyWithFuture,
+      noOpLayoutState,
+    );
+
+    expect(noOpLayoutState).toBe(historyWithFuture.present);
+    expect(historyAfterNoOp).toBe(historyWithFuture);
+    expect(historyAfterNoOp.past).toBe(pastBeforeLayout);
+    expect(historyAfterNoOp.future).toBe(futureBeforeLayout);
+    expect(canRedoArchitectureEditorHistory(historyAfterNoOp)).toBe(true);
+  });
+
+  it("clears redo after a genuinely changed layout", () => {
+    const initialState = connectedMeasuredState();
+    const movedState: ArchitectureEditorState = {
+      ...initialState,
+      nodePositions: moveDiagramNode(
+        initialState.nodePositions,
+        api.id,
+        { x: 96, y: 144 },
+      ),
+    };
+    const historyWithFuture = undoArchitectureEditorHistory(
+      recordArchitectureEditorState(
+        createArchitectureEditorHistory(initialState),
+        movedState,
+      ),
+    );
+    const layoutState = expectEditorStateSuccess(
+      autoLayoutArchitectureEditorState(historyWithFuture.present),
+    );
+    const historyAfterLayout = recordArchitectureEditorState(
+      historyWithFuture,
+      layoutState,
+    );
+
+    expect(layoutState).not.toBe(historyWithFuture.present);
+    expect(historyAfterLayout.past).toHaveLength(1);
+    expect(historyAfterLayout.future).toEqual([]);
+    expect(canRedoArchitectureEditorHistory(historyAfterLayout)).toBe(false);
+  });
+
+  it("preserves future after an empty-graph layout no-op", () => {
+    const emptyState = createArchitectureEditorState(ArchitectureGraph.empty());
+    const historyWithFuture = undoArchitectureEditorHistory(
+      recordArchitectureEditorState(
+        createArchitectureEditorHistory(emptyState),
+        expectEditorStateSuccess(addComponentToEditorState(emptyState, api)),
+      ),
+    );
+    const noOpLayoutState = expectEditorStateSuccess(
+      autoLayoutArchitectureEditorState(historyWithFuture.present),
+    );
+    const historyAfterNoOp = recordArchitectureEditorState(
+      historyWithFuture,
+      noOpLayoutState,
+    );
+
+    expect(noOpLayoutState).toBe(historyWithFuture.present);
+    expect(historyAfterNoOp).toBe(historyWithFuture);
+    expect(canRedoArchitectureEditorHistory(historyAfterNoOp)).toBe(true);
   });
 });
 

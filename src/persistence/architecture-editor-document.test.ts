@@ -408,6 +408,51 @@ describe("restoreArchitectureEditorState", () => {
     expect(state.nodeMeasurements).toEqual(new Map());
   });
 
+  it.each([
+    [
+      "V1",
+      {
+        ...validDocument(),
+        nodePositions: [
+          { componentId: "api", x: -901, y: 777 },
+          { componentId: "database", x: 1444, y: -222 },
+        ],
+      },
+    ],
+    [
+      "V2",
+      {
+        ...validV2Document(),
+        nodePositions: [
+          { componentId: "api", x: -901, y: 777 },
+          { componentId: "database", x: 1444, y: -222 },
+        ],
+      },
+    ],
+    [
+      "V3",
+      {
+        ...validV3Document(),
+        nodePositions: [
+          { componentId: "api", x: -901, y: 777 },
+          { componentId: "database", x: 1444, y: -222 },
+        ],
+      },
+    ],
+  ] satisfies ReadonlyArray<readonly [string, unknown]>)(
+    "preserves persisted $0 positions without applying auto-layout",
+    (_schemaVersion, document) => {
+      const state = restoreSuccessfully(document);
+
+      expect(state.nodePositions).toEqual(
+        new Map([
+          [componentId("api"), { x: -901, y: 777 }],
+          [componentId("database"), { x: 1444, y: -222 }],
+        ]),
+      );
+    },
+  );
+
   it("round trips every supported component kind through V3", () => {
     let graph = ArchitectureGraph.empty();
     const nodePositions = new Map<

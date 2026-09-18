@@ -14,11 +14,13 @@ import type { ComponentId, ConnectionId } from "../domain/identifiers";
 import {
   addComponentToEditorState,
   addConnectionToEditorState,
+  autoLayoutArchitectureEditorState,
   type ArchitectureEditorState,
   applyReactFlowNodeChangesToEditorState,
   changeComponentKindInEditorState,
   changeConnectionKindInEditorState,
   createArchitectureEditorState,
+  createFreshArchitectureEditorState,
   renameComponentInEditorState,
   removeComponentFromEditorState,
   removeConnectionFromEditorState,
@@ -144,6 +146,36 @@ describe("createArchitectureEditorState", () => {
       );
     }
 
+    expect(state.nodeMeasurements).toEqual(new Map());
+  });
+});
+
+describe("createFreshArchitectureEditorState", () => {
+  it("uses deterministic fallback-size layout without changing graph content or measurements", () => {
+    const api = component("api", "API", "service");
+    const database = component("database", "Database", "database");
+    const apiToDatabase = connection(
+      "api-to-database",
+      api.id,
+      database.id,
+      "data-access",
+    );
+    const graph = graphWithConnections(
+      graphWithComponents(api, database),
+      apiToDatabase,
+    );
+
+    const state = createFreshArchitectureEditorState(graph);
+
+    expect(state.graph).toBe(graph);
+    expect(state.graph.getComponents()).toEqual([api, database]);
+    expect(state.graph.getConnections()).toEqual([apiToDatabase]);
+    expect(state.nodePositions).toEqual(
+      new Map([
+        [api.id, { x: 32, y: 32 }],
+        [database.id, { x: 368, y: 32 }],
+      ]),
+    );
     expect(state.nodeMeasurements).toEqual(new Map());
   });
 });
@@ -1007,6 +1039,185 @@ describe("removeConnectionFromEditorState", () => {
   });
 });
 
+describe("autoLayoutArchitectureEditorState", () => {
+  const api = component("api", "API", "gateway");
+  const database = component("database", "Database", "database");
+  const apiToDatabase = connection(
+    "api-to-database",
+    api.id,
+    database.id,
+    "data-access",
+  );
+
+  function connectedState(): ArchitectureEditorState {
+    return createArchitectureEditorState(
+      graphWithConnections(
+        graphWithComponents(api, database),
+        apiToDatabase,
+      ),
+    );
+  }
+
+  it("replaces only positions when layout changes", () => {
+    const previousState = connectedState();
+    const graphComponentsBeforeLayout = previousState.graph.getComponents();
+    const graphConnectionsBeforeLayout = previousState.graph.getConnections();
+    const result = autoLayoutArchitectureEditorState(previousState);
+    const nextState = expectEditorStateSuccess(result);
+
+    expect(nextState).not.toBe(previousState);
+    expect(nextState.graph).toBe(previousState.graph);
+    expect(nextState.nodeMeasurements).toBe(
+      previousState.nodeMeasurements,
+    );
+    expect(nextState.nodePositions).not.toBe(previousState.nodePositions);
+    expect(nextState.nodePositions).toEqual(
+      new Map([
+        [api.id, { x: 32, y: 32 }],
+        [database.id, { x: 368, y: 32 }],
+      ]),
+    );
+    expect(nextState.nodePositions.size).toBe(
+      previousState.graph.getComponents().length,
+    );
+    expect(nextState.graph.getComponents()).toEqual(
+      graphComponentsBeforeLayout,
+    );
+    expect(nextState.graph.getConnections()).toEqual(
+      graphConnectionsBeforeLayout,
+    );
+    expect(previousState.nodePositions).toEqual(
+      new Map([
+        [api.id, { x: 0, y: 0 }],
+        [database.id, { x: 240, y: 0 }],
+      ]),
+    );
+  });
+
+  it("uses valid current measurements while preserving their exact reference", () => {
+    const initializedState = connectedState();
+    const measurements = new Map([
+      [api.id, { width: 220, height: 90 }],
+      [database.id, { width: 140, height: 60 }],
+    ]);
+    const previousState: ArchitectureEditorState = {
+      ...initializedState,
+      nodeMeasurements: measurements,
+    };
+    const nextState = expectEditorStateSuccess(
+      autoLayoutArchitectureEditorState(previousState),
+    );
+
+    expect(nextState.nodePositions).toEqual(
+      new Map([
+        [api.id, { x: 32, y: 32 }],
+        [database.id, { x: 412, y: 47 }],
+      ]),
+    );
+    expect(nextState.nodeMeasurements).toBe(measurements);
+    expect(nextState.nodeMeasurements.get(api.id)).toBe(
+      measurements.get(api.id),
+    );
+  });
+
+  it("uses the pure-layout fallback when a current measurement is missing", () => {
+    const initializedState = connectedState();
+    const measurements = new Map([[api.id, { width: 220, height: 90 }]]);
+    const previousState: ArchitectureEditorState = {
+      ...initializedState,
+      nodeMeasurements: measurements,
+    };
+    const nextState = expectEditorStateSuccess(
+      autoLayoutArchitectureEditorState(previousState),
+    );
+
+    expect(nextState.nodePositions).toEqual(
+      new Map([
+        [api.id, { x: 32, y: 32 }],
+        [database.id, { x: 412, y: 41 }],
+      ]),
+    );
+    expect(nextState.nodeMeasurements).toBe(measurements);
+  });
+
+  it("lets the pure layout module fall back for an invalid current measurement", () => {
+    const initializedState = connectedState();
+    const measurements = new Map([
+      [api.id, { width: Number.NaN, height: 90 }],
+    ]);
+    const previousState: ArchitectureEditorState = {
+      ...initializedState,
+      nodeMeasurements: measurements,
+    };
+    const nextState = expectEditorStateSuccess(
+      autoLayoutArchitectureEditorState(previousState),
+    );
+
+    expect(nextState.nodePositions).toEqual(
+      new Map([
+        [api.id, { x: 32, y: 32 }],
+        [database.id, { x: 368, y: 32 }],
+      ]),
+    );
+    expect(nextState.nodeMeasurements).toBe(measurements);
+  });
+
+  it("ignores stale measurement IDs", () => {
+    const initializedState = connectedState();
+    const measurements = new Map([
+      ["removed-component", { width: 800, height: 400 }],
+    ]);
+    const previousState: ArchitectureEditorState = {
+      ...initializedState,
+      nodeMeasurements: measurements,
+    };
+    const nextState = expectEditorStateSuccess(
+      autoLayoutArchitectureEditorState(previousState),
+    );
+
+    expect(nextState.nodePositions).toEqual(
+      new Map([
+        [api.id, { x: 32, y: 32 }],
+        [database.id, { x: 368, y: 32 }],
+      ]),
+    );
+    expect(nextState.nodeMeasurements).toBe(measurements);
+    expect(nextState.nodeMeasurements.get("removed-component")).toBe(
+      measurements.get("removed-component"),
+    );
+  });
+
+  it("returns the original state when layout coordinates are already equal", () => {
+    const initializedState = connectedState();
+    const positions = new Map([
+      [api.id, { x: 32, y: 32 }],
+      [database.id, { x: 368, y: 32 }],
+    ]);
+    const previousState: ArchitectureEditorState = {
+      ...initializedState,
+      nodePositions: positions,
+    };
+    const nextState = expectEditorStateSuccess(
+      autoLayoutArchitectureEditorState(previousState),
+    );
+
+    expect(nextState).toBe(previousState);
+    expect(nextState.nodePositions).toBe(positions);
+    expect(nextState.graph).toBe(previousState.graph);
+    expect(nextState.nodeMeasurements).toBe(previousState.nodeMeasurements);
+  });
+
+  it("treats an empty graph as an identity-preserving no-op", () => {
+    const state = createArchitectureEditorState(ArchitectureGraph.empty());
+    const nextState = expectEditorStateSuccess(
+      autoLayoutArchitectureEditorState(state),
+    );
+
+    expect(nextState).toBe(state);
+    expect(nextState.nodePositions).toBe(state.nodePositions);
+  });
+});
+
 describe("applyReactFlowNodeChangesToEditorState", () => {
   const api = component("api", "API");
 
@@ -1140,4 +1351,3 @@ describe("applyReactFlowNodeChangesToEditorState", () => {
     expect(nextState).toBe(previousState);
   });
 });
-

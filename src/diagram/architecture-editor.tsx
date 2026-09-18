@@ -41,7 +41,7 @@ import {
   applyReactFlowNodeChangesToEditorState,
   changeComponentKindInEditorState,
   changeConnectionKindInEditorState,
-  createArchitectureEditorState,
+  createFreshArchitectureEditorState,
   type ArchitectureEditorState,
   renameComponentInEditorState,
   removeComponentFromEditorState,
@@ -149,7 +149,13 @@ function createExampleArchitectureGraph(): ArchitectureGraph {
 const exampleArchitectureGraph = createExampleArchitectureGraph();
 
 export function createExampleArchitectureEditorState(): ArchitectureEditorState {
-  return createArchitectureEditorState(exampleArchitectureGraph);
+  return createFreshArchitectureEditorState(exampleArchitectureGraph);
+}
+
+export function createFreshExampleArchitectureEditorHistory(): ArchitectureEditorHistory {
+  return createArchitectureEditorHistory(
+    createExampleArchitectureEditorState(),
+  );
 }
 
 type EditableArchitectureEditorViewState = {
@@ -567,9 +573,7 @@ export function ArchitectureEditor() {
         autosaveBaselineRef.current = null;
         setViewState({
           status: "memory-only",
-          history: createArchitectureEditorHistory(
-            createExampleArchitectureEditorState(),
-          ),
+          history: createFreshExampleArchitectureEditorHistory(),
           connectionRejection: null,
         });
         return;
@@ -591,13 +595,14 @@ export function ArchitectureEditor() {
         return;
       }
 
-      const editorState = createExampleArchitectureEditorState();
+      const freshHistory = createFreshExampleArchitectureEditorHistory();
+      const editorState = freshHistory.present;
 
       if (loadResult.status === "missing") {
         autosaveBaselineRef.current = persistedEditorStateBaseline(editorState);
         setViewState({
           status: "ready",
-          history: createArchitectureEditorHistory(editorState),
+          history: freshHistory,
           connectionRejection: null,
           saveFailure: null,
         });
@@ -609,7 +614,7 @@ export function ArchitectureEditor() {
         autosaveBaselineRef.current = null;
         setViewState({
           status: "memory-only",
-          history: createArchitectureEditorHistory(editorState),
+          history: freshHistory,
           connectionRejection: null,
         });
         return;
@@ -619,7 +624,7 @@ export function ArchitectureEditor() {
       setViewState({
         status: "recovery-required",
         reason: loadResult.error.type,
-        history: createArchitectureEditorHistory(editorState),
+        history: freshHistory,
         connectionRejection: null,
         resetFailure: null,
       });
@@ -1207,7 +1212,8 @@ export function ArchitectureEditor() {
       return;
     }
 
-    const editorState = createExampleArchitectureEditorState();
+    const freshHistory = createFreshExampleArchitectureEditorHistory();
+    const editorState = freshHistory.present;
     autosaveBaselineRef.current = persistedEditorStateBaseline(editorState);
     latestEditorStateRef.current = editorState;
     setComponentCreationDraft(clearComponentCreationDraftName);
@@ -1215,7 +1221,7 @@ export function ArchitectureEditor() {
     closeRename(null);
     setViewState({
       status: "ready",
-      history: createArchitectureEditorHistory(editorState),
+      history: freshHistory,
       connectionRejection: null,
       saveFailure: null,
     });

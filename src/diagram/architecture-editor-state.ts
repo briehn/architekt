@@ -20,6 +20,11 @@ import type {
 } from "../domain/architecture-graph";
 import type { ComponentId, ConnectionId } from "../domain/identifiers";
 import {
+  layoutArchitectureGraph,
+  type DiagramNodeSize,
+  type DiagramNodeSizes,
+} from "./auto-layout";
+import {
   addDiagramNodePosition,
   createInitialDiagramNodePositions,
   createNextDiagramNodePosition,
@@ -67,6 +72,10 @@ export type RemoveConnectionFromEditorStateResult =
   | { ok: true; state: ArchitectureEditorState }
   | { ok: false; error: RemoveConnectionRejection };
 
+export type AutoLayoutArchitectureEditorStateResult =
+  | { ok: true; state: ArchitectureEditorState }
+  | { ok: false; error: { type: "layout-failed" } };
+
 export function createArchitectureEditorState(
   graph: ArchitectureGraph,
 ): ArchitectureEditorState {
@@ -75,6 +84,17 @@ export function createArchitectureEditorState(
     nodePositions: createInitialDiagramNodePositions(graph),
     nodeMeasurements: new Map(),
   };
+}
+
+export function createFreshArchitectureEditorState(
+  graph: ArchitectureGraph,
+): ArchitectureEditorState {
+  const rowPlacementFallbackState = createArchitectureEditorState(graph);
+  const layoutResult = autoLayoutArchitectureEditorState(
+    rowPlacementFallbackState,
+  );
+
+  return layoutResult.ok ? layoutResult.state : rowPlacementFallbackState;
 }
 
 export function applyReactFlowNodeChangesToEditorState(
@@ -102,6 +122,85 @@ export function applyReactFlowNodeChangesToEditorState(
     nodePositions,
     nodeMeasurements,
   };
+}
+
+export function autoLayoutArchitectureEditorState(
+  state: ArchitectureEditorState,
+): AutoLayoutArchitectureEditorStateResult {
+  const layoutResult = layoutArchitectureGraph(
+    state.graph,
+    projectKnownNodeSizes(state),
+  );
+
+  if (!layoutResult.ok) {
+    return layoutResult;
+  }
+
+  if (
+    haveEqualDiagramNodePositions(
+      state.nodePositions,
+      layoutResult.nodePositions,
+    )
+  ) {
+    return { ok: true, state };
+  }
+
+  return {
+    ok: true,
+    state: {
+      graph: state.graph,
+      nodePositions: layoutResult.nodePositions,
+      nodeMeasurements: state.nodeMeasurements,
+    },
+  };
+}
+
+function projectKnownNodeSizes(
+  state: ArchitectureEditorState,
+): DiagramNodeSizes {
+  const knownNodeSizes = new Map<ComponentId, DiagramNodeSize>();
+
+  for (const component of state.graph.getComponents()) {
+    const measurement = state.nodeMeasurements.get(component.id);
+
+    if (!measurement) {
+      continue;
+    }
+
+    knownNodeSizes.set(component.id, {
+      width: measurement.width,
+      height: measurement.height,
+    });
+  }
+
+  return knownNodeSizes;
+}
+
+function haveEqualDiagramNodePositions(
+  first: DiagramNodePositions,
+  second: DiagramNodePositions,
+): boolean {
+  if (first === second) {
+    return true;
+  }
+
+  if (first.size !== second.size) {
+    return false;
+  }
+
+  for (const [componentId, firstPosition] of first) {
+    const secondPosition = second.get(componentId);
+
+    if (
+      !secondPosition ||
+      firstPosition.x !== secondPosition.x ||
+      firstPosition.y !== secondPosition.y
+    ) {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 export function addComponentToEditorState(

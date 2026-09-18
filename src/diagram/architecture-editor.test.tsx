@@ -17,6 +17,7 @@ import {
   ConnectionListKindSelect,
   createArchitectureComponentFromCreationDraft,
   createExampleArchitectureEditorState,
+  createFreshExampleArchitectureEditorHistory,
   createComponentCreationDraft,
   createRenameDraft,
   createRenameSession,
@@ -64,6 +65,7 @@ describe("ArchitectureEditor", () => {
   it("seeds API to Database as data access without changing the fresh example topology", () => {
     const exampleState = createExampleArchitectureEditorState();
     const repeatedExampleState = createExampleArchitectureEditorState();
+    const freshHistory = createFreshExampleArchitectureEditorHistory();
 
     expect(exampleState.graph.getComponents()).toEqual([
       { id: "api" as ComponentId, name: "API", kind: "service" },
@@ -83,6 +85,18 @@ describe("ArchitectureEditor", () => {
     ]);
     expect(repeatedExampleState.graph).toBe(exampleState.graph);
     expect(repeatedExampleState.nodePositions).toEqual(
+      exampleState.nodePositions,
+    );
+    expect(exampleState.nodePositions).toEqual(
+      new Map([
+        ["api" as ComponentId, { x: 32, y: 32 }],
+        ["database" as ComponentId, { x: 368, y: 32 }],
+      ]),
+    );
+    expect(exampleState.nodeMeasurements).toEqual(new Map());
+    expect(freshHistory.past).toEqual([]);
+    expect(freshHistory.future).toEqual([]);
+    expect(freshHistory.present.nodePositions).toEqual(
       exampleState.nodePositions,
     );
 
