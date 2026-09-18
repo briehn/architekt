@@ -306,7 +306,7 @@ authoritative.
 * [x] Persist required kinds in schema V2 while restoring V1 components as Generic
 * [x] Derive kind into React Flow node data without creating renderer-owned state
 * [x] Add neutral canvas icons, visible kind labels, and accessible node naming
-* [x] Add native kind selects for component creation and existing-component list editing
+* [x] Add a direct component-type picker for creation and native kind selects for existing-component list editing
 * [x] Preserve rename, focus, layout, connection, autosave, and undo/redo behavior
 * [x] Verify the milestone across domain, editor, history, persistence, renderer, and UI boundaries
 

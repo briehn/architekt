@@ -36,7 +36,6 @@ import {
   type StorageLike,
 } from "../persistence/local-architecture-editor-storage";
 import {
-  addComponentToEditorState,
   addConnectionToEditorState,
   applyReactFlowNodeChangesToEditorState,
   changeComponentKindInEditorState,
@@ -47,6 +46,10 @@ import {
   removeComponentFromEditorState,
   removeConnectionFromEditorState,
 } from "./architecture-editor-state";
+import {
+  COMPONENT_CREATION_KIND_ORDER,
+  recordGeneratedComponentCreation,
+} from "./component-creation";
 import {
   canRedoArchitectureEditorHistory,
   canUndoArchitectureEditorHistory,
@@ -89,15 +92,6 @@ function createComponentId(): ComponentId {
 
 function createConnectionId(): ConnectionId {
   return crypto.randomUUID() as ConnectionId;
-}
-
-function getAddComponentErrorMessage(error: AddComponentRejection): string {
-  switch (error.type) {
-    case "component-name-empty":
-      return "Enter a component name.";
-    case "component-id-already-exists":
-      return "A component with this ID already exists.";
-  }
 }
 
 function getAddConnectionErrorMessage(
@@ -161,6 +155,8 @@ export function createFreshExampleArchitectureEditorHistory(): ArchitectureEdito
 type EditableArchitectureEditorViewState = {
   readonly history: ArchitectureEditorHistory;
   readonly connectionRejection: AddConnectionRejection | null;
+  readonly componentCreationAnnouncement?: string;
+  readonly componentCreationRejection?: AddComponentRejection | null;
 };
 
 type ArchitectureEditorSaveFailure = Extract<
@@ -208,11 +204,6 @@ export type RenameSession = Readonly<{
   origin: RenameOrigin;
 }>;
 
-export type ComponentCreationDraft = Readonly<{
-  name: string;
-  kind: ArchitectureComponentKind;
-}>;
-
 const AUTOSAVE_DELAY_MILLISECONDS = 300;
 
 export function createRenameDraft(
@@ -244,41 +235,6 @@ export function getRenameDraftValidationMessage(
     (draft.name.trim().length === 0 ? "Enter a component name." : null);
 }
 
-export function createComponentCreationDraft(): ComponentCreationDraft {
-  return { name: "", kind: "service" };
-}
-
-export function updateComponentCreationDraftName(
-  draft: ComponentCreationDraft,
-  name: string,
-): ComponentCreationDraft {
-  return { ...draft, name };
-}
-
-export function updateComponentCreationDraftKind(
-  draft: ComponentCreationDraft,
-  rawKind: unknown,
-): ComponentCreationDraft {
-  const kind = getArchitectureComponentKindFromSelectValue(rawKind);
-
-  return kind !== null
-    ? { ...draft, kind }
-    : draft;
-}
-
-export function clearComponentCreationDraftName(
-  draft: ComponentCreationDraft,
-): ComponentCreationDraft {
-  return { ...draft, name: "" };
-}
-
-export function createArchitectureComponentFromCreationDraft(
-  id: ComponentId,
-  draft: ComponentCreationDraft,
-): ArchitectureComponent {
-  return { id, name: draft.name.trim(), kind: draft.kind };
-}
-
 export function getArchitectureComponentKindFromSelectValue(
   rawKind: unknown,
 ): ArchitectureComponentKind | null {
@@ -290,11 +246,6 @@ export function getArchitectureConnectionKindFromSelectValue(
 ): ArchitectureConnectionKind | null {
   return isArchitectureConnectionKind(rawKind) ? rawKind : null;
 }
-
-type ComponentKindSelectProps = Readonly<{
-  value: ArchitectureComponentKind;
-  onKindChange(kind: ArchitectureComponentKind): void;
-}>;
 
 function ComponentKindOptions() {
   return ARCHITECTURE_COMPONENT_KINDS.map((kind) => (
@@ -312,34 +263,32 @@ function ConnectionKindOptions() {
   ));
 }
 
-export function ComponentKindSelect({
-  value,
-  onKindChange,
-}: ComponentKindSelectProps) {
-  return (
-    <div className="flex w-full flex-col gap-1 sm:w-40">
-      <label
-        className="text-xs font-semibold text-text-secondary"
-        htmlFor="component-kind"
-      >
-        Component type
-      </label>
-      <select
-        className="h-9 w-full rounded-md border border-border bg-surface px-3 pr-8 text-sm text-text-primary outline-none transition-colors focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-focus-ring"
-        id="component-kind"
-        onChange={(event) => {
-          const kind = getArchitectureComponentKindFromSelectValue(
-            event.target.value,
-          );
+type ComponentTypePickerProps = Readonly<{
+  onAddComponent(kind: ArchitectureComponentKind): void;
+}>;
 
-          if (kind !== null) {
-            onKindChange(kind);
-          }
-        }}
-        value={value}
-      >
-        <ComponentKindOptions />
-      </select>
+export function ComponentTypePicker({
+  onAddComponent,
+}: ComponentTypePickerProps) {
+  return (
+    <div aria-label="Add component" className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-[repeat(auto-fit,minmax(8.5rem,1fr))]" role="group">
+      {COMPONENT_CREATION_KIND_ORDER.map((kind) => {
+        const presentation = getComponentKindPresentation(kind);
+        const { Icon } = presentation;
+
+        return (
+          <button
+            aria-label={`Add ${presentation.generatedName} component`}
+            className="flex h-10 min-w-0 items-center justify-center gap-2 rounded-md border border-border bg-surface px-2 text-xs font-semibold text-text-primary transition-colors hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+            key={kind}
+            onClick={() => onAddComponent(kind)}
+            type="button"
+          >
+            <Icon aria-hidden="true" className="size-4 shrink-0" />
+            <span className="truncate">{presentation.label}</span>
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -492,12 +441,6 @@ export function ArchitectureEditor() {
   const [viewState, setViewState] = useState<ArchitectureEditorViewState>({
     status: "loading",
   });
-  const [componentCreationDraft, setComponentCreationDraft] = useState(
-    createComponentCreationDraft,
-  );
-  const [validationMessage, setValidationMessage] = useState<string | null>(
-    null,
-  );
   const [renameSession, setRenameSession] =
     useState<RenameSession | null>(null);
   const [canvasNodeFocusRequest, setCanvasNodeFocusRequest] =
@@ -877,49 +820,32 @@ export function ArchitectureEditor() {
     });
   }
 
-  function handleAddComponent(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    const name = componentCreationDraft.name.trim();
-
-    if (!name) {
-      setValidationMessage("Enter a component name.");
-      return;
-    }
-
-    const component = createArchitectureComponentFromCreationDraft(
-      createComponentId(),
-      componentCreationDraft,
-    );
-    const result = addComponentToEditorState(editorState, component);
-
-    if (!result.ok) {
-      setValidationMessage(getAddComponentErrorMessage(result.error));
-      return;
-    }
+  function handleAddComponent(kind: ArchitectureComponentKind) {
+    const componentId = createComponentId();
 
     setViewState((currentViewState) => {
       if (currentViewState.status === "loading") {
         return currentViewState;
       }
 
-      const latestResult = addComponentToEditorState(
-        currentViewState.history.present,
-        component,
+      const result = recordGeneratedComponentCreation(
+        currentViewState.history,
+        componentId,
+        kind,
       );
 
-      return latestResult.ok
+      return result.ok
         ? {
             ...currentViewState,
-            history: recordArchitectureEditorState(
-              currentViewState.history,
-              latestResult.state,
-            ),
+            history: result.history,
+            componentCreationAnnouncement: `${result.component.name} added.`,
+            componentCreationRejection: null,
           }
-        : currentViewState;
+        : {
+            ...currentViewState,
+            componentCreationRejection: result.error,
+          };
     });
-    setComponentCreationDraft(clearComponentCreationDraftName);
-    setValidationMessage(null);
   }
 
   function handleDeleteComponent(componentId: ComponentId) {
@@ -1216,8 +1142,6 @@ export function ArchitectureEditor() {
     const editorState = freshHistory.present;
     autosaveBaselineRef.current = persistedEditorStateBaseline(editorState);
     latestEditorStateRef.current = editorState;
-    setComponentCreationDraft(clearComponentCreationDraftName);
-    setValidationMessage(null);
     closeRename(null);
     setViewState({
       status: "ready",
@@ -1308,79 +1232,39 @@ export function ArchitectureEditor() {
           </p>
         ) : null}
 
-        <form
-          className="flex flex-col gap-2 sm:flex-row sm:items-end"
-          onSubmit={handleAddComponent}
-        >
-          <div className="flex min-w-0 flex-1 flex-col gap-1">
-            <label
-              className="text-xs font-semibold text-text-secondary"
-              htmlFor="component-name"
-            >
-              Component name
-            </label>
-            <input
-              aria-describedby={
-                validationMessage ? "component-name-error" : undefined
-              }
-              aria-invalid={validationMessage ? true : undefined}
-              className="h-9 w-full rounded-md border border-border bg-surface px-3 text-sm text-text-primary outline-none transition-colors placeholder:text-text-muted focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-focus-ring"
-              id="component-name"
-              onChange={(event) => {
-                setComponentCreationDraft((currentDraft) =>
-                  updateComponentCreationDraftName(
-                    currentDraft,
-                    event.target.value,
-                  ),
-                );
-                setValidationMessage(null);
-              }}
-              placeholder="e.g. Cache"
-              type="text"
-              value={componentCreationDraft.name}
-            />
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-xs font-semibold text-text-secondary">
+              Add component
+            </p>
+            <div aria-label="History controls" className="flex shrink-0 gap-2" role="group">
+              <button
+                className="h-9 rounded-md border border-border bg-surface px-3 text-xs font-semibold text-text-primary transition-colors hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-default disabled:bg-surface-subtle disabled:text-text-muted disabled:hover:bg-surface-subtle"
+                disabled={!undoIsAvailable}
+                onClick={() => navigateHistory("undo")}
+                type="button"
+              >
+                Undo
+              </button>
+              <button
+                className="h-9 rounded-md border border-border bg-surface px-3 text-xs font-semibold text-text-primary transition-colors hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-default disabled:bg-surface-subtle disabled:text-text-muted disabled:hover:bg-surface-subtle"
+                disabled={!redoIsAvailable}
+                onClick={() => navigateHistory("redo")}
+                type="button"
+              >
+                Redo
+              </button>
+            </div>
           </div>
-          <ComponentKindSelect
-            onKindChange={(kind) => {
-              setComponentCreationDraft((currentDraft) =>
-                updateComponentCreationDraftKind(currentDraft, kind),
-              );
-            }}
-            value={componentCreationDraft.kind}
-          />
-          <button
-            className="h-9 rounded-md bg-accent px-3 text-xs font-semibold text-surface transition-colors hover:bg-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
-            type="submit"
-          >
-            Add
-          </button>
-          <div aria-label="History controls" className="flex gap-2" role="group">
-            <button
-              className="h-9 rounded-md border border-border bg-surface px-3 text-xs font-semibold text-text-primary transition-colors hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-default disabled:bg-surface-subtle disabled:text-text-muted disabled:hover:bg-surface-subtle"
-              disabled={!undoIsAvailable}
-              onClick={() => navigateHistory("undo")}
-              type="button"
-            >
-              Undo
-            </button>
-            <button
-              className="h-9 rounded-md border border-border bg-surface px-3 text-xs font-semibold text-text-primary transition-colors hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-default disabled:bg-surface-subtle disabled:text-text-muted disabled:hover:bg-surface-subtle"
-              disabled={!redoIsAvailable}
-              onClick={() => navigateHistory("redo")}
-              type="button"
-            >
-              Redo
-            </button>
-          </div>
-        </form>
+          <ComponentTypePicker onAddComponent={handleAddComponent} />
+          <p aria-live="polite" className="sr-only" role="status">
+            {viewState.componentCreationAnnouncement ?? ""}
+          </p>
+        </div>
 
-        {validationMessage ? (
-          <p
-            className="mt-2 text-sm text-danger"
-            id="component-name-error"
-            role="alert"
-          >
-            {validationMessage}
+        {viewState.componentCreationRejection ? (
+          <p className="mt-2 text-sm text-danger" role="alert">
+            Could not create component. Try again.
           </p>
         ) : null}
 

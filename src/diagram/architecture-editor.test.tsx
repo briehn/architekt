@@ -11,14 +11,11 @@ import {
 import { ArchitectureGraph } from "../domain/architecture-graph";
 import {
   ArchitectureEditor,
-  clearComponentCreationDraftName,
-  ComponentKindSelect,
+  ComponentTypePicker,
   ComponentListKindSelect,
   ConnectionListKindSelect,
-  createArchitectureComponentFromCreationDraft,
   createExampleArchitectureEditorState,
   createFreshExampleArchitectureEditorHistory,
-  createComponentCreationDraft,
   createRenameDraft,
   createRenameSession,
   getArchitectureComponentKindFromSelectValue,
@@ -28,8 +25,6 @@ import {
   recordComponentKindChangeFromList,
   recordConnectionKindChangeFromList,
   getRenameDraftValidationMessage,
-  updateComponentCreationDraftKind,
-  updateComponentCreationDraftName,
   updateRenameDraftName,
 } from "./architecture-editor";
 import {
@@ -182,35 +177,38 @@ describe("ArchitectureEditor", () => {
     );
   });
 
-  it("renders a native component type select with every presentation label", () => {
+  it("renders the common-first component type picker with accessible native button actions", () => {
     const markup = renderToStaticMarkup(
-      <ComponentKindSelect onKindChange={() => {}} value="service" />,
+      <ComponentTypePicker onAddComponent={() => {}} />,
     );
 
-    expect(markup).toContain('id="component-kind"');
-    expect(markup).toContain("Component type");
-    expect(markup).toContain('<option value="service" selected="">Service</option>');
+    const expectedAccessibleNames = [
+      "Add Service component",
+      "Add Database component",
+      "Add Cache component",
+      "Add Queue component",
+      "Add Client component",
+      "Add Gateway component",
+      "Add Storage component",
+      "Add External Service component",
+      "Add Generic component",
+    ];
+
+    expect(markup).toContain('aria-label="Add component"');
+    expect(markup.match(/<button/g)).toHaveLength(9);
+    expect(markup.match(/type="button"/g)).toHaveLength(9);
+    expect(
+      expectedAccessibleNames.map((name) => markup.indexOf(`aria-label="${name}"`)),
+    ).toEqual([...expectedAccessibleNames]
+      .map((name) => markup.indexOf(`aria-label="${name}"`))
+      .sort((first, second) => first - second));
 
     for (const kind of ARCHITECTURE_COMPONENT_KINDS) {
-      expect(markup).toContain(`value="${kind}"`);
-      expect(markup).toContain(`>${getComponentKindPresentation(kind).label}</option>`);
+      expect(markup).toContain(getComponentKindPresentation(kind).label);
     }
-  });
-
-  it("keeps a typed component-kind draft and rejects impossible DOM values", () => {
-    const initialDraft = createComponentCreationDraft();
-    const databaseDraft = updateComponentCreationDraftKind(
-      initialDraft,
-      "database",
-    );
-
-    expect(initialDraft).toEqual({ name: "", kind: "service" });
-    expect(databaseDraft).toEqual({ name: "", kind: "database" });
 
     for (const invalidKind of ["redis", "", 123, null]) {
-      expect(
-        updateComponentCreationDraftKind(databaseDraft, invalidKind),
-      ).toBe(databaseDraft);
+      expect(getArchitectureComponentKindFromSelectValue(invalidKind)).toBeNull();
     }
   });
 
@@ -560,46 +558,4 @@ describe("ArchitectureEditor", () => {
     },
   );
 
-  it("creates the selected kind canonically and retains it after a successful creation", () => {
-    const draft = updateComponentCreationDraftKind(
-      updateComponentCreationDraftName(createComponentCreationDraft(), " API "),
-      "database",
-    );
-    const component = createArchitectureComponentFromCreationDraft(
-      "api" as ComponentId,
-      draft,
-    );
-    const initialState = createArchitectureEditorState(ArchitectureGraph.empty());
-    const addedResult = addComponentToEditorState(initialState, component);
-
-    expect(component).toEqual({
-      id: "api" as ComponentId,
-      name: "API",
-      kind: "database" as ArchitectureComponentKind,
-    });
-    expect(addedResult.ok).toBe(true);
-
-    if (!addedResult.ok) {
-      return;
-    }
-
-    expect(clearComponentCreationDraftName(draft)).toEqual({
-      name: "",
-      kind: "database",
-    });
-    expect(
-      updateComponentCreationDraftName(draft, " ").kind,
-    ).toBe("database");
-    expect(addedResult.state.graph.getComponents()).toEqual([component]);
-
-    const history = recordArchitectureEditorState(
-      createArchitectureEditorHistory(initialState),
-      addedResult.state,
-    );
-    const undoneHistory = undoArchitectureEditorHistory(history);
-    const redoneHistory = redoArchitectureEditorHistory(undoneHistory);
-
-    expect(undoneHistory.present.graph.getComponents()).toEqual([]);
-    expect(redoneHistory.present.graph.getComponents()).toEqual([component]);
-  });
 });

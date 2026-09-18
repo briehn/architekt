@@ -25,7 +25,7 @@ Users model systems with Generic, Client, Service, Database, Cache, Queue, Gatew
 ## Capabilities and Constraints
 
 - `ArchitectureGraph` is the canonical source of truth.
-- New components default to Service in the creation UI, and the creation control retains the last successfully used kind.
+- New components are created directly from a compact, type-first picker. Each action assigns its chosen kind and a deterministic generated name such as `Service`, `Service 2`, or `Database`; users rename components later through the existing list or canvas rename flows.
 - Existing component kinds are edited from the component list. The canvas shows a read-only kind icon and label; canvas double-click remains dedicated to rename.
 - Generic represents migrated or intentionally unclassified components. V1 saved workspaces restore their previously untyped components as Generic.
 - Component kinds classify the architecture for understanding and future analysis; they do not currently restrict connections.
