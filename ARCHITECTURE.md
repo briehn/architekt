@@ -2,7 +2,7 @@
 
 ## Current status
 
-The Project foundation, Domain graph foundation, Static Diagram Rendering, Interactive Node Movement, Component Creation and Deletion, Connection Creation, Connection Deletion, Persistence, Undo/Redo, Component Renaming, Component Types, and Connection Semantics milestones are complete. The application has a framework-independent domain graph with typed components, typed directional connections, immutable graph operations, focused Vitest coverage, and a React Flow rendering path. ArchitectureEditor owns coordinated graph, layout, renderer metadata, history, and connection-feedback state. Users can create, delete, rename, and classify components; drag nodes; create, delete, and classify directional connections; persist the current graph and layout locally; and undo or redo accepted edits. Automatic layout and AI integration have not been implemented.
+The Project foundation, Domain graph foundation, Static Diagram Rendering, Interactive Node Movement, Component Creation and Deletion, Connection Creation, Connection Deletion, Persistence, Undo/Redo, Component Renaming, Component Types, Connection Semantics, and Auto-Layout milestones are complete. The application has a framework-independent domain graph with typed components, typed directional connections, immutable graph operations, focused Vitest coverage, and a React Flow rendering path. ArchitectureEditor owns coordinated graph, positions, transient renderer measurements, history, and feedback. Users can edit and classify the graph, drag nodes, arrange the whole diagram, persist the current graph and positions locally, and undo or redo accepted edits. AI integration has not been implemented.
 
 ## Guiding data flow
 
@@ -35,7 +35,7 @@ Component and connection kinds are classification-only. They do not restrict, wa
 
 ## Rendering boundary
 
-`toReactFlowDiagram` adapts domain components and directional connections into React Flow `Node[]` and `Edge[]`. Each derived node copies the canonical component ID, name, and kind into its node data. Its deterministic placeholder positions and all React Flow node data are renderer representations, not domain state.
+`toReactFlowDiagram` adapts domain components, directional connections, and canonical `DiagramNodePositions` into React Flow `Node[]` and `Edge[]`. Each derived node copies the canonical component ID, name, and kind into its node data. React Flow collections are renderer representations, not application state.
 
 The component-kind flow is intentionally one-way:
 
@@ -65,9 +65,28 @@ Its compact control region creates ComponentId values with crypto.randomUUID() a
 
 React Flow connection gestures are translated into `ArchitectureConnection` values with application-generated `ConnectionId` values and an explicit `generic` kind, then admitted through the same editor-state and domain-graph path. Generic is a UI-boundary creation choice, not a domain default. Existing connections are listed from the canonical graph by directional endpoint names and removed through a pure editor-state operation; duplicate visible endpoint pairs receive technical-ID disambiguation only while ambiguous. Compact native selects expose all five human-readable connection kinds, narrow raw DOM strings with `isArchitectureConnectionKind`, and record accepted changes through the ordinary history path without local draft state. React Flow nodes, edges, and connection rows therefore reflect current graph names and kinds without renderer-owned edit state. Connection rejection feedback is calculated together with the authoritative latest-state transition in one functional React update. React Flow selection, canvas edge editing, and edge reconnection remain disabled.
 
-`DiagramNodePositions` remains the source of truth for user-authored coordinates. React Flow measurements are transient renderer metadata retained only so freshly derived controlled nodes stay initialized; they do not enter the domain graph or application layout model.
+`DiagramNodePositions` remains the source of truth for user-authored coordinates. React Flow measurements are transient renderer metadata retained across controlled node derivation and projected into layout only when the user explicitly requests it; they are neither domain data nor persisted layout state.
 
 `StaticDiagram` renders the derived collections. It allows panning and zooming for inspection and uses `fitView` for initial framing. Node dragging and strict source-to-target connection gestures are enabled; selection and edge reconnection are disabled. It reports connection intent to ArchitectureEditor and does not own or directly add canonical edges.
+
+## Auto-Layout seam
+
+`src/diagram/auto-layout.ts` is a synchronous, framework-independent adapter around the current private `@dagrejs/dagre` engine. Its public input is `ArchitectureGraph` plus a map of plain node sizes; its output is `DiagramNodePositions` or a typed layout failure. Dagre types, graph objects, and edge routes never cross this boundary. Connection kinds do not affect ranks or spacing, and the graph is never mutated.
+
+```text
+ArchitectureGraph + transient known sizes
+-> auto-layout module
+-> DiagramNodePositions
+-> React Flow derived renderer
+```
+
+The engine resolves each valid finite, positive known size or uses deterministic fallback dimensions. It arranges weakly connected components independently in the left-to-right direction, then packs them in stable order. This supports isolated nodes, cycles, and bidirectional connections without assuming a DAG. Stable graph, sizes, configuration, and engine version produce stable coordinates; final positions are normalized and integer-rounded. The spacing leaves room for neutral semantic edge labels, but their text does not drive geometry or custom routing.
+
+Fresh or missing-storage workspaces, including the recovery example and reset, call `createFreshArchitectureEditorState` before React Flow mounts. It uses fallback sizes and starts with no history entry. If fresh layout fails, only this construction path retains the previous deterministic row placement. Valid V1, V2, and V3 saved workspaces instead restore their stored coordinates exactly, with no layout call or runtime freshness inference.
+
+An explicit Auto-layout click calls `autoLayoutArchitectureEditorState` with the current graph and a projection of current renderer measurements. Changed positions pass once through the generic history recorder, so undo and redo restore whole position maps. Coordinate-identical results preserve the history reference and redo; failure preserves the workspace and reports an alert. Ordinary edits and later measurements do not automatically relayout, and measurements are neither cleared nor recorded by the action.
+
+Only a changed explicit action increments a transient UI fit request. `StaticDiagram` consumes that request through React Flow's non-animated `fitView` after the newly derived nodes reach the renderer; it does not move keyboard focus. The viewport, fit token, measurements, and history stacks remain outside the V3 persistence document. The persisted result contains only the resulting canonical positions alongside the graph.
 
 ## Boundaries outside the domain layer
 

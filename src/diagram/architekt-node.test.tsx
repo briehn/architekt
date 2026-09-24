@@ -45,6 +45,8 @@ describe("ArchitektNode", () => {
 
       expect(markup).toContain(`>${label}<`);
       expect(markup).toContain(`aria-label="API, ${label}"`);
+      expect(markup).toContain("react-flow__handle-left");
+      expect(markup).toContain("react-flow__handle-right");
     },
   );
 
@@ -96,8 +98,8 @@ describe("ArchitektNode", () => {
       </ReactFlowProvider>,
     );
 
-    expect(markup).toContain("react-flow__handle-top");
-    expect(markup).toContain("react-flow__handle-bottom");
+    expect(markup).toContain("react-flow__handle-left");
+    expect(markup).toContain("react-flow__handle-right");
     expect(markup).toContain("target");
     expect(markup).toContain("source");
   });

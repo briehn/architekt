@@ -341,7 +341,38 @@ canonical.
 * Ports, per-port connection rules, bandwidth, traffic, latency, and capacity metadata
 * Semantic colors, icons, animation, line patterns, or provider-specific connection styling
 * Architecture linting, kind-based topology restrictions, and automated semantic analysis
-* Grouped boundaries, automatic layout, AI generation, collaboration, and server persistence
+* Grouped boundaries, AI generation, collaboration, and server persistence
+
+
+## Completed milestone: Auto-Layout
+
+### Goal
+
+Arrange fresh architecture diagrams deterministically and let users explicitly rearrange a whole existing diagram without changing graph semantics, persistence format, or renderer state ownership.
+
+**Milestone status: Complete.**
+
+### Completed tasks
+
+* [x] Isolate synchronous left-to-right Dagre layout behind a framework-independent graph-and-sizes to positions API
+* [x] Use valid transient node sizes or deterministic fallback dimensions; support disconnected components, isolated nodes, cycles, and bidirectional connections
+* [x] Normalize and integer-round stable results without mutating the canonical graph or consuming custom edge routes
+* [x] Arrange fresh examples before rendering, preserve loaded positions, and retain deterministic row placement only if fresh layout fails
+* [x] Expose one accessible whole-diagram Auto-layout action with disabled states, status feedback, and failure preservation
+* [x] Record changed layouts through generic history as one undo step; preserve history and redo for exact no-ops and failures
+* [x] Fit only changed explicit layouts through a transient renderer request with no animation or viewport persistence
+* [x] Align the single target/source handles left/right while keeping canonical connection direction and rename disabling
+* [x] Verify the layout, editor-state, history, persistence, renderer, and action boundaries with focused and full automated tests
+
+### Deferred follow-ups
+
+* Layout animation and automatic layout after ordinary edits
+* Node pinning and partial or incremental layout
+* Orientation controls and semantic edge weighting
+* Label collision avoidance and custom or orthogonal edge routing
+* Ports and grouped or nested layout
+* Worker execution and viewport persistence
+* AI generation, which must produce validated graph changes before layout
 
 ## Future milestone candidates
 

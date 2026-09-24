@@ -76,7 +76,7 @@ export function ArchitektNode({
     >
       <Handle
         isConnectable={handlesAreConnectable}
-        position={Position.Top}
+        position={Position.Left}
         type="target"
       />
       {rename === null ? (
@@ -158,7 +158,7 @@ export function ArchitektNode({
       )}
       <Handle
         isConnectable={handlesAreConnectable}
-        position={Position.Bottom}
+        position={Position.Right}
         type="source"
       />
     </div>

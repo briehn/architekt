@@ -118,8 +118,16 @@ Use a 4px base unit and an 8px rhythm for most product spacing. Headers are 48-5
 
 Desktop (>=1024px) shows full editor chrome. Tablet (768-1023px) collapses secondary panels while preserving the canvas and primary tools. Mobile (<768px) prioritizes viewing, pan/zoom, and inspection; full editing is undecided/deferred.
 
-## Elevation & Depth
+## Auto-Layout interaction
 
+Diagrams start in a left-to-right flow. Every node has one target handle on the left and one source handle on the right, including during inline rename when both handles remain non-connectable. Arrowheads and the ordered connection list also convey direction rather than relying on handle position alone.
+
+The secondary text Auto-layout button sits in the editor action row beside the visually separated Undo/Redo group. The row wraps at narrow widths so the canvas is not compressed to keep controls on one line. The native button supports Tab, Enter, and Space with the existing focus ring; activation leaves focus on the button. It is disabled for an empty graph, an active node drag, or inline rename, while incomplete measurements remain acceptable. A changed layout gives a polite visually hidden status, a no-op announces that the diagram is already arranged, and failure uses a concise visible alert.
+
+Changed explicit layouts fit the current canvas immediately with conservative padding and no animation. Horizontal rank and node spacing leave useful room for semantic edge labels and handles; labels remain neutral presentation, not inputs to layout or custom edge routing.
+
+
+## Elevation & Depth
 Use 1px borders for static structure. Shadows are reserved for floating layers (menus, popovers, dialogs, and dragged nodes); standard controls have no glow. Selected nodes may use an accent border and soft outer ring instead of a heavy shadow.
 
 Motion is functional: 100-150ms for hover, pressed, and focus; 150-200ms for menus and small panels; 200-250ms for useful large-panel reveals. Respect reduced-motion preferences. Avoid gratuitous canvas animation and layout animation that harms spatial orientation.

@@ -1,15 +1,17 @@
 "use client";
 
-import type { CSSProperties } from "react";
+import { useEffect, useRef, type CSSProperties } from "react";
 import {
   Background,
   BackgroundVariant,
   ConnectionMode,
   ReactFlow,
+  useReactFlow,
   type Node,
   type OnConnect,
   type OnNodeDrag,
   type OnNodesChange,
+  type ReactFlowInstance,
 } from "@xyflow/react";
 
 import type { ComponentId } from "../domain/identifiers";
@@ -45,6 +47,40 @@ export type CanvasNodeFocusRequest = Readonly<{
   requestId: number;
 }>;
 
+export const AUTO_LAYOUT_FIT_VIEW_PADDING = 0.15;
+
+type AutoLayoutFitViewApi = Pick<ReactFlowInstance, "fitView">;
+
+export function consumeAutoLayoutFitViewRequest(
+  requestId: number,
+  mostRecentRequestId: number,
+  reactFlow: AutoLayoutFitViewApi,
+): number {
+  if (requestId <= mostRecentRequestId) {
+    return mostRecentRequestId;
+  }
+
+  void reactFlow.fitView({ padding: AUTO_LAYOUT_FIT_VIEW_PADDING });
+  return requestId;
+}
+
+function AutoLayoutFitViewRequest({
+  requestId,
+}: Readonly<{ requestId: number }>) {
+  const reactFlow = useReactFlow();
+  const mostRecentRequestId = useRef(0);
+
+  useEffect(() => {
+    mostRecentRequestId.current = consumeAutoLayoutFitViewRequest(
+      requestId,
+      mostRecentRequestId.current,
+      reactFlow,
+    );
+  }, [reactFlow, requestId]);
+
+  return null;
+}
+
 export function requestComponentRenameFromNode(
   node: Pick<Node, "id">,
   onNodeRenameRequested: (componentId: ComponentId) => void,
@@ -61,6 +97,7 @@ type StaticDiagramProps = {
   onNodesChange: OnNodesChange;
   canvasRename: CanvasRenamePresentation | null;
   canvasNodeFocusRequest: CanvasNodeFocusRequest | null;
+  autoLayoutFitRequestId: number;
   onNodeRenameRequested(componentId: ComponentId): void;
 };
 
@@ -127,6 +164,7 @@ export function StaticDiagram({
   onNodesChange,
   canvasRename,
   canvasNodeFocusRequest,
+  autoLayoutFitRequestId,
   onNodeRenameRequested,
 }: StaticDiagramProps) {
   const architektNodes: ArchitektFlowNode[] = nodes.map((node) => ({
@@ -170,6 +208,7 @@ export function StaticDiagram({
         elementsSelectable={false}
         edgesReconnectable={false}
       >
+        <AutoLayoutFitViewRequest requestId={autoLayoutFitRequestId} />
         <Background
           variant={BackgroundVariant.Dots}
           gap={20}

@@ -38,6 +38,7 @@ import {
 import {
   addConnectionToEditorState,
   applyReactFlowNodeChangesToEditorState,
+  autoLayoutArchitectureEditorState,
   changeComponentKindInEditorState,
   changeConnectionKindInEditorState,
   createFreshArchitectureEditorState,
@@ -155,8 +156,10 @@ export function createFreshExampleArchitectureEditorHistory(): ArchitectureEdito
 type EditableArchitectureEditorViewState = {
   readonly history: ArchitectureEditorHistory;
   readonly connectionRejection: AddConnectionRejection | null;
-  readonly componentCreationAnnouncement?: string;
+  readonly announcement?: string;
   readonly componentCreationRejection?: AddComponentRejection | null;
+  readonly autoLayoutFailure?: boolean;
+  readonly autoLayoutFitRequestId?: number;
 };
 
 type ArchitectureEditorSaveFailure = Extract<
@@ -349,6 +352,82 @@ export function recordComponentKindChangeFromList(
   return result.ok
     ? recordArchitectureEditorState(history, result.state)
     : history;
+}
+
+export type RecordAutoLayoutFromEditorActionResult =
+  | {
+      readonly ok: true;
+      readonly changed: boolean;
+      readonly history: ArchitectureEditorHistory;
+    }
+  | { readonly ok: false; readonly error: { type: "layout-failed" } };
+
+export function canAutoLayoutFromEditorAction(
+  editorState: ArchitectureEditorState,
+  nodeDragIsActive: boolean,
+  inlineRenameIsActive: boolean,
+): boolean {
+  return (
+    editorState.graph.getComponents().length > 0 &&
+    !nodeDragIsActive &&
+    !inlineRenameIsActive
+  );
+}
+
+export function recordAutoLayoutFromEditorAction(
+  history: ArchitectureEditorHistory,
+): RecordAutoLayoutFromEditorActionResult {
+  const result = autoLayoutArchitectureEditorState(history.present);
+
+  if (!result.ok) {
+    return result;
+  }
+
+  const nextHistory = recordArchitectureEditorState(history, result.state);
+
+  return {
+    ok: true,
+    changed: nextHistory !== history,
+    history: nextHistory,
+  };
+}
+
+export function getAutoLayoutAnnouncement(changed: boolean): string {
+  return changed
+    ? "Diagram arranged. Undo is available."
+    : "Diagram is already arranged.";
+}
+
+export const AUTO_LAYOUT_FAILURE_MESSAGE =
+  "Could not arrange the diagram. Try again.";
+
+
+export function getNextAutoLayoutFitRequestId(
+  currentRequestId: number,
+  layoutChanged: boolean,
+): number {
+  return layoutChanged ? currentRequestId + 1 : currentRequestId;
+}
+type AutoLayoutButtonProps = Readonly<{
+  disabled: boolean;
+  onAutoLayout(): void;
+}>;
+
+export function AutoLayoutButton({
+  disabled,
+  onAutoLayout,
+}: AutoLayoutButtonProps) {
+  return (
+    <button
+      aria-label="Auto-layout"
+      className="h-9 rounded-md border border-border bg-surface px-3 text-xs font-semibold text-text-primary transition-colors hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-default disabled:bg-surface-subtle disabled:text-text-muted disabled:hover:bg-surface-subtle"
+      disabled={disabled}
+      onClick={onAutoLayout}
+      type="button"
+    >
+      Auto-layout
+    </button>
+  );
 }
 
 type ConnectionListKindSelectProps = Readonly<{
@@ -759,6 +838,11 @@ export function ArchitectureEditor() {
     !nodeDragIsActive && canUndoArchitectureEditorHistory(history);
   const redoIsAvailable =
     !nodeDragIsActive && canRedoArchitectureEditorHistory(history);
+  const autoLayoutIsAvailable = canAutoLayoutFromEditorAction(
+    editorState,
+    nodeDragIsActive,
+    renameSession !== null,
+  );
   const { nodes: diagramNodes, edges } = toReactFlowDiagram(
     editorState.graph,
     editorState.nodePositions,
@@ -838,12 +922,40 @@ export function ArchitectureEditor() {
         ? {
             ...currentViewState,
             history: result.history,
-            componentCreationAnnouncement: `${result.component.name} added.`,
+            announcement: `${result.component.name} added.`,
             componentCreationRejection: null,
           }
         : {
             ...currentViewState,
             componentCreationRejection: result.error,
+          };
+    });
+  }
+
+  function handleAutoLayout() {
+    setViewState((currentViewState) => {
+      if (currentViewState.status === "loading") {
+        return currentViewState;
+      }
+
+      const result = recordAutoLayoutFromEditorAction(
+        currentViewState.history,
+      );
+
+      return result.ok
+        ? {
+            ...currentViewState,
+            history: result.history,
+            announcement: getAutoLayoutAnnouncement(result.changed),
+            autoLayoutFitRequestId: getNextAutoLayoutFitRequestId(
+              currentViewState.autoLayoutFitRequestId ?? 0,
+              result.changed,
+            ),
+            autoLayoutFailure: false,
+          }
+        : {
+            ...currentViewState,
+            autoLayoutFailure: true,
           };
     });
   }
@@ -1233,38 +1345,54 @@ export function ArchitectureEditor() {
         ) : null}
 
         <div className="flex flex-col gap-3">
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-xs font-semibold text-text-secondary">
               Add component
             </p>
-            <div aria-label="History controls" className="flex shrink-0 gap-2" role="group">
-              <button
-                className="h-9 rounded-md border border-border bg-surface px-3 text-xs font-semibold text-text-primary transition-colors hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-default disabled:bg-surface-subtle disabled:text-text-muted disabled:hover:bg-surface-subtle"
-                disabled={!undoIsAvailable}
-                onClick={() => navigateHistory("undo")}
-                type="button"
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <AutoLayoutButton
+                disabled={!autoLayoutIsAvailable}
+                onAutoLayout={handleAutoLayout}
+              />
+              <div
+                aria-label="History controls"
+                className="flex gap-2 border-l border-border pl-2"
+                role="group"
               >
-                Undo
-              </button>
-              <button
-                className="h-9 rounded-md border border-border bg-surface px-3 text-xs font-semibold text-text-primary transition-colors hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-default disabled:bg-surface-subtle disabled:text-text-muted disabled:hover:bg-surface-subtle"
-                disabled={!redoIsAvailable}
-                onClick={() => navigateHistory("redo")}
-                type="button"
-              >
-                Redo
-              </button>
+                <button
+                  className="h-9 rounded-md border border-border bg-surface px-3 text-xs font-semibold text-text-primary transition-colors hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-default disabled:bg-surface-subtle disabled:text-text-muted disabled:hover:bg-surface-subtle"
+                  disabled={!undoIsAvailable}
+                  onClick={() => navigateHistory("undo")}
+                  type="button"
+                >
+                  Undo
+                </button>
+                <button
+                  className="h-9 rounded-md border border-border bg-surface px-3 text-xs font-semibold text-text-primary transition-colors hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-default disabled:bg-surface-subtle disabled:text-text-muted disabled:hover:bg-surface-subtle"
+                  disabled={!redoIsAvailable}
+                  onClick={() => navigateHistory("redo")}
+                  type="button"
+                >
+                  Redo
+                </button>
+              </div>
             </div>
           </div>
           <ComponentTypePicker onAddComponent={handleAddComponent} />
           <p aria-live="polite" className="sr-only" role="status">
-            {viewState.componentCreationAnnouncement ?? ""}
+            {viewState.announcement ?? ""}
           </p>
         </div>
 
         {viewState.componentCreationRejection ? (
           <p className="mt-2 text-sm text-danger" role="alert">
             Could not create component. Try again.
+          </p>
+        ) : null}
+
+        {viewState.autoLayoutFailure ? (
+          <p className="mt-2 text-sm text-danger" role="alert">
+            {AUTO_LAYOUT_FAILURE_MESSAGE}
           </p>
         ) : null}
 
@@ -1480,6 +1608,7 @@ export function ArchitectureEditor() {
           canvasNodeFocusRequest={canvasNodeFocusRequest}
           canvasRename={canvasRename}
           nodes={nodes}
+          autoLayoutFitRequestId={viewState.autoLayoutFitRequestId ?? 0}
           edges={edges}
           onConnect={handleConnect}
           onNodeDragStart={handleNodeDragStart}

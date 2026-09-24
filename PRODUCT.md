@@ -35,6 +35,9 @@ Users model systems with Generic, Client, Service, Database, Cache, Queue, Gatew
 - Connection semantics classify intent without restricting valid topology. Any supported kind can describe any structurally valid directional connection, and Request/response does not imply a reverse edge.
 - Protocols and arbitrary free-form connection annotations are not supported yet. They remain separate future product decisions rather than being inferred from semantic kind.
 - React Flow is a renderer only; it is never canonical application state.
+- Fresh diagrams begin in a deterministic left-to-right arrangement before canvas measurements exist; saved V1/V2/V3 diagrams keep their stored positions exactly.
+- Auto-layout is an explicit whole-diagram action. A changed arrangement is one undo step and fits the canvas immediately; failure keeps the current workspace intact.
+- Ordinary graph edits and later node measurements never rearrange the diagram automatically. Pinning, partial layout, and orientation choice are outside the current product scope.
 - The domain layer remains independent of React, Next.js, React Flow, Zustand, persistence, and AI.
 - React Flow-specific position and visual-style data stay outside the domain model.
 - AI output must be validated before it affects the graph, and AI must never mutate React Flow state directly.

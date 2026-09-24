@@ -14,6 +14,7 @@ Architekt currently supports the core editing loop:
 - Classify components as clients, services, databases, caches, queues, gateways, storage, external services, or generic building blocks
 - Rename components inline
 - Move components around the canvas
+- Arrange the whole diagram left to right with an undoable Auto-layout action
 - Add and remove directional connections
 - Classify connections as request/response, async messaging, streaming, data-access, or intentionally generic relationships
 - Save the current graph and layout in the browser
@@ -55,6 +56,7 @@ That separation gives the project a few useful properties:
 - A versioned persistence format with runtime validation
 - Debounced local autosave with clear loading, failure, and recovery states
 - Bounded undo/redo history with completed node drags grouped into single actions
+- Deterministic initial arrangement with manual Auto-layout recorded as one undo step
 - Automated coverage for the domain, layout, rendering adapter, persistence, editor state, history, and keyboard shortcuts
 
 ## Stack
@@ -68,7 +70,7 @@ That separation gives the project a few useful properties:
 
 ## Current direction
 
-Architekt is under active development. Component Types and Connection Semantics are complete; future work will make separate, deliberate decisions around layout and the boundaries of AI-assisted editing.
+Architekt is under active development. Auto-Layout is complete; future work will make separate, deliberate decisions around more advanced diagram editing and the boundaries of AI-assisted editing.
 
 Screenshots and a live demo will be added when the editor's visual language is mature enough to represent the project well. For now, the repository reflects the working product and the engineering decisions behind it.
 

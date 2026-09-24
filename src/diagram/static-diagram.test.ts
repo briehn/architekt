@@ -10,6 +10,8 @@ import type {
   ArchitectureFlowNode,
 } from "./react-flow-adapter";
 import {
+  AUTO_LAYOUT_FIT_VIEW_PADDING,
+  consumeAutoLayoutFitViewRequest,
   requestComponentRenameFromNode,
   StaticDiagram,
   withArchitectureEdgePresentation,
@@ -72,6 +74,7 @@ describe("requestComponentRenameFromNode", () => {
         onNodeDragStart: vi.fn(),
         onNodeDragStop: vi.fn(),
         onNodesChange: vi.fn(),
+        autoLayoutFitRequestId: 0,
         canvasRename: null,
         canvasNodeFocusRequest: null,
         onNodeRenameRequested: vi.fn(),
@@ -79,10 +82,42 @@ describe("requestComponentRenameFromNode", () => {
     );
 
     expect(markup).toContain('aria-label="Payments API, Service"');
+
+  });
+});
+
+describe("consumeAutoLayoutFitViewRequest", () => {
+  it("consumes each newer request once with immediate conservative fitting", () => {
+    const fitView = vi.fn(() => Promise.resolve(true));
+    const reactFlow = { fitView };
+
+    const firstRequest = consumeAutoLayoutFitViewRequest(1, 0, reactFlow);
+    const duplicateRequest = consumeAutoLayoutFitViewRequest(
+      1,
+      firstRequest,
+      reactFlow,
+    );
+    const secondRequest = consumeAutoLayoutFitViewRequest(
+      2,
+      duplicateRequest,
+      reactFlow,
+    );
+
+    expect(firstRequest).toBe(1);
+    expect(duplicateRequest).toBe(1);
+    expect(secondRequest).toBe(2);
+    expect(fitView).toHaveBeenCalledTimes(2);
+    expect(fitView).toHaveBeenNthCalledWith(1, {
+      padding: AUTO_LAYOUT_FIT_VIEW_PADDING,
+    });
+    expect(fitView).toHaveBeenNthCalledWith(2, {
+      padding: AUTO_LAYOUT_FIT_VIEW_PADDING,
+    });
   });
 });
 
 describe("withArchitectureEdgePresentation", () => {
+
   it("renders approved labels only for non-generic kinds and provides accessible descriptions for all kinds", () => {
     const nodes = [node("api", "API"), node("database", "Database")];
     const edges = [
