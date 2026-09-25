@@ -39,71 +39,48 @@ describe("selectAdaptiveAnchorPair", () => {
       target: rectangle("b", 0, -300),
       expected: { sourceSide: "top", targetSide: "bottom" },
     },
-    {
-      name: "diagonal toward the lower right",
-      target: rectangle("b", 300, 100),
-      expected: { sourceSide: "right", targetSide: "left" },
-    },
-    {
-      name: "diagonal toward the upper left",
-      target: rectangle("b", -100, -300),
-      expected: { sourceSide: "top", targetSide: "bottom" },
-    },
   ] satisfies ReadonlyArray<{
     name: string;
     target: DiagramNodeRectangle;
     expected: DiagramAnchorPair;
-  }>)("selects opposing sides for $name", ({ target, expected }) => {
+  }>)("selects cardinal sides for $name", ({ target, expected }) => {
     expect(selectAdaptiveAnchorPair(rectangle("a", 0, 0), target)).toEqual(
       expected,
     );
   });
 
-  it("chooses horizontal on an exact normalized-score tie", () => {
-    expect(
-      selectAdaptiveAnchorPair(
-        rectangle("a", 0, 0),
-        rectangle("b", 200, 200),
-      ),
-    ).toEqual({ sourceSide: "right", targetSide: "left" });
+  it.each([
+    ["lower-right", 200, 200, "right", "top"],
+    ["upper-right", 200, -200, "right", "bottom"],
+    ["lower-left", -200, 200, "bottom", "right"],
+    ["upper-left", -200, -200, "top", "right"],
+  ] as const)("permits a mixed pair toward the %s", (_name, x, y, sourceSide, targetSide) => {
+    expect(selectAdaptiveAnchorPair(
+      rectangle("a", 0, 0), rectangle("b", x, y),
+    )).toEqual({ sourceSide, targetSide });
   });
 
-  it("changes axis for the same center displacement when proportions change", () => {
-    const squarePair = selectAdaptiveAnchorPair(
-      rectangle("a", -50, -50, 100, 100),
-      rectangle("b", 70, 30, 100, 100),
-    );
-    const widePair = selectAdaptiveAnchorPair(
-      rectangle("a", -150, -25, 300, 50),
-      rectangle("b", -30, 55, 300, 50),
-    );
-
-    expect(squarePair).toEqual({ sourceSide: "right", targetSide: "left" });
-    expect(widePair).toEqual({ sourceSide: "bottom", targetSide: "top" });
+  it("chooses right/top for a moderately offset Client and Cache", () => {
+    expect(selectAdaptiveAnchorPair(
+      rectangle("client", 0, 0, 176, 72),
+      rectangle("cache", 250, 150, 176, 72),
+    )).toEqual({ sourceSide: "right", targetSide: "top" });
   });
 
-  it("accounts for wide-source and wide-target asymmetry", () => {
-    expect(
-      selectAdaptiveAnchorPair(
-        rectangle("a", 0, 0, 400, 80),
-        rectangle("b", 425, 100, 100, 80),
-      ),
-    ).toEqual({ sourceSide: "bottom", targetSide: "top" });
-    expect(
-      selectAdaptiveAnchorPair(
-        rectangle("a", 0, 0, 100, 80),
-        rectangle("b", 150, 100, 400, 80),
-      ),
-    ).toEqual({ sourceSide: "bottom", targetSide: "top" });
+  it("keeps a shallow diagonal on an opposing pair", () => {
+    expect(selectAdaptiveAnchorPair(
+      rectangle("a", 0, 0, 176, 72),
+      rectangle("b", 800, 200, 176, 72),
+    )).toEqual({ sourceSide: "right", targetSide: "left" });
   });
 
-  it("can choose horizontal for tall unequal nodes despite a larger vertical gap", () => {
-    expect(
-      selectAdaptiveAnchorPair(
-        rectangle("a", 0, 0, 100, 300),
-        rectangle("b", 150, 200, 100, 400),
-      ),
-    ).toEqual({ sourceSide: "right", targetSide: "left" });
+  it.each([
+    ["wide source", rectangle("a", 0, 0, 400, 80), rectangle("b", 425, 100, 100, 80), "right", "top"],
+    ["wide target", rectangle("a", 0, 0, 100, 80), rectangle("b", 150, 100, 400, 80), "bottom", "left"],
+    ["tall source", rectangle("a", 0, 0, 100, 400), rectangle("b", 150, 200, 100, 80), "right", "left"],
+    ["tall target", rectangle("a", 0, 0, 100, 80), rectangle("b", 150, 200, 100, 400), "right", "top"],
+  ] as const)("uses each side midpoint for a %s", (_name, source, target, sourceSide, targetSide) => {
+    expect(selectAdaptiveAnchorPair(source, target)).toEqual({ sourceSide, targetSide });
   });
 
   it("selects the same pair after translating both rectangles", () => {
@@ -118,6 +95,52 @@ describe("selectAdaptiveAnchorPair", () => {
     expect(
       selectAdaptiveAnchorPair(translated(source), translated(target)),
     ).toEqual(selectAdaptiveAnchorPair(source, target));
+  });
+
+  it.each([
+    ["horizontal", rectangle("a", 0, 0), rectangle("b", 300, 0)],
+    ["vertical", rectangle("a", 0, 0), rectangle("b", 0, 300)],
+    ["lower-right", rectangle("a", 0, 0), rectangle("b", 200, 200)],
+    ["upper-right", rectangle("a", 0, 0), rectangle("b", 200, -200)],
+    ["lower-left", rectangle("a", 0, 0), rectangle("b", -200, 200)],
+    ["upper-left", rectangle("a", 0, 0), rectangle("b", -200, -200)],
+    ["close diagonal", rectangle("a", 0, 0, 176, 72), rectangle("b", 180, 90, 176, 72)],
+    ["far shallow diagonal", rectangle("a", 0, 0, 176, 72), rectangle("b", 800, 200, 176, 72)],
+    ["unequal", rectangle("a", 0, 0, 400, 80), rectangle("b", 425, 100, 100, 80)],
+    ["touching", rectangle("a", 0, 0), rectangle("b", 100, 0)],
+    ["overlapping", rectangle("a", 0, 0), rectangle("b", 50, 0)],
+    ["contained", rectangle("a", 0, 0, 400, 400), rectangle("b", 100, 100)],
+    ["coincident centers", rectangle("a", 0, 0), rectangle("b", -50, -50, 200, 200)],
+  ] as const)("reverses the same physical pair for %s", (_name, a, b) => {
+    const forward = selectAdaptiveAnchorPair(a, b);
+    const reverse = selectAdaptiveAnchorPair(b, a);
+    expect(forward.sourceSide).toBe(reverse.targetSide);
+    expect(forward.targetSide).toBe(reverse.sourceSide);
+    const translate = (rect: DiagramNodeRectangle): DiagramNodeRectangle => ({
+      ...rect, x: rect.x + 1000, y: rect.y - 700,
+    });
+    expect(selectAdaptiveAnchorPair(translate(a), translate(b))).toEqual(forward);
+  });
+
+  it("breaks an equal-cost mixed-path tie by the spatially left rectangle", () => {
+    const left = rectangle("z", 0, 0, 176, 72);
+    const right = rectangle("a", 250, 150, 176, 72);
+
+    expect(selectAdaptiveAnchorPair(left, right)).toEqual({
+      sourceSide: "right", targetSide: "top",
+    });
+    expect(selectAdaptiveAnchorPair(right, left)).toEqual({
+      sourceSide: "top", targetSide: "right",
+    });
+  });
+
+  it("uses the previous normalized-axis policy only when no pair mutually faces", () => {
+    expect(selectAdaptiveAnchorPair(
+      rectangle("a", 0, 0), rectangle("b", 50, 0),
+    )).toEqual({ sourceSide: "right", targetSide: "left" });
+    expect(selectAdaptiveAnchorPair(
+      rectangle("a", 0, 0), rectangle("b", 100, 0),
+    )).toEqual({ sourceSide: "right", targetSide: "left" });
   });
 
   it("uses ID order for coincident centers and reverses the pair with direction", () => {

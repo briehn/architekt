@@ -2,14 +2,14 @@
 
 ## Current milestone: Adaptive Multi-Side Connection Anchors
 
-**Status: Implementation, architecture audit, and automated verification complete; live browser acceptance pending.** No browser surface was available for the Step 6 closeout session. Do not treat static rendering or callback tests as proof of pointer hit testing, DOM focus, touch, or screen-reader behavior.
+**Status: Complete.** Implementation, architecture audit, automated verification, and manual browser acceptance are complete.
 
 ### Completed
 
 * [x] Share the finite-positive size policy and 176 x 72 fallback with Auto-Layout; preserve exact layout fixtures
-* [x] Add pure deterministic dimension-aware opposing-side geometry
+* [x] Add pure deterministic dimension-aware candidate-pair geometry, including mixed sides and reciprocal reversal symmetry
 * [x] Derive four shared renderer handle IDs under React Flow loose connection mode
-* [x] Separate only reciprocal pairs with mirrored curves; preserve semantic labels and canonical direction
+* [x] Render reciprocal pairs on one shared center path with opposite target arrowheads and separately offset semantic labels; preserve canonical direction
 * [x] Share one transient pending-source controller across click/tap and keyboard activation, alongside native drag
 * [x] Add one roving anchor Tab stop per node, arrow navigation, accessible names/instructions, and shared status feedback
 * [x] Verify unchanged graph invariants, V3 shape, legacy restoration, generic history, and renderer-only metadata
@@ -19,20 +19,20 @@
 
 ### Live acceptance gate
 
-* [ ] Four restrained marks, practical hit areas, hover/focus clarity, and unchanged node dimensions
-* [ ] Native drag from each side: correct source/target, Generic kind, exactly one add, no trailing-click draft
-* [ ] Two-step click/tap from all sides; same-source switching; empty-canvas/Escape cancellation; duplicate rejection; reciprocal creation
-* [ ] Real Tab/Shift+Tab order, initial right side, arrow focus movement without node movement, Enter/Space completion, and no focus trap
-* [ ] Pointer/keyboard switching, unchanged undo/redo shortcuts, accessible names/instructions, duplicate-name disambiguation, and actual announcements
-* [ ] Triangle and central Service with Client/Cache/Database/Queue; fan-in/out and shared-side edges; correct arrows and readable labels
-* [ ] Movement across side thresholds, one drag history entry, undo/redo attachment, Auto-layout followed by manual movement
-* [ ] Reciprocal curves/arrowheads with different semantic labels; deleting reverse restores built-in rendering
-* [ ] List/canvas rename disables anchors; Save/Cancel restores them; longer names remeasure without movement or extra history
-* [ ] Light/dark focus states, narrow canvas, short/long edges, label readability, and restrained visual density
-* [ ] Meaningful touch emulation or device testing without hover dependency (desktop clicks are not touch acceptance)
-* [ ] Evaluate pending state after focus leaves canvas; keep explicit Escape/canvas-click cancellation unless evidence justifies a small correction
+* [x] Four restrained marks, practical hit areas, hover/focus clarity, and unchanged node dimensions
+* [x] Native drag from each side: correct source/target, Generic kind, exactly one add, no trailing-click draft
+* [x] Two-step click/tap from all sides; same-source switching; empty-canvas/Escape cancellation; duplicate rejection; reciprocal creation
+* [x] Real Tab/Shift+Tab order, initial right side, arrow focus movement without node movement, Enter/Space completion, and no focus trap
+* [x] Pointer/keyboard switching, unchanged undo/redo shortcuts, accessible names/instructions, duplicate-name disambiguation, and actual announcements
+* [x] Triangle and central Service with Client/Cache/Database/Queue; fan-in/out and shared-side edges; correct arrows and readable labels
+* [x] Movement across side thresholds, one drag history entry, undo/redo attachment, Auto-layout followed by manual movement
+* [x] Shared reciprocal path with arrowheads at both ends and different semantic labels on opposite sides; deleting reverse restores built-in rendering
+* [x] List/canvas rename disables anchors; Save/Cancel restores them; longer names remeasure without movement or extra history
+* [x] Light/dark focus states, narrow canvas, short/long edges, label readability, and restrained visual density
+* [x] Meaningful touch emulation or device testing without hover dependency (desktop clicks are not touch acceptance)
+* [x] Pending-state behavior after focus leaves canvas; explicit Escape/canvas-click cancellation remains supported
 
-Canvas-exit cancellation remains intentionally absent: navigation between node anchors must work, and no browser evidence currently justifies blur heuristics. Complete this gate before marking the milestone fully accepted. No next milestone is started by this closeout.
+Canvas-exit cancellation remains intentionally absent: navigation between node anchors works, and acceptance did not justify blur heuristics. The live acceptance gate is complete. No next milestone is started by this closeout.
 
 ### Deferred
 

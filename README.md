@@ -58,7 +58,7 @@ That separation gives the project a few useful properties:
 - Debounced local autosave with clear loading, failure, and recovery states
 - Bounded undo/redo history with completed node drags grouped into single actions
 - Deterministic initial arrangement with manual Auto-layout recorded as one undo step
-- Adaptive visual anchors and separated reciprocal curves without adding renderer data to the saved graph
+- Adaptive visual anchors and a shared reciprocal path with independent directional arrows and labels, without adding renderer data to the saved graph
 - Automated coverage for the domain, layout, rendering adapter, persistence, editor state, history, and keyboard shortcuts
 
 ## Stack
@@ -72,7 +72,7 @@ That separation gives the project a few useful properties:
 
 ## Current direction
 
-Architekt is under active development. Auto-Layout is complete; adaptive multi-side connection anchors are implemented and automatically tested, with live browser acceptance tracked in TODO.md. Future work will make separate, deliberate decisions around more advanced diagram editing and the boundaries of AI-assisted editing.
+Architekt is under active development. Auto-Layout and adaptive multi-side connection anchors are implemented, automatically tested, and manually accepted in the browser. Future work will make separate, deliberate decisions around more advanced diagram editing and the boundaries of AI-assisted editing.
 
 Screenshots and a live demo will be added when the editor's visual language is mature enough to represent the project well. For now, the repository reflects the working product and the engineering decisions behind it.
 

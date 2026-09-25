@@ -1,6 +1,5 @@
 import { BaseEdge, type EdgeProps } from "@xyflow/react";
 
-import { toDiagramAnchorSide } from "./adaptive-anchor-renderer";
 import type { ArchitectureFlowEdge } from "./react-flow-adapter";
 import { getReciprocalEdgePath } from "./reciprocal-edge-geometry";
 
@@ -49,8 +48,8 @@ export function ReciprocalArchitectureEdge({
     sourceY,
     targetX,
     targetY,
-    sourceSide: toDiagramAnchorSide(sourcePosition),
-    targetSide: toDiagramAnchorSide(targetPosition),
+    sourcePosition,
+    targetPosition,
   });
 
   return (

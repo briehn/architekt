@@ -60,7 +60,8 @@ describe("adaptive renderer anchors", () => {
     ["left", node("a", 400, 0), node("b", 0, 0), "anchor-left", "anchor-right"],
     ["below", node("a", 0, 0), node("b", 0, 300), "anchor-bottom", "anchor-top"],
     ["above", node("a", 0, 300), node("b", 0, 0), "anchor-top", "anchor-bottom"],
-    ["diagonal", node("a", 0, 0), node("b", 400, 100), "anchor-right", "anchor-left"],
+    ["shallow diagonal", node("a", 0, 0), node("b", 400, 100), "anchor-right", "anchor-left"],
+    ["mixed diagonal", node("a", 0, 0), node("b", 250, 150), "anchor-right", "anchor-top"],
   ] as const)(
     "attaches a target %s of the source",
     (_relation, source, target, sourceHandle, targetHandle) => {
@@ -76,7 +77,7 @@ describe("adaptive renderer anchors", () => {
     const target = node("b", 120, 80);
 
     expect(attached(source, target)).toMatchObject({
-      sourceHandle: "anchor-bottom",
+      sourceHandle: "anchor-right",
       targetHandle: "anchor-top",
     });
     expect(
@@ -100,6 +101,8 @@ describe("adaptive renderer anchors", () => {
     const source = node("a", 0, 0);
     const above = node("b", 0, -300);
     const right = node("b", 400, 0);
+    const diagonal = node("b", 250, 150);
+    const below = node("b", 0, 400);
 
     expect(attached(source, above)).toMatchObject({
       sourceHandle: "anchor-top",
@@ -109,6 +112,14 @@ describe("adaptive renderer anchors", () => {
       ...edge,
       sourceHandle: "anchor-right",
       targetHandle: "anchor-left",
+    });
+    expect(attached(source, diagonal)).toMatchObject({
+      sourceHandle: "anchor-right",
+      targetHandle: "anchor-top",
+    });
+    expect(attached(source, below)).toMatchObject({
+      sourceHandle: "anchor-bottom",
+      targetHandle: "anchor-top",
     });
     expect(edge).not.toHaveProperty("sourceHandle");
     expect(edge).not.toHaveProperty("targetHandle");

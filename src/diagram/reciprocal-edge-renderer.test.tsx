@@ -79,6 +79,38 @@ describe("reciprocal edge selection", () => {
     expect([forward, reverse].every((canonical) => canonical.type === undefined)).toBe(true);
   });
 
+  it("keeps mixed reciprocal handles, semantics, and pair removal independent", () => {
+    const nodes = [node("client", "Client", 0, 0), node("cache", "Cache", 250, 150)];
+    const forward = edge("client-cache", "client", "cache", "request-response");
+    const reverse = edge("cache-client", "cache", "client", "async-messaging");
+    const paired = deriveEdges([forward, reverse], nodes);
+
+    expect(paired).toMatchObject([
+      {
+        type: RECIPROCAL_EDGE_TYPE, sourceHandle: "anchor-right", targetHandle: "anchor-top",
+        markerEnd: { type: "arrowclosed" },
+        label: "Request/response", ariaLabel: "Client to Cache, Request/response",
+      },
+      {
+        type: RECIPROCAL_EDGE_TYPE, sourceHandle: "anchor-top", targetHandle: "anchor-right",
+        markerEnd: { type: "arrowclosed" },
+        label: "Async messaging", ariaLabel: "Cache to Client, Async messaging",
+      },
+    ]);
+    expect(deriveEdges([reverse, forward], [...nodes].reverse()).map((derived) => [
+      derived.id, derived.sourceHandle, derived.targetHandle,
+    ])).toEqual([
+      ["cache-client", "anchor-top", "anchor-right"],
+      ["client-cache", "anchor-right", "anchor-top"],
+    ]);
+    const ordinary = deriveEdges([forward], nodes)[0];
+    expect(ordinary?.type).toBeUndefined();
+    expect(ordinary).toMatchObject({
+      sourceHandle: "anchor-right", targetHandle: "anchor-top",
+      markerEnd: { type: "arrowclosed" },
+    });
+  });
+
   it("keeps unrelated triangle edges ordinary with their adaptive anchors", () => {
     const nodes = [
       node("client", "Client", 0, 0),
@@ -112,6 +144,19 @@ describe("reciprocal edge selection", () => {
     expect(edges[0]?.type).toBeUndefined();
     expect(edges[3]?.type).toBeUndefined();
   });
+
+  it("rederives opposing reciprocal handles after node movement", () => {
+    const pair = [edge("a-b", "a", "b"), edge("b-a", "b", "a")];
+    const horizontal = deriveEdges(pair, [node("a", "A", 0, 0), node("b", "B", 400, 0)]);
+    const vertical = deriveEdges(pair, [node("a", "A", 0, 0), node("b", "B", 0, 400)]);
+
+    expect(horizontal.map(({ sourceHandle, targetHandle }) => [sourceHandle, targetHandle]))
+      .toEqual([["anchor-right", "anchor-left"], ["anchor-left", "anchor-right"]]);
+    expect(vertical.map(({ sourceHandle, targetHandle }) => [sourceHandle, targetHandle]))
+      .toEqual([["anchor-bottom", "anchor-top"], ["anchor-top", "anchor-bottom"]]);
+    expect(vertical.map(({ type }) => type))
+      .toEqual([RECIPROCAL_EDGE_TYPE, RECIPROCAL_EDGE_TYPE]);
+  });
 });
 
 describe("ReciprocalArchitectureEdge", () => {
@@ -133,17 +178,51 @@ describe("ReciprocalArchitectureEdge", () => {
     labelBgStyle: { fill: "var(--surface)" },
   };
 
-  it("renders the displaced path, arrowhead, and semantic label through BaseEdge", () => {
+  it("renders the shared center path, target arrowhead, and semantic label through BaseEdge", () => {
     const markup = renderToStaticMarkup(
       <svg><ReciprocalArchitectureEdge {...baseProps} /></svg>,
     );
 
-    expect(markup).toContain('d="M 0,20 C ');
-    expect(markup).toContain(" 200,20\"");
+    expect(markup).toContain('d="M0,20 C100,20 100,20 200,20"');
     expect(markup).toContain('marker-end="url(#arrowclosed)"');
     expect(markup).toContain("Request/response");
     expect(markup).toContain("translate(100 38)");
     expect(markup).toContain("var(--surface)");
+  });
+
+  it.each([
+    ["horizontal", 0, 20, 200, 20, Position.Right, Position.Left],
+    ["vertical", 10, 0, 10, 100, Position.Bottom, Position.Top],
+    ["diagonal", 0, 0, 60, 80, Position.Right, Position.Left],
+    ["mixed right/top", 176, 36, 338, 150, Position.Right, Position.Top],
+  ] as const)("keeps two %s directions, target markers, and labels separate", (
+    _name, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition,
+  ) => {
+    const forward = renderToStaticMarkup(<svg><ReciprocalArchitectureEdge
+      {...baseProps}
+      sourceX={sourceX} sourceY={sourceY}
+      targetX={targetX} targetY={targetY}
+      sourcePosition={sourcePosition} targetPosition={targetPosition}
+    /></svg>);
+    const reverse = renderToStaticMarkup(<svg><ReciprocalArchitectureEdge
+      {...baseProps}
+      id="b-a" source="b" target="a"
+      sourceX={targetX} sourceY={targetY}
+      targetX={sourceX} targetY={sourceY}
+      sourcePosition={targetPosition} targetPosition={sourcePosition}
+      label="Async messaging"
+    /></svg>);
+
+    expect(forward).toContain(`d="M${sourceX},${sourceY} C`);
+    expect(forward).toContain(` ${targetX},${targetY}"`);
+    expect(reverse).toContain(`d="M${targetX},${targetY} C`);
+    expect(reverse).toContain(` ${sourceX},${sourceY}"`);
+    expect(forward.match(/marker-end="url\(#arrowclosed\)"/g)).toHaveLength(1);
+    expect(reverse.match(/marker-end="url\(#arrowclosed\)"/g)).toHaveLength(1);
+    expect(forward).toContain("Request/response");
+    expect(reverse).toContain("Async messaging");
+    expect(forward.match(/translate\(([^)]+)\)/)?.[1])
+      .not.toBe(reverse.match(/translate\(([^)]+)\)/)?.[1]);
   });
 
   it("keeps Generic edges visibly unlabeled", () => {
@@ -160,5 +239,38 @@ describe("ReciprocalArchitectureEdge", () => {
 
     expect(markup).not.toContain("react-flow__edge-textwrapper");
     expect(markup).toContain('marker-end="url(#arrowclosed)"');
+  });
+
+  it("shows only the semantic label in a Generic and semantic pair", () => {
+    const markup = renderToStaticMarkup(<svg>
+      <ReciprocalArchitectureEdge {...baseProps} />
+      <ReciprocalArchitectureEdge
+        {...baseProps}
+        id="b-a" source="b" target="a"
+        sourceX={200} targetX={0}
+        sourcePosition={Position.Left} targetPosition={Position.Right}
+        data={{ kind: "generic" }} label={undefined} labelShowBg={false}
+      />
+    </svg>);
+
+    expect(markup.match(/react-flow__edge-textwrapper/g)).toHaveLength(1);
+    expect(markup).toContain("Request/response");
+    expect(markup.match(/marker-end="url\(#arrowclosed\)"/g)).toHaveLength(2);
+  });
+
+  it("shows no labels for two Generic directions", () => {
+    const markup = renderToStaticMarkup(<svg>
+      <ReciprocalArchitectureEdge {...baseProps} data={{ kind: "generic" }} label={undefined} />
+      <ReciprocalArchitectureEdge
+        {...baseProps}
+        id="b-a" source="b" target="a"
+        sourceX={200} targetX={0}
+        sourcePosition={Position.Left} targetPosition={Position.Right}
+        data={{ kind: "generic" }} label={undefined}
+      />
+    </svg>);
+
+    expect(markup).not.toContain("react-flow__edge-textwrapper");
+    expect(markup.match(/marker-end="url\(#arrowclosed\)"/g)).toHaveLength(2);
   });
 });

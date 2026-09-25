@@ -103,4 +103,27 @@ describe("adaptive anchor integration boundaries", () => {
     expect(deriveEdges(undone.present)[0].sourceHandle).toBe("anchor-right");
     expect(deriveEdges(redoArchitectureEditorHistory(undone).present)).toEqual(deriveEdges(moved.present));
   });
+
+  it("derives mixed reciprocal handles after movement without persisting anchors", () => {
+    const initial = createArchitectureEditorHistory(fixture(2));
+    const moved = recordArchitectureEditorState(initial, applyReactFlowNodeChangesToEditorState(
+      initial.present, [{ id: "node-1", type: "position", position: { x: 250, y: 150 } }],
+    ));
+    const [forward, reverse] = deriveEdges(moved.present);
+
+    expect([forward?.sourceHandle, forward?.targetHandle]).toEqual([
+      "anchor-right", "anchor-top",
+    ]);
+    expect([reverse?.sourceHandle, reverse?.targetHandle]).toEqual([
+      "anchor-top", "anchor-right",
+    ]);
+    expect(moved.past).toHaveLength(1);
+    expect(moved.present.graph).toBe(initial.present.graph);
+    expect(toPersistedArchitectureEditorDocument(moved.present)).toMatchObject({
+      schemaVersion: 3,
+      nodePositions: [{ componentId: "node-0", x: 0, y: 0 }, { componentId: "node-1", x: 250, y: 150 }],
+    });
+    expect(deriveEdges(redoArchitectureEditorHistory(undoArchitectureEditorHistory(moved)).present))
+      .toEqual(deriveEdges(moved.present));
+  });
 });
