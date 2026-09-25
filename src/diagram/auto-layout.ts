@@ -14,12 +14,13 @@ import type {
   DiagramPosition,
 } from "./diagram-layout";
 
-export type DiagramNodeSize = Readonly<{
-  width: number;
-  height: number;
-}>;
+import {
+  resolveDiagramNodeSize,
+  type DiagramNodeSize,
+  type DiagramNodeSizes,
+} from "./diagram-node-size";
 
-export type DiagramNodeSizes = ReadonlyMap<ComponentId, DiagramNodeSize>;
+export type { DiagramNodeSize, DiagramNodeSizes } from "./diagram-node-size";
 
 export type AutoLayoutResult =
   | {
@@ -32,11 +33,6 @@ export type AutoLayoutResult =
         type: "layout-failed";
       };
     };
-
-const FALLBACK_NODE_SIZE: DiagramNodeSize = {
-  width: 176,
-  height: 72,
-};
 
 const RANK_SEPARATION = 160;
 const NODE_SEPARATION = 64;
@@ -84,7 +80,7 @@ export function layoutArchitectureGraph(
     componentIndexById.set(component.id, index);
     resolvedNodeSizes.set(
       component.id,
-      resolveNodeSize(knownNodeSizes.get(component.id)),
+      resolveDiagramNodeSize(knownNodeSizes.get(component.id)),
     );
   });
 
@@ -168,25 +164,6 @@ export function layoutArchitectureGraph(
       packedPositions,
     ),
   };
-}
-
-function resolveNodeSize(
-  knownNodeSize: DiagramNodeSize | undefined,
-): DiagramNodeSize {
-  if (
-    knownNodeSize &&
-    Number.isFinite(knownNodeSize.width) &&
-    Number.isFinite(knownNodeSize.height) &&
-    knownNodeSize.width > 0 &&
-    knownNodeSize.height > 0
-  ) {
-    return {
-      width: knownNodeSize.width,
-      height: knownNodeSize.height,
-    };
-  }
-
-  return FALLBACK_NODE_SIZE;
 }
 
 function compareConnections(

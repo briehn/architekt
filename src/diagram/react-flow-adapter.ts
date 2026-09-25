@@ -22,6 +22,7 @@ import {
   type DiagramPosition,
   moveDiagramNode,
 } from "./diagram-layout";
+import type { ArchitectureConnectionIntent } from "./pointer-connection-controller";
 
 const closedArrowMarker = { type: "arrowclosed" } satisfies EdgeMarker;
 
@@ -49,10 +50,23 @@ export function toArchitectureConnection(
   connection: Connection,
   connectionId: ConnectionId,
 ): ArchitectureConnection {
+  return toArchitectureConnectionFromIntent(
+    {
+      sourceComponentId: connection.source as ComponentId,
+      targetComponentId: connection.target as ComponentId,
+    },
+    connectionId,
+  );
+}
+
+export function toArchitectureConnectionFromIntent(
+  intent: ArchitectureConnectionIntent,
+  connectionId: ConnectionId,
+): ArchitectureConnection {
   return {
     id: connectionId,
-    sourceComponentId: connection.source as ComponentId,
-    targetComponentId: connection.target as ComponentId,
+    sourceComponentId: intent.sourceComponentId,
+    targetComponentId: intent.targetComponentId,
     kind: "generic",
   };
 }

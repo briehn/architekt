@@ -68,12 +68,20 @@ import {
 } from "./architecture-editor-keyboard-shortcuts";
 import {
   toArchitectureConnection,
+  toArchitectureConnectionFromIntent,
   toReactFlowDiagram,
   withReactFlowNodeMeasurements,
 } from "./react-flow-adapter";
 import type { CanvasRenamePresentation } from "./architekt-node";
+import type { DiagramAnchorSide } from "./adaptive-anchor-geometry";
 import { getComponentKindPresentation } from "./component-kind-presentation";
 import { getConnectionKindPresentation } from "./connection-kind-presentation";
+import {
+  activatePointerConnectionAnchor,
+  clearDeletedPointerConnectionSource,
+  shouldCancelPendingPointerConnectionOnEscape,
+  type PendingPointerConnectionSource,
+} from "./pointer-connection-controller";
 import {
   StaticDiagram,
   type CanvasNodeFocusRequest,
@@ -109,6 +117,17 @@ function getAddConnectionErrorMessage(
     case "connection-id-already-exists":
       return "That connection could not be created. Try again.";
   }
+}
+
+export function getPendingPointerConnectionStatus(sourceName: string): string {
+  return `Connecting from ${sourceName}. Choose a destination.`;
+}
+
+export function getPointerConnectionSuccessAnnouncement(
+  sourceName: string,
+  targetName: string,
+): string {
+  return `Connected ${sourceName} to ${targetName}.`;
 }
 
 function createExampleArchitectureGraph(): ArchitectureGraph {
@@ -496,6 +515,49 @@ export function recordConnectionKindChangeFromList(
     : history;
 }
 
+export function recordSelectedComponentDeletion(
+  history: ArchitectureEditorHistory,
+  componentIds: readonly ComponentId[],
+): ArchitectureEditorHistory {
+  let nextState = history.present;
+
+  for (const componentId of new Set(componentIds)) {
+    const result = removeComponentFromEditorState(nextState, componentId);
+    if (result.ok) {
+      nextState = result.state;
+    }
+  }
+
+  return recordArchitectureEditorState(history, nextState);
+}
+
+export function applyCanvasNodeSelectionChanges(
+  currentSelection: ReadonlySet<ComponentId>,
+  changes: readonly NodeChange[],
+): ReadonlySet<ComponentId> {
+  let nextSelection: Set<ComponentId> | null = null;
+
+  for (const change of changes) {
+    if (change.type !== "select") continue;
+    nextSelection ??= new Set(currentSelection);
+    if (change.selected) {
+      nextSelection.add(change.id as ComponentId);
+    } else {
+      nextSelection.delete(change.id as ComponentId);
+    }
+  }
+
+  return nextSelection ?? currentSelection;
+}
+
+export function canDeleteSelectedCanvasComponents(
+  renameActive: boolean,
+  dragActive: boolean,
+  focusedEditable: boolean,
+): boolean {
+  return !renameActive && !dragActive && !focusedEditable;
+}
+
 function persistedEditorStateBaseline(
   editorState: ArchitectureEditorState,
 ): PersistedEditorStateBaseline {
@@ -525,6 +587,10 @@ export function ArchitectureEditor() {
   const [canvasNodeFocusRequest, setCanvasNodeFocusRequest] =
     useState<CanvasNodeFocusRequest | null>(null);
   const [nodeDragIsActive, setNodeDragIsActive] = useState(false);
+  const [pendingPointerConnectionSource, setPendingPointerConnectionSource] =
+    useState<PendingPointerConnectionSource | null>(null);
+  const [selectedCanvasComponentIds, setSelectedCanvasComponentIds] =
+    useState<ReadonlySet<ComponentId>>(() => new Set());
   const storageRef = useRef<StorageLike | null>(null);
   const autosaveBaselineRef = useRef<PersistedEditorStateBaseline | null>(null);
   const latestEditorStateRef = useRef<ArchitectureEditorState | null>(null);
@@ -685,6 +751,8 @@ export function ArchitectureEditor() {
         return false;
       }
 
+      setPendingPointerConnectionSource(null);
+      setSelectedCanvasComponentIds(new Set());
       closeRename(activeRenameComponentId);
 
       setViewState((currentViewState) => {
@@ -712,6 +780,17 @@ export function ArchitectureEditor() {
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
+      if (shouldCancelPendingPointerConnectionOnEscape(
+        pendingPointerConnectionSource,
+        event.key,
+        renameSession !== null,
+        isEditableKeyboardTarget(event.target),
+      )) {
+        event.preventDefault();
+        setPendingPointerConnectionSource(null);
+        return;
+      }
+
       const action = getArchitectureEditorHistoryNavigationAction({
         key: event.key,
         altKey: event.altKey,
@@ -731,7 +810,7 @@ export function ArchitectureEditor() {
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [navigateHistory]);
+  }, [navigateHistory, pendingPointerConnectionSource, renameSession]);
 
   const persistEditorState = useCallback(
     (editorStateToSave: ArchitectureEditorState) => {
@@ -853,6 +932,12 @@ export function ArchitectureEditor() {
   );
 
   function handleNodesChange(changes: NodeChange[]) {
+    if (changes.some((change) => change.type === "select")) {
+      setSelectedCanvasComponentIds((currentSelection) =>
+        applyCanvasNodeSelectionChanges(currentSelection, changes),
+      );
+    }
+
     setViewState((currentViewState) => {
       if (currentViewState.status === "loading") {
         return currentViewState;
@@ -961,6 +1046,16 @@ export function ArchitectureEditor() {
   }
 
   function handleDeleteComponent(componentId: ComponentId) {
+    setSelectedCanvasComponentIds((currentSelection) => {
+      if (!currentSelection.has(componentId)) return currentSelection;
+      const nextSelection = new Set(currentSelection);
+      nextSelection.delete(componentId);
+      return nextSelection;
+    });
+    setPendingPointerConnectionSource((pendingSource) =>
+      clearDeletedPointerConnectionSource(pendingSource, componentId),
+    );
+
     if (renameDraft?.componentId === componentId) {
       closeRename(null);
     }
@@ -984,6 +1079,25 @@ export function ArchitectureEditor() {
             ),
           }
         : currentViewState;
+    });
+  }
+
+  function handleDeleteSelectedComponents(componentIds: readonly ComponentId[]) {
+    setSelectedCanvasComponentIds(new Set());
+    setPendingPointerConnectionSource((pendingSource) =>
+      pendingSource !== null && componentIds.includes(pendingSource.componentId)
+        ? null
+        : pendingSource,
+    );
+    setViewState((currentViewState) => {
+      if (currentViewState.status === "loading") return currentViewState;
+      const history = recordSelectedComponentDeletion(
+        currentViewState.history,
+        componentIds,
+      );
+      return history === currentViewState.history
+        ? currentViewState
+        : { ...currentViewState, history };
     });
   }
 
@@ -1093,6 +1207,7 @@ export function ArchitectureEditor() {
     component: Readonly<{ id: ComponentId; name: string }>,
     origin: RenameOrigin,
   ) {
+    setPendingPointerConnectionSource(null);
     setRenameSession(createRenameSession(component.id, component.name, origin));
   }
 
@@ -1177,12 +1292,10 @@ export function ArchitectureEditor() {
     });
   }
 
-  function handleConnect(connection: Connection) {
-    const architectureConnection = toArchitectureConnection(
-      connection,
-      createConnectionId(),
-    );
-
+  function submitConnection(
+    architectureConnection: ArchitectureConnection,
+    announceSuccess: boolean,
+  ) {
     setViewState((currentViewState) => {
       if (currentViewState.status === "loading") {
         return currentViewState;
@@ -1193,20 +1306,72 @@ export function ArchitectureEditor() {
         architectureConnection,
       );
 
-      return result.ok
-        ? {
-            ...currentViewState,
-            history: recordArchitectureEditorState(
-              currentViewState.history,
-              result.state,
-            ),
-            connectionRejection: null,
-          }
-        : {
-            ...currentViewState,
-            connectionRejection: result.error,
-          };
+      if (!result.ok) {
+        return {
+          ...currentViewState,
+          connectionRejection: result.error,
+        };
+      }
+
+      const components = currentViewState.history.present.graph.getComponents();
+      const sourceName = components.find(
+        (component) => component.id === architectureConnection.sourceComponentId,
+      )?.name;
+      const targetName = components.find(
+        (component) => component.id === architectureConnection.targetComponentId,
+      )?.name;
+
+      return {
+        ...currentViewState,
+        history: recordArchitectureEditorState(
+          currentViewState.history,
+          result.state,
+        ),
+        connectionRejection: null,
+        announcement:
+          announceSuccess && sourceName && targetName
+            ? getPointerConnectionSuccessAnnouncement(sourceName, targetName)
+            : currentViewState.announcement,
+      };
     });
+  }
+
+  function handleConnect(connection: Connection) {
+    setPendingPointerConnectionSource(null);
+    submitConnection(
+      toArchitectureConnection(connection, createConnectionId()),
+      false,
+    );
+  }
+
+  function handlePointerAnchorActivated(
+    componentId: ComponentId,
+    side: DiagramAnchorSide,
+  ) {
+    const activation = activatePointerConnectionAnchor(
+      pendingPointerConnectionSource,
+      componentId,
+      side,
+    );
+
+    setPendingPointerConnectionSource(activation.pendingSource);
+
+    if (activation.connectionIntent !== null) {
+      submitConnection(
+        toArchitectureConnectionFromIntent(
+          activation.connectionIntent,
+          createConnectionId(),
+        ),
+        true,
+      );
+    } else {
+      setViewState((currentViewState) =>
+        currentViewState.status !== "loading" &&
+        currentViewState.connectionRejection !== null
+          ? { ...currentViewState, connectionRejection: null }
+          : currentViewState,
+      );
+    }
   }
 
   function handleRetrySave() {
@@ -1255,6 +1420,8 @@ export function ArchitectureEditor() {
     autosaveBaselineRef.current = persistedEditorStateBaseline(editorState);
     latestEditorStateRef.current = editorState;
     closeRename(null);
+    setPendingPointerConnectionSource(null);
+    setSelectedCanvasComponentIds(new Set());
     setViewState({
       status: "ready",
       history: freshHistory,
@@ -1265,6 +1432,11 @@ export function ArchitectureEditor() {
 
   const components = editorState.graph.getComponents();
   const connections = editorState.graph.getConnections();
+  const pendingSourceName = pendingPointerConnectionSource === null
+    ? null
+    : components.find(
+        (component) => component.id === pendingPointerConnectionSource.componentId,
+      )?.name ?? null;
   const componentNameCounts = new Map<string, number>();
   for (const component of components) {
     componentNameCounts.set(
@@ -1399,6 +1571,12 @@ export function ArchitectureEditor() {
         {connectionRejection ? (
           <p className="mt-2 text-sm text-danger" role="alert">
             {getAddConnectionErrorMessage(connectionRejection)}
+          </p>
+        ) : null}
+
+        {pendingSourceName !== null ? (
+          <p className="mt-2 text-sm text-text-secondary" role="status">
+            {getPendingPointerConnectionStatus(pendingSourceName)}
           </p>
         ) : null}
 
@@ -1605,12 +1783,27 @@ export function ArchitectureEditor() {
 
       <div className="min-h-0 flex-1">
         <StaticDiagram
+          selectedComponentIds={selectedCanvasComponentIds}
+          onSelectedNodesDelete={handleDeleteSelectedComponents}
+          canDeleteSelectedNodes={() =>
+            canDeleteSelectedCanvasComponents(
+              renameSession !== null,
+              dragStartHistoryRef.current !== null,
+              isEditableKeyboardTarget(document.activeElement),
+            )
+          }
           canvasNodeFocusRequest={canvasNodeFocusRequest}
           canvasRename={canvasRename}
+          activeRenameComponentId={activeRenameComponentId}
           nodes={nodes}
           autoLayoutFitRequestId={viewState.autoLayoutFitRequestId ?? 0}
           edges={edges}
           onConnect={handleConnect}
+          pendingPointerConnectionSource={pendingPointerConnectionSource}
+          onPointerAnchorActivated={handlePointerAnchorActivated}
+          onPointerConnectionCancelled={() =>
+            setPendingPointerConnectionSource(null)
+          }
           onNodeDragStart={handleNodeDragStart}
           onNodeDragStop={handleNodeDragStop}
           onNodeRenameRequested={handleNodeRenameRequested}

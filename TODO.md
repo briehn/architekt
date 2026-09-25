@@ -1,5 +1,43 @@
 # Architekt TODO
 
+## Current milestone: Adaptive Multi-Side Connection Anchors
+
+**Status: Implementation, architecture audit, and automated verification complete; live browser acceptance pending.** No browser surface was available for the Step 6 closeout session. Do not treat static rendering or callback tests as proof of pointer hit testing, DOM focus, touch, or screen-reader behavior.
+
+### Completed
+
+* [x] Share the finite-positive size policy and 176 x 72 fallback with Auto-Layout; preserve exact layout fixtures
+* [x] Add pure deterministic dimension-aware opposing-side geometry
+* [x] Derive four shared renderer handle IDs under React Flow loose connection mode
+* [x] Separate only reciprocal pairs with mirrored curves; preserve semantic labels and canonical direction
+* [x] Share one transient pending-source controller across click/tap and keyboard activation, alongside native drag
+* [x] Add one roving anchor Tab stop per node, arrow navigation, accessible names/instructions, and shared status feedback
+* [x] Verify unchanged graph invariants, V3 shape, legacy restoration, generic history, and renderer-only metadata
+* [x] Audit O(nodes + edges) derivation and exercise a 100-node / 198-edge fixture without timing-sensitive thresholds
+* [x] Close audit gaps: disable anchors during list-origin rename, expose disabled semantics, and stop anchor double-click from starting rename
+* [x] Update architecture, product, design, and README capability documentation
+
+### Live acceptance gate
+
+* [ ] Four restrained marks, practical hit areas, hover/focus clarity, and unchanged node dimensions
+* [ ] Native drag from each side: correct source/target, Generic kind, exactly one add, no trailing-click draft
+* [ ] Two-step click/tap from all sides; same-source switching; empty-canvas/Escape cancellation; duplicate rejection; reciprocal creation
+* [ ] Real Tab/Shift+Tab order, initial right side, arrow focus movement without node movement, Enter/Space completion, and no focus trap
+* [ ] Pointer/keyboard switching, unchanged undo/redo shortcuts, accessible names/instructions, duplicate-name disambiguation, and actual announcements
+* [ ] Triangle and central Service with Client/Cache/Database/Queue; fan-in/out and shared-side edges; correct arrows and readable labels
+* [ ] Movement across side thresholds, one drag history entry, undo/redo attachment, Auto-layout followed by manual movement
+* [ ] Reciprocal curves/arrowheads with different semantic labels; deleting reverse restores built-in rendering
+* [ ] List/canvas rename disables anchors; Save/Cancel restores them; longer names remeasure without movement or extra history
+* [ ] Light/dark focus states, narrow canvas, short/long edges, label readability, and restrained visual density
+* [ ] Meaningful touch emulation or device testing without hover dependency (desktop clicks are not touch acceptance)
+* [ ] Evaluate pending state after focus leaves canvas; keep explicit Escape/canvas-click cancellation unless evidence justifies a small correction
+
+Canvas-exit cancellation remains intentionally absent: navigation between node anchors must work, and no browser evidence currently justifies blur heuristics. Complete this gate before marking the milestone fully accepted. No next milestone is started by this closeout.
+
+### Deferred
+
+Canonical named/provider/service ports, protocol/per-port validation, persisted or manually locked sides, additional same-ordered-pair edges, routing/orthogonal routing/obstacle avoidance, editable Bezier controls, label collision handling, grouped/nested boundaries, topology linting, and AI generation remain separate decisions. Existing Auto-Layout deferrals (animation, automatic/incremental layout, pinning, orientation, semantic weighting, worker execution, and viewport persistence) remain unchanged. Impeccable tooling and its stale generated sidecar remain deferred maintenance.
+
 ## Completed milestone: Project foundation
 
 ### Goal

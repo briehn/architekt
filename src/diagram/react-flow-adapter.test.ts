@@ -123,6 +123,101 @@ describe("toArchitectureConnection", () => {
       kind: "generic",
     });
   });
+
+  it.each([
+    ["anchor-top", "anchor-left"],
+    ["anchor-left", "anchor-right"],
+    ["anchor-bottom", "anchor-top"],
+  ])(
+    "keeps A to B when dragging from %s to %s",
+    (sourceHandle, targetHandle) => {
+      const translated = toArchitectureConnection(
+        { source: "a", target: "b", sourceHandle, targetHandle },
+        connectionId("a-to-b"),
+      );
+      const graph = addComponent(
+        addComponent(ArchitectureGraph.empty(), component("a", "A")),
+        component("b", "B"),
+      );
+
+      expect(translated).toEqual({
+        id: connectionId("a-to-b"),
+        sourceComponentId: componentId("a"),
+        targetComponentId: componentId("b"),
+        kind: "generic",
+      });
+      const result = graph.addConnection(translated);
+      expect(result.ok).toBe(true);
+    },
+  );
+
+  it("retains self and ordered-pair validation while allowing a reverse gesture", () => {
+    const graph = addComponent(
+      addComponent(ArchitectureGraph.empty(), component("a", "A")),
+      component("b", "B"),
+    );
+    const forward = toArchitectureConnection(
+      {
+        source: "a",
+        target: "b",
+        sourceHandle: "anchor-left",
+        targetHandle: "anchor-right",
+      },
+      connectionId("forward"),
+    );
+    const first = graph.addConnection(forward);
+    if (!first.ok) throw new Error("Expected A to B to be accepted.");
+
+    const duplicate = first.graph.addConnection(
+      toArchitectureConnection(
+        {
+          source: "a",
+          target: "b",
+          sourceHandle: "anchor-bottom",
+          targetHandle: "anchor-top",
+        },
+        connectionId("duplicate"),
+      ),
+    );
+    expect(duplicate).toMatchObject({
+      ok: false,
+      error: { type: "connection-already-exists" },
+    });
+
+    const self = first.graph.addConnection(
+      toArchitectureConnection(
+        {
+          source: "a",
+          target: "a",
+          sourceHandle: "anchor-top",
+          targetHandle: "anchor-left",
+        },
+        connectionId("self"),
+      ),
+    );
+    expect(self).toMatchObject({
+      ok: false,
+      error: { type: "source-and-target-component-ids-are-the-same" },
+    });
+
+    const reverse = toArchitectureConnection(
+      {
+        source: "b",
+        target: "a",
+        sourceHandle: "anchor-right",
+        targetHandle: "anchor-top",
+      },
+      connectionId("reverse"),
+    );
+    expect(reverse).toEqual({
+      id: connectionId("reverse"),
+      sourceComponentId: componentId("b"),
+      targetComponentId: componentId("a"),
+      kind: "generic",
+    });
+    expect(first.graph.addConnection(reverse).ok).toBe(true);
+    expect(first.graph.getConnections()).toEqual([forward]);
+  });
 });
 
 describe("toReactFlowDiagram", () => {

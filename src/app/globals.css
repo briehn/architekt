@@ -91,6 +91,57 @@ body {
   box-shadow: none;
 }
 
+.architekt-diagram .react-flow__node-default.architekt-node--selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+.architekt-diagram .react-flow__node:focus-visible .react-flow__node-default {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 4px;
+}
+
+.architekt-diagram .architekt-anchor {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  background: transparent;
+}
+
+.architekt-diagram .architekt-anchor:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.architekt-diagram .architekt-node--connection-source {
+  outline: 2px solid var(--text-secondary);
+  outline-offset: 2px;
+}
+
+.architekt-diagram .architekt-anchor::after {
+  width: 8px;
+  height: 8px;
+  border: 1px solid var(--text-muted);
+  border-radius: 50%;
+  background: var(--surface);
+  content: "";
+  pointer-events: none;
+}
+
+.architekt-diagram .architekt-anchor--connection-source::after {
+  width: 12px;
+  height: 12px;
+  border-width: 2px;
+}
+
+.architekt-diagram .architekt-anchor--connection-destination::after {
+  width: 10px;
+  height: 10px;
+  border-width: 2px;
+}
+
 .architekt-diagram .react-flow__edge-path {
   stroke-linecap: round;
 }

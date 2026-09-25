@@ -120,12 +120,26 @@ Desktop (>=1024px) shows full editor chrome. Tablet (768-1023px) collapses secon
 
 ## Auto-Layout interaction
 
-Diagrams start in a left-to-right flow. Every node has one target handle on the left and one source handle on the right, including during inline rename when both handles remain non-connectable. Arrowheads and the ordered connection list also convey direction rather than relying on handle position alone.
+Diagrams start in a left-to-right flow. Four shared anchors allow incoming or outgoing connections on any side, with attachment adapting to relative node geometry. Arrowheads and the ordered connection list convey canonical direction; a side does not imply source or target.
 
 The secondary text Auto-layout button sits in the editor action row beside the visually separated Undo/Redo group. The row wraps at narrow widths so the canvas is not compressed to keep controls on one line. The native button supports Tab, Enter, and Space with the existing focus ring; activation leaves focus on the button. It is disabled for an empty graph, an active node drag, or inline rename, while incomplete measurements remain acceptable. A changed layout gives a polite visually hidden status, a no-op announces that the diagram is already arranged, and failure uses a concise visible alert.
 
 Changed explicit layouts fit the current canvas immediately with conservative padding and no animation. Horizontal rank and node spacing leave useful room for semantic edge labels and handles; labels remain neutral presentation, not inputs to layout or custom edge routing.
 
+
+## Adaptive anchor interaction
+
+Every component kind uses the same four neutral, visible 8px anchor marks. Their transparent 32px interaction boxes exceed the visual marks without changing measured node dimensions. Hover is not required to find or use them; no kind-specific colors or extra hover-only controls are introduced. Practical mouse/touch hit testing, especially at reduced zoom, still requires browser acceptance; 32px canvas targets are not a claim of a 44px touch target.
+
+Pending creation outlines the source node and enlarges/thickens the chosen source mark; destination marks also become more apparent. Shape, outline, and visible status supplement color. The visible status says “Connecting from Service. Choose a destination.” Accepted creation reuses the polite success announcement, “Connected Service to Cache.” Rejections use the existing visible connection error, without a toast or forced focus movement.
+
+One shared anchor per node is in the Tab sequence, initially right. Arrow keys focus top/right/bottom/left; Enter/Space start or complete through the same interaction as click/tap. Tab and Shift+Tab leave the group normally. Focus receives a visible 2px theme-token outline. Accessible names distinguish starting, choosing a destination, and changing the pending source side; duplicate names receive IDs only when ambiguous. A shared described instruction explains arrows, activation, and Escape rather than repeating the whole instruction in each name. List or canvas rename disables that component's anchors and removes them from Tab order; anchor double-click does not initiate rename.
+
+Escape and empty-canvas click dismiss pending creation. Moving focus outside the canvas currently preserves the draft; no blur heuristics cancel navigation between nodes. Evaluate this during live acceptance before adding canvas-exit cancellation.
+
+Ordinary edges retain the built-in curve. Reciprocal pairs alone use two nearby, shallow mirrored lanes with fixed adaptive endpoints and separate lane-following midpoint labels. Each direction keeps its own arrowhead. Preserve neutral stroke and label surface/text tokens in both themes; Generic has no visible label. Short/long edges, crowded triangles, fan-in/out, and reciprocal labels require visual acceptance, not pixel assertions. Label collision avoidance is deferred.
+
+At narrow widths, preserve the existing wrapping action row and canvas space. Anchors do not enlarge node layout, require hover, or introduce a separate mobile UI. Light/dark focus contrast, touch behavior, actual Tab order, and screen-reader announcement quality remain manual acceptance checks in `TODO.md`.
 
 ## Elevation & Depth
 Use 1px borders for static structure. Shadows are reserved for floating layers (menus, popovers, dialogs, and dragged nodes); standard controls have no glow. Selected nodes may use an accent border and soft outer ring instead of a heavy shadow.

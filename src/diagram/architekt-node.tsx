@@ -1,17 +1,26 @@
 import {
   Handle,
-  Position,
   type Node,
   type NodeProps,
 } from "@xyflow/react";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type { ComponentId } from "../domain/identifiers";
+import type { DiagramAnchorSide } from "./adaptive-anchor-geometry";
+import {
+  DIAGRAM_ANCHOR_HANDLES,
+  DIAGRAM_ANCHOR_SIDES,
+} from "./adaptive-anchor-renderer";
 import {
   getArchitectureNodeAccessibleLabel,
   getComponentKindPresentation,
 } from "./component-kind-presentation";
 import type { ArchitectureFlowNodeData } from "./react-flow-adapter";
+import {
+  ANCHOR_KEYBOARD_INSTRUCTIONS_ID,
+  applyAnchorKeyboardAction,
+  getConnectionAnchorAccessibleName,
+} from "./anchor-keyboard-interaction";
 
 export type CanvasRenamePresentation = Readonly<{
   componentId: ComponentId;
@@ -25,6 +34,15 @@ export type CanvasRenamePresentation = Readonly<{
 export type ArchitektNodeData = ArchitectureFlowNodeData & Readonly<{
   rename: CanvasRenamePresentation | null;
   focusRequestId: number | null;
+  pointerConnection?: Readonly<{
+    accessibleComponentName: string;
+    pendingSourceAccessibleName: string | null;
+    pendingSourceSide: DiagramAnchorSide | null;
+    destinationAvailable: boolean;
+    onAnchorPointerDown(): void;
+    onAnchorClick(side: DiagramAnchorSide): void;
+    onAnchorActivate(side: DiagramAnchorSide): void;
+  }>;
 }>;
 
 export type ArchitektFlowNode = Node<ArchitektNodeData, "architekt">;
@@ -39,9 +57,18 @@ export function areArchitektNodeHandlesConnectable(
 export function ArchitektNode({
   data,
   isConnectable,
+  selected,
 }: NodeProps<ArchitektFlowNode>) {
   const nodeRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const anchorRefs = useRef<Record<DiagramAnchorSide, HTMLDivElement | null>>({
+    top: null,
+    right: null,
+    bottom: null,
+    left: null,
+  });
+  const [activeAnchorSide, setActiveAnchorSide] =
+    useState<DiagramAnchorSide>("right");
   const rename = data.rename;
   const isRenaming = rename !== null;
   const kindPresentation = getComponentKindPresentation(data.kind);
@@ -50,6 +77,9 @@ export function ArchitektNode({
     isConnectable,
     isRenaming,
   );
+  const isPendingConnectionSource =
+    data.pointerConnection?.pendingSourceSide !== null &&
+    data.pointerConnection?.pendingSourceSide !== undefined;
 
   useEffect(() => {
     if (!isRenaming) {
@@ -69,16 +99,74 @@ export function ArchitektNode({
   return (
     <div
       aria-label={getArchitectureNodeAccessibleLabel(data.name, data.kind)}
-      className="react-flow__node-default relative"
+      className={`react-flow__node-default relative${
+        selected ? " architekt-node--selected" : ""
+      }${
+        isPendingConnectionSource
+          ? " architekt-node--connection-source"
+          : ""
+      }`}
       ref={nodeRef}
       role="group"
       tabIndex={-1}
     >
-      <Handle
-        isConnectable={handlesAreConnectable}
-        position={Position.Left}
-        type="target"
-      />
+      {DIAGRAM_ANCHOR_SIDES.map((side) => (
+        <Handle
+          aria-disabled={!handlesAreConnectable}
+          aria-describedby={ANCHOR_KEYBOARD_INSTRUCTIONS_ID}
+          aria-label={getConnectionAnchorAccessibleName(
+            data.pointerConnection?.accessibleComponentName ?? data.name,
+            side,
+            data.pointerConnection?.pendingSourceAccessibleName ?? null,
+            isPendingConnectionSource,
+          )}
+          className={`architekt-anchor${
+            data.pointerConnection?.pendingSourceSide === side
+              ? " architekt-anchor--connection-source"
+              : data.pointerConnection?.destinationAvailable
+                ? " architekt-anchor--connection-destination"
+                : ""
+          }`}
+          id={DIAGRAM_ANCHOR_HANDLES[side].id}
+          isConnectable={handlesAreConnectable}
+          isConnectableEnd={handlesAreConnectable}
+          isConnectableStart={handlesAreConnectable}
+          key={side}
+          onClick={
+            handlesAreConnectable
+              ? () => data.pointerConnection?.onAnchorClick(side)
+              : undefined
+          }
+          onFocus={() => setActiveAnchorSide(side)}
+          onDoubleClick={(event) => event.stopPropagation()}
+          onKeyDown={(event) => {
+            if (!handlesAreConnectable) {
+              return;
+            }
+
+            if (applyAnchorKeyboardAction(
+              event.key,
+              event.repeat,
+              (nextSide) => {
+                setActiveAnchorSide(nextSide);
+                anchorRefs.current[nextSide]?.focus();
+              },
+              () => data.pointerConnection?.onAnchorActivate(side),
+            )) {
+              event.preventDefault();
+              event.stopPropagation();
+            }
+          }}
+          onPointerDown={data.pointerConnection?.onAnchorPointerDown}
+          position={DIAGRAM_ANCHOR_HANDLES[side].position}
+          ref={(element) => {
+            anchorRefs.current[side] = element;
+          }}
+          role="button"
+          tabIndex={handlesAreConnectable && activeAnchorSide === side ? 0 : -1}
+          type="source"
+        />
+      ))}
       {rename === null ? (
         <div className="flex flex-col items-start gap-1 text-left">
           <span className="text-sm font-semibold text-text-primary">
@@ -156,11 +244,6 @@ export function ArchitektNode({
           ) : null}
         </form>
       )}
-      <Handle
-        isConnectable={handlesAreConnectable}
-        position={Position.Right}
-        type="source"
-      />
     </div>
   );
 }

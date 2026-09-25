@@ -6,6 +6,8 @@ The Project foundation, Domain graph foundation, Static Diagram Rendering, Inter
 
 ## Guiding data flow
 
+Adaptive Multi-Side Connection Anchors is implemented and automatically verified; its live browser acceptance gate remains open (see `TODO.md`). Connections now have geometry-derived attachment and shared pointer/keyboard creation without changing the canonical graph.
+
 ```text
 User Input → Validated Command → Domain Graph → Renderer
 ```
@@ -63,11 +65,44 @@ Its compact control region creates ComponentId values with crypto.randomUUID() a
 
 `renameComponentInEditorState`, `changeComponentKindInEditorState`, and `changeConnectionKindInEditorState` delegate validation and mutation to the graph, preserve node-position and measurement references for real semantic changes, and preserve the complete editor-state reference for exact no-ops. Typed graph rejections propagate without a fallback state. A component-list kind change cancels any active list or canvas rename draft without recording the cancellation; it preserves focus on the select, while ordinary rename Cancel and Escape continue restoring focus to the rename trigger. Canvas double-click remains rename-only, and canvas component/connection semantics remain read-only presentation.
 
-React Flow connection gestures are translated into `ArchitectureConnection` values with application-generated `ConnectionId` values and an explicit `generic` kind, then admitted through the same editor-state and domain-graph path. Generic is a UI-boundary creation choice, not a domain default. Existing connections are listed from the canonical graph by directional endpoint names and removed through a pure editor-state operation; duplicate visible endpoint pairs receive technical-ID disambiguation only while ambiguous. Compact native selects expose all five human-readable connection kinds, narrow raw DOM strings with `isArchitectureConnectionKind`, and record accepted changes through the ordinary history path without local draft state. React Flow nodes, edges, and connection rows therefore reflect current graph names and kinds without renderer-owned edit state. Connection rejection feedback is calculated together with the authoritative latest-state transition in one functional React update. React Flow selection, canvas edge editing, and edge reconnection remain disabled.
+React Flow connection gestures are translated into `ArchitectureConnection` values with application-generated `ConnectionId` values and an explicit `generic` kind, then admitted through the same editor-state and domain-graph path. Generic is a UI-boundary creation choice, not a domain default. Existing connections are listed from the canonical graph by directional endpoint names and removed through a pure editor-state operation; duplicate visible endpoint pairs receive technical-ID disambiguation only while ambiguous. Compact native selects expose all five human-readable connection kinds, narrow raw DOM strings with `isArchitectureConnectionKind`, and record accepted changes through the ordinary history path without local draft state. React Flow nodes, edges, and connection rows therefore reflect current graph names and kinds without renderer-owned edit state. Connection rejection feedback is calculated together with the authoritative latest-state transition in one functional React update. Canvas component selection is transient; canvas edge selection, canvas edge editing, and edge reconnection remain disabled.
 
 `DiagramNodePositions` remains the source of truth for user-authored coordinates. React Flow measurements are transient renderer metadata retained across controlled node derivation and projected into layout only when the user explicitly requests it; they are neither domain data nor persisted layout state.
 
-`StaticDiagram` renders the derived collections. It allows panning and zooming for inspection and uses `fitView` for initial framing. Node dragging and strict source-to-target connection gestures are enabled; selection and edge reconnection are disabled. It reports connection intent to ArchitectureEditor and does not own or directly add canonical edges.
+`StaticDiagram` renders the derived collections. It allows panning and zooming for inspection and uses `fitView` for initial framing. Node dragging, canvas component selection, and loose-mode shared-anchor connection gestures are enabled; edge reconnection is disabled. It reports connection and deletion intent to ArchitectureEditor and does not own or directly add or remove canonical entities. React Flow select changes update one controlled UI-only selected-ID set. Its guarded Delete/Backspace callback forwards selected component IDs to the existing editor-state removal operation; domain cascading removes incident connections, and the whole deletion records one ordinary history transition. Editable focus, rename, and an active drag block canvas deletion. Selection and focus never enter graph, history, or V3 persistence.
+
+## Adaptive connection anchors
+
+`ArchitectureConnection` still contains exactly `id`, `sourceComponentId`, `targetComponentId`, and `kind`. Source and target component IDs determine direction; visual side never does. Self-connections and duplicate ordered pairs remain rejected, while a reverse connection is independently allowed. There is no canonical port, anchor, routing, or reciprocal metadata.
+
+```text
+ArchitectureGraph + DiagramNodePositions + transient measurements
+    -> adaptive anchor geometry
+    -> renderer sourceHandle / targetHandle
+    -> React Flow
+```
+
+`diagram-node-size.ts` owns the shared framework-independent dimension policy for Auto-Layout and anchors: use a measurement only when both dimensions are finite and positive; otherwise use 176 x 72. The renderer never imports Dagre to resolve sizes. Extracting this policy leaves deterministic Auto-Layout coordinates unchanged.
+
+`adaptive-anchor-geometry.ts` takes plain rectangles and returns opposing cardinal sides. It compares absolute center displacement divided by the summed dimensions on each axis. Horizontal wins equal scores; exactly coincident centers use lexical component-ID ordering (lower ID exits right). No kind, connection order, viewport, or previous side influences the result. Movement, undo/redo, Auto-Layout, and new measurements naturally rederive handles without a separate anchor edit. Measurements do not move canonical positions or schedule autosave.
+
+The renderer owns one mapping from cardinal sides to stable `anchor-top`, `anchor-right`, `anchor-bottom`, and `anchor-left` IDs and React Flow positions. All four handles remain mounted as source-type handles under `ConnectionMode.Loose`; either can be the receiving endpoint. Native drag origin is source and completion is target. The adapter discards handle IDs at the canonical boundary. Several connections may share a side; these anchors are visual affordances, not named interfaces or one-port-per-edge entities.
+
+An ordered-pair lookup identifies reciprocal edges in O(edges). Only those edges use `ReciprocalArchitectureEdge`; ordinary edges retain React Flow's built-in renderer. The pure reciprocal path helper consumes resolved endpoints/sides and constructs one shallow cubic lane. Both controls receive a bounded perpendicular offset, while endpoints stay fixed; the label follows the cubic midpoint. Reversing direction reverses the lane, separating curves and their semantic labels without a wide lens. Arrowheads and directional accessible descriptions are unchanged; Generic stays visually unlabeled. Removing the reverse connection returns the remaining edge to ordinary rendering. This is a narrow presentation rule, not an obstacle-aware routing engine. Node lookup, anchor derivation, label lookup, and reciprocal detection together remain O(nodes + edges).
+
+```text
+pointer / keyboard anchor activation
+    -> one transient pending source
+    -> source component ID + target component ID
+    -> existing canonical add operation
+    -> ArchitectureConnection (Generic)
+```
+
+ArchitectureEditor owns the single local pending-source controller (the `pointer-connection-controller` module is shared by keyboard activation). First activation selects source; activating another component completes the intent; another side of the same source only changes its pending visual side. Accepted intent uses the existing generated-ID, domain-validation, and generic history path once. Rejection preserves graph/history, clears pending state, and uses the existing visible error. Native drag reaches the same add path. React Flow's competing click-connect session is disabled; its connection-start callback and a per-gesture ref suppress a trailing drag click, without timers or private-store access.
+
+Pending source selection/cancellation and roving focus are UI-only. Pending state clears on empty-canvas click, eligible Escape, source deletion, rename start, native connection drag start, history navigation, and reset. Each mounted node remembers one active side, initially right; arrows move focus among its four handles, and Enter/Space reuse the shared activation callback. Tab is not trapped. Rename disables that component's anchors, including list-origin rename. Focus leaving the canvas does not itself cancel a draft; Escape/canvas click are the supported explicit dismissals pending live usability evaluation.
+
+Pending source/side, roving side, hover/focus, handle IDs, and reciprocal geometry never enter graph data, history snapshots, or persisted documents. V3 remains unchanged; V1/V2/V3 restore without anchor migration. History records only accepted connection edits and canonical movement. Future real named ports would require a separate domain decision rather than promoting these renderer IDs into canonical data.
 
 ## Auto-Layout seam
 
