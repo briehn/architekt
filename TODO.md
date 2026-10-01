@@ -1,6 +1,47 @@
 # Architekt TODO
 
-## Current milestone: Adaptive Multi-Side Connection Anchors
+## Completed milestone: AI Architecture Generation
+
+**Status: Complete.** Steps 1–4 are implemented and accepted for the controlled-access application. Live quality evaluation retains `gpt-6-luna` with medium reasoning. See [Step 4 evidence and limitations](docs/evaluations/ai-generation-2026-10-01.md). No next milestone is started.
+
+### Step 1: Architecture proposal contract and translation
+
+* [x] Define bounded proposal-local components, connections, summary, and assumptions using existing kinds
+* [x] Reject malformed/extra fields and invalid proposal semantics through one runtime parser
+* [x] Translate with application-owned IDs through public graph operations, returning no partial graph
+* [x] Add representative systems, validation, deterministic translation, and atomic failure tests
+* [x] Verify 111 proposal tests, 62 ArchitectureGraph regression tests, 663 full-suite tests, quiet lint, production build, and diff checks
+
+### Step 2: Server generation boundary
+
+* [x] Validate exact prompt-only requests with prompt and streamed raw-body limits
+* [x] Add a provider-independent service, safe typed failures, and final parser/domain admission
+* [x] Add a lazy server-only OpenAI Responses adapter with strict Structured Outputs and bounded execution
+* [x] Add POST `/api/architecture/generate` without editor, history, layout, or persistence effects
+* [x] Add network-free service, SDK-seam, schema contract, and Route Handler coverage
+* [x] Verify 208 focused tests (97 generation + 111 proposal regressions), 760 full-suite tests, quiet lint, production build with configuration absent, client-boundary inspection, diff check, and zero production audit vulnerabilities
+* [x] Smoke-test the built app without a key: home 200, generation 503, invalid prompt 400, unsupported GET 405; no real provider call
+
+### Step 3: Transient proposal review and explicit Apply
+
+* [x] Add compact prompt, loading/Cancel, safe errors, AI draft review, Apply, and Discard while keeping the canvas primary
+* [x] Abort and invalidate cancelled requests; ignore late and post-unmount completions
+* [x] Prepare real IDs, a full domain graph, fallback-sized Auto-Layout, and replacement editor state before one history commit
+* [x] Preserve the workspace on Apply failure; clear stale renderer/UI state on success; use ordinary undo/redo and V3 autosave
+* [x] Verify transient and atomic behavior with mocked generation, 772 full-suite tests, quiet lint, build, diff check, and UI/design detector
+* [x] Resolve the Step 3 production audit finding for Next.js 16.3.5 in the separate security maintenance slice by updating Next.js and `eslint-config-next` to 16.3.8; the production audit now reports zero vulnerabilities.
+
+### Step 4: Live generation quality evaluation and browser acceptance
+
+* [x] Evaluate the fixed seven prompts with real Luna medium requests and the real editor
+* [x] Compare all seven identical prompts with Sol medium after clarifying semantic definitions; preserve proposals, timings and token usage
+* [x] Retain Luna medium based on useful draft quality and cost; document model limitations rather than claim validated designs
+* [x] Verify review/Apply, one-step undo/redo, reload, failure preservation, keyboard operation and editor regressions
+* [x] Fix collapsed canvas space, replacement/Undo copy, draft-ready status, primary-action contrast and Generate/Cancel focus continuity
+* [x] Spot-check dark, forced light palette and narrow viewport; record unavailable screen-reader speech and OS-switch verification
+* [x] Run focused/full tests, quiet lint, production build, diff check and production audit
+
+## Completed milestone: Adaptive Multi-Side Connection Anchors
 
 **Status: Complete.** Implementation, architecture audit, automated verification, and manual browser acceptance are complete.
 

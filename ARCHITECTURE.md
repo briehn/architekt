@@ -2,7 +2,7 @@
 
 ## Current status
 
-The Project foundation, Domain graph foundation, Static Diagram Rendering, Interactive Node Movement, Component Creation and Deletion, Connection Creation, Connection Deletion, Persistence, Undo/Redo, Component Renaming, Component Types, Connection Semantics, Auto-Layout, and Adaptive Multi-Side Connection Anchors milestones are complete. The application has a framework-independent domain graph with typed components, typed directional connections, immutable graph operations, focused Vitest coverage, and a React Flow rendering path. ArchitectureEditor owns coordinated graph, positions, transient renderer measurements, history, and feedback. Users can edit and classify the graph, drag nodes, arrange the whole diagram, persist the current graph and positions locally, and undo or redo accepted edits. AI integration has not been implemented.
+The Project foundation, Domain graph foundation, Static Diagram Rendering, Interactive Node Movement, Component Creation and Deletion, Connection Creation, Connection Deletion, Persistence, Undo/Redo, Component Renaming, Component Types, Connection Semantics, Auto-Layout, and Adaptive Multi-Side Connection Anchors milestones are complete. The application has a framework-independent domain graph with typed components, typed directional connections, immutable graph operations, focused Vitest coverage, and a React Flow rendering path. ArchitectureEditor owns coordinated graph, positions, transient renderer measurements, history, and feedback. Users can edit and classify the graph, drag nodes, arrange the whole diagram, persist the current graph and positions locally, and undo or redo accepted edits. AI Architecture Generation Steps 1–4 are complete: validated proposals, a server-only generation endpoint, transient review, explicit atomic Apply, and live quality/browser acceptance. The seven-prompt Luna/Sol comparison retains Luna medium; see `docs/evaluations/ai-generation-2026-10-01.md` for evidence and limits.
 
 ## Guiding data flow
 
@@ -126,6 +126,48 @@ Only a changed explicit action increments a transient UI fit request. `StaticDia
 ## Boundaries outside the domain layer
 
 Runtime validation belongs at external boundaries such as forms, API requests, persisted data, imports, and AI output. Persistence, serialization, layout metadata, UI state, and AI integration remain outside the graph layer. Those concerns must translate accepted intent or data into domain operations; they must not make renderer or UI state canonical.
+
+## Architecture proposal trust boundary
+
+AI Architecture Generation Step 1 provides a provider-independent boundary in `src/application`: untrusted plain proposal data -> `parseArchitectureProposal` -> `translateArchitectureProposal` -> `ArchitectureGraph`. Step 2 adds server generation through this boundary. Step 3 adds transient client review and explicit atomic application.
+
+`ArchitectureProposal` contains only components (`ref`, `name`, existing component `kind`), connections (`sourceRef`, `targetRef`, existing connection `kind`), a summary, and assumptions. Exact fields are required; extra fields, including canonical IDs, coordinates, handles, and persistence metadata, are rejected. At least one component and a nonblank summary are required; connections and assumptions may be empty. The parser returns a fresh DTO, trims names and explanatory text like editor form input, and compares proposal-local refs exactly and case-sensitively without trimming them. Duplicate visible names and reciprocal connections are valid.
+
+Application limits are 30 components, 60 connections, 100 UTF-16 code units per name, 64 per ref, 1,000 per summary, and ten assumptions of at most 300 each. String limits apply before trimming. These bounded review payloads stay below the existing approximately 100-node/200-edge fixtures. Shape/vocabulary/bounds checks precede ref uniqueness, endpoint existence, self-connection, and ordered-pair checks. Failures return a typed category and field/index path with bounded evidence, not raw input payloads.
+
+Translation always uses the same parser before allocating IDs. A required application-supplied factory creates branded component and connection IDs; proposal refs only resolve local endpoints. This follows the editor's application-owned ID convention without importing browser or server APIs. The translator admits every entity through `ArchitectureGraph.empty`, `addComponent`, and `addConnection`; domain rejection returns its structured reason and entity index, with no partial graph. ID allocations are not rolled back on rejection. Programming errors propagate rather than becoming validation failures.
+
+Successful translation returns `{ graph, review }` alongside its success discriminator. Summary and assumptions belong only to the separate transient review metadata. Proposal text and refs are inert data, never code, HTML, or instructions to fetch URLs; future display should use ordinary escaped text. No layout is performed, and no renderer, editor state, history, or persistence format changes are involved. V3 still stores only canonical graph content and positions.
+
+## Server architecture generation boundary
+
+The implemented Step 2 flow is: browser prompt -> `POST /api/architecture/generate` -> provider-independent generation service -> OpenAI adapter -> Responses API strict Structured Output -> proposal parser/domain validation -> validated `ArchitectureProposal`.
+
+`src/application/architecture-generation.ts` owns the exact prompt request, its 5,000 UTF-16 code-unit limit (before trimming), the small provider interface, and public-safe failures. The server-only `generate-architecture.ts` depends on that interface, allowing network-free fake providers. Provider success carries untrusted `unknown`, not another proposal DTO. The service calls `parseArchitectureProposal`, then `translateArchitectureProposal` with deterministic throwaway IDs to admit the proposal through authoritative domain operations. The translator intentionally revalidates with the same parser. Its temporary graph is discarded, and only the parsed proposal is returned. Domain rejection is `invalid-generation`; unexpected exceptions are contained as `generation-failed`.
+
+`src/server` owns HTTP admission, configuration, the schema/instructions, and the concrete OpenAI adapter. The thin Node.js Route Handler loads configuration and constructs the provider only after body validation. All executable generation/configuration/provider modules are marked `server-only`; the shared request/result/provider types contain no secrets or SDK dependencies. `OPENAI_API_KEY` is read only at request time, so missing configuration cannot break module import, build, or unrelated editor features. Optional `ARCHITEKT_OPENAI_MODEL` defaults to `gpt-6-luna`. Neither setting is accepted from the client. SDK logging is explicitly off, including when `OPENAI_LOG` is set. Architekt does not log prompts, proposal text, raw provider errors, or credentials.
+
+The HTTP adapter reads the native Request stream incrementally and stops above 32 KiB before JSON parsing, checking actual bytes even without a trustworthy Content-Length. This allows a 5,000-unit fully JSON-escaped prompt plus its envelope. It rejects malformed JSON/UTF-8, unknown fields, wrong shapes, blank or oversized prompts as `invalid-request` (400), including oversized bodies. Success is the proposal itself; errors are `{ error: { type, retryable, message } }`. Both responses set `Cache-Control: no-store`; only fixed application messages leave the server.
+
+The official `openai` SDK is pinned to 7.23.0. The adapter uses `client.responses.create`, `store: false`, medium reasoning, no tools or conversation state, and strict `text.format` JSON Schema. The manual schema imports the canonical kinds and proposal bounds, requires every field, and disallows additional properties at all object levels. Contract tests check required fields, enums, array bounds, and string limits against parser behavior. JSON Schema string lengths count Unicode code points; the parser's UTF-16 bounds, nonblank checks, reference resolution, and domain invariants remain authoritative. User text is a separate user input; only server-owned text supplies instructions.
+
+Server constants set a 40-second SDK timeout plus an abort deadline covering response-body consumption, zero SDK retries and no application retry loop, and 12,000 maximum output tokens. That budget covers a readable 30-component/60-connection JSON proposal with concise review text and reasoning headroom; it does not guarantee output for every worst-case maximal string or reasoning trace. Exhaustion is an explicit incomplete outcome. Zero retries avoid repeated billing/quota/authentication failures and make interactive latency predictable. A future explicit user retry is separate from automatic retries.
+
+The adapter inspects output message content for refusals and requires completed response/message status and exactly one usable output-text document. Incomplete responses or absent text return `generation-incomplete`; malformed JSON or invalid parsed proposals return `invalid-generation`. There is no JSON repair or model repair loop. SDK errors are normalized behind the provider interface:
+
+| Public failure | HTTP | Retryable |
+| --- | --- | --- |
+| `invalid-request` | 400 | No |
+| `configuration-unavailable` (missing key, provider authentication/configuration, quota/billing) | 503 | No |
+| `generation-refused` | 422 | No |
+| `generation-incomplete` | 422 | Yes |
+| `generation-timeout` | 504 | Yes |
+| `generation-rate-limited` | 429 | Yes |
+| `provider-unavailable` | 503 | Yes |
+| `invalid-generation` | 502 | No |
+| `generation-failed` | 502 | No |
+
+Generation uses a client-only idle/loading/error/review controller. Cancellation aborts the request and invalidates its version; late completions and responses after unmount are ignored. The browser consumes the typed API failure and parses successful JSON again. Prompt and proposal review remain transient: generating, reviewing, cancelling, errors, and discarding never edit the workspace or persistence. On explicit Apply, `applyArchitectureProposal` translates with fresh application-owned IDs, lays out the complete graph with the existing fallback dimensions, and constructs a replacement editor state with empty measurements. Any translation or layout failure leaves history and workspace unchanged and retains the proposal. Success records exactly one ordinary graph-and-position history transition, clears stale canvas selection/pending connection/focus, fits the new diagram, and reaches ordinary autosave. Apply is disabled during rename or drag. V3 stores only graph and positions; prompt, summary, assumptions, and proposal metadata never enter history snapshots or persistence. Authentication and distributed rate/abuse controls remain a deployment gate before anonymous public access; prompt/body/output/time bounds are controlled-development protections, not public abuse prevention.
 
 ## Persistence codec seam
 

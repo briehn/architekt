@@ -86,6 +86,12 @@ import {
   StaticDiagram,
   type CanvasNodeFocusRequest,
 } from "./static-diagram";
+import {
+  ArchitectureGenerationReviewController,
+  type ArchitectureGenerationReviewState,
+} from "./architecture-generation-review";
+import { applyArchitectureProposal } from "./apply-architecture-proposal";
+import { ArchitectureGenerationPanel } from "./architecture-generation-panel";
 
 function componentId(value: string): ComponentId {
   return value as ComponentId;
@@ -591,6 +597,10 @@ export function ArchitectureEditor() {
     useState<PendingPointerConnectionSource | null>(null);
   const [selectedCanvasComponentIds, setSelectedCanvasComponentIds] =
     useState<ReadonlySet<ComponentId>>(() => new Set());
+  const [generationPanelIsOpen, setGenerationPanelIsOpen] = useState(false);
+  const [generationReview, setGenerationReview] = useState<ArchitectureGenerationReviewState>({ status: "idle", prompt: "" });
+  const generationControllerRef = useRef<ArchitectureGenerationReviewController | null>(null);
+  const generationToggleRef = useRef<HTMLButtonElement | null>(null);
   const storageRef = useRef<StorageLike | null>(null);
   const autosaveBaselineRef = useRef<PersistedEditorStateBaseline | null>(null);
   const latestEditorStateRef = useRef<ArchitectureEditorState | null>(null);
@@ -601,6 +611,15 @@ export function ArchitectureEditor() {
     new Map<ComponentId, HTMLButtonElement>(),
   );
   const nameControlToFocusRef = useRef<ComponentId | null>(null);
+
+  useEffect(() => {
+    const controller = new ArchitectureGenerationReviewController(setGenerationReview);
+    generationControllerRef.current = controller;
+    return () => {
+      controller.dispose();
+      generationControllerRef.current = null;
+    };
+  }, []);
 
   const renameDraft = renameSession?.draft ?? null;
   const activeRenameComponentId = renameDraft?.componentId ?? null;
@@ -1045,6 +1064,36 @@ export function ArchitectureEditor() {
     });
   }
 
+  function handleApplyArchitectureProposal() {
+    if (generationReview.status !== "review" || renameSession !== null ||
+        nodeDragIsActive || dragStartHistoryRef.current !== null) return;
+    const currentViewState = latestViewStateRef.current;
+    if (currentViewState.status === "loading") return;
+    const result = applyArchitectureProposal(currentViewState.history, generationReview.proposal, {
+      createComponentId,
+      createConnectionId,
+    });
+    if (!result.ok) {
+      generationControllerRef.current?.applyFailed();
+      return;
+    }
+    setViewState((state) => state.status === "loading" ? state : {
+      ...state,
+      history: result.history,
+      connectionRejection: null,
+      componentCreationRejection: null,
+      autoLayoutFailure: false,
+      autoLayoutFitRequestId: (state.autoLayoutFitRequestId ?? 0) + 1,
+      announcement: "Generated diagram applied. Undo is available.",
+    });
+    setSelectedCanvasComponentIds(new Set());
+    setPendingPointerConnectionSource(null);
+    setCanvasNodeFocusRequest(null);
+    generationControllerRef.current?.applied();
+    setGenerationPanelIsOpen(false);
+    generationToggleRef.current?.focus();
+  }
+
   function handleDeleteComponent(componentId: ComponentId) {
     setSelectedCanvasComponentIds((currentSelection) => {
       if (!currentSelection.has(componentId)) return currentSelection;
@@ -1474,7 +1523,7 @@ export function ArchitectureEditor() {
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col">
-      <div className="shrink-0 border-b border-border bg-surface px-3 py-3 sm:px-4">
+      <div className="max-h-[50%] shrink-0 overflow-y-auto border-b border-border bg-surface px-3 py-3 sm:px-4">
         {viewState.status === "ready" && viewState.saveFailure !== null ? (
           <div
             className="mb-3 flex items-center justify-between gap-3"
@@ -1551,6 +1600,18 @@ export function ArchitectureEditor() {
             </div>
           </div>
           <ComponentTypePicker onAddComponent={handleAddComponent} />
+          <ArchitectureGenerationPanel
+            open={generationPanelIsOpen}
+            review={generationReview}
+            applyDisabled={renameSession !== null || nodeDragIsActive}
+            toggleButtonRef={generationToggleRef}
+            onToggle={() => setGenerationPanelIsOpen((open) => !open)}
+            onPromptChange={(prompt) => generationControllerRef.current?.setPrompt(prompt)}
+            onGenerate={() => { void generationControllerRef.current?.generate(); }}
+            onCancel={() => { generationControllerRef.current?.cancel(); generationToggleRef.current?.focus(); }}
+            onApply={handleApplyArchitectureProposal}
+            onDiscard={() => { generationControllerRef.current?.discard(); generationToggleRef.current?.focus(); }}
+          />
           <p aria-live="polite" className="sr-only" role="status">
             {viewState.announcement ?? ""}
           </p>

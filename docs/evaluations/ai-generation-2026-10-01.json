@@ -1,0 +1,1486 @@
+{
+  "date": "2026-10-01",
+  "instructions": "Produce a useful starting software system architecture for Architekt.\nUse only these component kinds: generic, client, service, database, cache, queue, gateway, storage, external-service.\nUse only these connection kinds: generic, request-response, async-messaging, streaming, data-access.\nConnection kinds describe architectural intent, not transport. Use data-access for reading or writing a database, cache, or file/object storage, including direct uploads and downloads. Use request-response for an interaction with a service that expects a reply; one such edge includes the reply and does not need a reverse edge. Use async-messaging for decoupled message delivery. Use streaming for an ongoing flow of events or values, such as live messages pushed from a gateway to clients; file transfer alone is data-access. Use generic only when intent is unknown.\nEvery edge is directed. For an independently initiated flow in each direction, include both ordered edges with their own kinds. In particular, show server-to-client push in that direction. Check that each flow described in the summary has a path in the graph.\nKeep diagrams readable, use meaningful concise names and short unique proposal-local refs, and include only components that materially contribute.\nConnect existing refs; avoid self-connections and duplicate ordered pairs. State important assumptions and summarize the design concisely.\nTopology does not prove throughput, availability, or capacity; do not claim otherwise.\nKeep quantitative assumptions internally consistent. Daily totals divided by 86,400 give average per-second rates; apply any stated peak multiplier only once. Omit derived rates when uncertain.\nRepresent unsupported concepts with supported abstractions and explain the assumption. For vague requests, choose a small reasonable system and state assumptions.\nDo not add caches, queues, or workers merely because the user asks for speed or reliability; include them only for a concrete stated workflow or workload assumption.\nNever emit coordinates, canonical IDs, ports, React Flow state, code, or URLs. Return only the requested proposal data.",
+  "prompts": [
+    {
+      "id": "url-shortener",
+      "prompt": "Design a URL shortener for approximately 10 million daily active users. Support creating short links, low-latency redirects, and basic click analytics. State assumptions for read/write ratio, peak traffic, retention, and availability rather than claiming the diagram guarantees capacity."
+    },
+    {
+      "id": "chat",
+      "prompt": "Design a real-time chat system supporting one-to-one and small group messaging, online presence, offline message delivery, and message history. State missing workload and delivery assumptions. Keep the architecture understandable as a system-design starting point."
+    },
+    {
+      "id": "media",
+      "prompt": "Design an asynchronous image and video processing pipeline. Users upload files, background workers create thumbnails or transcode video, users can track job status and retrieve outputs. Address retries and failed jobs at an architectural level, and state workload assumptions."
+    },
+    {
+      "id": "checkout",
+      "prompt": "Design an e-commerce checkout and order system with cart checkout, inventory reservation, payment through an external provider, order persistence, and asynchronous fulfillment. State assumptions and explain failure or consistency limitations without claiming guaranteed exactly-once processing."
+    },
+    {
+      "id": "files",
+      "prompt": "Design a file storage and sharing system with uploads/downloads, metadata, access-controlled sharing links, and large-file support. Separate file bytes from metadata and state workload and access-control assumptions."
+    },
+    {
+      "id": "crud",
+      "prompt": "Design a simple CRUD application for a small internal team. Use only 2–3 components: a browser client, one application service, and a database. Keep the architecture minimal."
+    },
+    {
+      "id": "ambiguous",
+      "prompt": "Design a backend for my app. It needs to be fast and reliable, and users should be able to save and share things."
+    }
+  ],
+  "results": [
+    {
+      "model": "gpt-6-luna",
+      "reasoning": "medium",
+      "id": "url-shortener",
+      "elapsedMs": 16687,
+      "usage": {
+        "input_tokens": 607,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 1898,
+        "output_tokens_details": {
+          "reasoning_tokens": 998
+        },
+        "total_tokens": 2505
+      },
+      "result": {
+        "ok": true,
+        "proposal": {
+          "components": [
+            {
+              "ref": "web",
+              "name": "Link Users",
+              "kind": "client"
+            },
+            {
+              "ref": "api",
+              "name": "API Gateway",
+              "kind": "gateway"
+            },
+            {
+              "ref": "links",
+              "name": "Link Service",
+              "kind": "service"
+            },
+            {
+              "ref": "redir",
+              "name": "Redirect Service",
+              "kind": "service"
+            },
+            {
+              "ref": "mapdb",
+              "name": "Link Mapping Database",
+              "kind": "database"
+            },
+            {
+              "ref": "cache",
+              "name": "Redirect Cache",
+              "kind": "cache"
+            },
+            {
+              "ref": "events",
+              "name": "Click Event Queue",
+              "kind": "queue"
+            },
+            {
+              "ref": "processor",
+              "name": "Analytics Event Processor",
+              "kind": "service"
+            },
+            {
+              "ref": "analytics",
+              "name": "Analytics Service",
+              "kind": "service"
+            },
+            {
+              "ref": "metrics",
+              "name": "Analytics Store",
+              "kind": "database"
+            }
+          ],
+          "connections": [
+            {
+              "sourceRef": "web",
+              "targetRef": "api",
+              "kind": "request-response"
+            },
+            {
+              "sourceRef": "api",
+              "targetRef": "links",
+              "kind": "request-response"
+            },
+            {
+              "sourceRef": "links",
+              "targetRef": "mapdb",
+              "kind": "data-access"
+            },
+            {
+              "sourceRef": "api",
+              "targetRef": "redir",
+              "kind": "request-response"
+            },
+            {
+              "sourceRef": "redir",
+              "targetRef": "cache",
+              "kind": "data-access"
+            },
+            {
+              "sourceRef": "redir",
+              "targetRef": "mapdb",
+              "kind": "data-access"
+            },
+            {
+              "sourceRef": "redir",
+              "targetRef": "events",
+              "kind": "async-messaging"
+            },
+            {
+              "sourceRef": "events",
+              "targetRef": "processor",
+              "kind": "async-messaging"
+            },
+            {
+              "sourceRef": "processor",
+              "targetRef": "metrics",
+              "kind": "data-access"
+            },
+            {
+              "sourceRef": "api",
+              "targetRef": "analytics",
+              "kind": "request-response"
+            },
+            {
+              "sourceRef": "analytics",
+              "targetRef": "metrics",
+              "kind": "data-access"
+            }
+          ],
+          "summary": "Clients create links and request analytics through the API Gateway, which routes requests to the Link Service or Analytics Service. The Link Service stores short-code mappings. Redirect requests go to the Redirect Service, which checks the cache and falls back to the mapping database on a miss; it returns the destination and asynchronously emits a click event. The event processor updates analytics data, while the Analytics Service reads it for reports. Click recording is decoupled from the redirect response, so analytics may be delayed.",
+          "assumptions": [
+            "Workload planning assumption: 10 million daily active users average 10 redirects and 0.1 link creations per user per day, or approximately 100 million redirects and 1 million creations daily. This implies a 100:1 redirect-to-create ratio.",
+            "Assume peak traffic reaches 5 times the daily-average rate for both redirects and link creation. These are workload assumptions, not capacity guarantees.",
+            "Retain link mappings until their owner deletes them or an optional link expiry is reached. Retain click-level events for 90 days and aggregated analytics for 13 months.",
+            "Target 99.9% monthly availability for redirects as a service objective; the architecture diagram does not establish or guarantee that availability.",
+            "Assume redirects are cache-aside: cache misses read the mapping database, and mappings are not routinely edited. Analytics are basic per-link click counts and time-bucketed totals."
+          ]
+        }
+      },
+      "layout": {
+        "nodeCount": 10,
+        "allFinite": true,
+        "fallbackNodeOverlaps": 0
+      }
+    },
+    {
+      "model": "gpt-6-luna",
+      "reasoning": "medium",
+      "id": "chat",
+      "elapsedMs": 20584,
+      "usage": {
+        "input_tokens": 599,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 2291,
+        "output_tokens_details": {
+          "reasoning_tokens": 1549
+        },
+        "total_tokens": 2890
+      },
+      "result": {
+        "ok": true,
+        "proposal": {
+          "components": [
+            {
+              "ref": "app",
+              "name": "Chat Clients",
+              "kind": "client"
+            },
+            {
+              "ref": "rt",
+              "name": "Realtime Gateway",
+              "kind": "gateway"
+            },
+            {
+              "ref": "chat",
+              "name": "Chat Service",
+              "kind": "service"
+            },
+            {
+              "ref": "presence",
+              "name": "Presence Service",
+              "kind": "service"
+            },
+            {
+              "ref": "messages",
+              "name": "Message and Conversation Store",
+              "kind": "database"
+            },
+            {
+              "ref": "online",
+              "name": "Presence Store",
+              "kind": "cache"
+            }
+          ],
+          "connections": [
+            {
+              "sourceRef": "app",
+              "targetRef": "rt",
+              "kind": "request-response"
+            },
+            {
+              "sourceRef": "rt",
+              "targetRef": "app",
+              "kind": "streaming"
+            },
+            {
+              "sourceRef": "rt",
+              "targetRef": "chat",
+              "kind": "request-response"
+            },
+            {
+              "sourceRef": "chat",
+              "targetRef": "messages",
+              "kind": "data-access"
+            },
+            {
+              "sourceRef": "chat",
+              "targetRef": "presence",
+              "kind": "request-response"
+            },
+            {
+              "sourceRef": "chat",
+              "targetRef": "rt",
+              "kind": "request-response"
+            },
+            {
+              "sourceRef": "rt",
+              "targetRef": "presence",
+              "kind": "request-response"
+            },
+            {
+              "sourceRef": "presence",
+              "targetRef": "online",
+              "kind": "data-access"
+            },
+            {
+              "sourceRef": "presence",
+              "targetRef": "rt",
+              "kind": "request-response"
+            }
+          ],
+          "summary": "Clients send messages, request history, and manage presence subscriptions through the Realtime Gateway. The Chat Service authorizes conversations, stores messages before acknowledging sends, and looks up recipients' active connections through the Presence Service. It asks the gateway to push new messages to connected recipients; the gateway streams messages and presence updates to clients. Messages remain in the conversation store, so clients can fetch missed history when reconnecting. Presence changes are tracked separately in the presence store and propagated through the gateway.",
+          "assumptions": [
+            "Workload is unspecified: concurrent users, message and presence-event rates, peak-to-average ratio, group sizes, history retention, geographic distribution, and availability or latency targets need to be established before sizing or choosing deployment topology.",
+            "Groups are small; each message is stored once per conversation and fanned out to its members. Conversation membership and authorization are maintained by the Chat Service using the conversation store.",
+            "A successful send acknowledgment means the message is persisted. Live push is best-effort; offline recipients receive messages by syncing stored history after reconnecting. No exactly-once delivery or delivery-time SLA is assumed; clients should deduplicate message IDs.",
+            "Presence is approximate and ephemeral: connection updates use expiring cache entries, and temporary disconnects or stale status are acceptable. Presence subscriptions are limited to users the client is permitted to see.",
+            "The gateway and services are logical architectural roles; their deployment count, replication, and internal routing are intentionally unspecified."
+          ]
+        }
+      },
+      "layout": {
+        "nodeCount": 6,
+        "allFinite": true,
+        "fallbackNodeOverlaps": 0
+      }
+    },
+    {
+      "model": "gpt-6-luna",
+      "reasoning": "medium",
+      "id": "media",
+      "elapsedMs": 15172,
+      "usage": {
+        "input_tokens": 601,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 1716,
+        "output_tokens_details": {
+          "reasoning_tokens": 912
+        },
+        "total_tokens": 2317
+      },
+      "result": {
+        "ok": true,
+        "proposal": {
+          "components": [
+            {
+              "ref": "client",
+              "name": "Web or mobile client",
+              "kind": "client"
+            },
+            {
+              "ref": "api",
+              "name": "Upload and job status API",
+              "kind": "gateway"
+            },
+            {
+              "ref": "files",
+              "name": "Input and output object storage",
+              "kind": "storage"
+            },
+            {
+              "ref": "jobs",
+              "name": "Job metadata database",
+              "kind": "database"
+            },
+            {
+              "ref": "workq",
+              "name": "Processing queue",
+              "kind": "queue"
+            },
+            {
+              "ref": "worker",
+              "name": "Image and video workers",
+              "kind": "service"
+            },
+            {
+              "ref": "retryq",
+              "name": "Delayed retry queue",
+              "kind": "queue"
+            },
+            {
+              "ref": "failedq",
+              "name": "Dead-letter queue",
+              "kind": "queue"
+            }
+          ],
+          "connections": [
+            {
+              "sourceRef": "client",
+              "targetRef": "api",
+              "kind": "request-response"
+            },
+            {
+              "sourceRef": "client",
+              "targetRef": "files",
+              "kind": "data-access"
+            },
+            {
+              "sourceRef": "api",
+              "targetRef": "jobs",
+              "kind": "data-access"
+            },
+            {
+              "sourceRef": "api",
+              "targetRef": "workq",
+              "kind": "async-messaging"
+            },
+            {
+              "sourceRef": "workq",
+              "targetRef": "worker",
+              "kind": "async-messaging"
+            },
+            {
+              "sourceRef": "worker",
+              "targetRef": "files",
+              "kind": "data-access"
+            },
+            {
+              "sourceRef": "worker",
+              "targetRef": "jobs",
+              "kind": "data-access"
+            },
+            {
+              "sourceRef": "worker",
+              "targetRef": "retryq",
+              "kind": "async-messaging"
+            },
+            {
+              "sourceRef": "retryq",
+              "targetRef": "workq",
+              "kind": "async-messaging"
+            },
+            {
+              "sourceRef": "worker",
+              "targetRef": "failedq",
+              "kind": "async-messaging"
+            }
+          ],
+          "summary": "The client first uploads the source file directly to object storage, then submits a processing request to the API. The API records the job and enqueues a message. Workers consume jobs, read the source, create thumbnails or transcode video, write outputs to storage, and update job status and output references in the database. Clients track progress by polling the API and retrieve completed outputs directly from storage. Use bounded, delayed retries for transient failures; make processing idempotent because delivery may be at least once. After retries are exhausted, route the job to the dead-letter queue and record a terminal failed status so the API can report it.",
+          "assumptions": [
+            "Workload is a bursty mix of image and video uploads, with processing performed asynchronously rather than requiring immediate results; no specific volume or capacity target is assumed.",
+            "Files may be large, so clients upload and download directly from object storage using scoped, time-limited access authorized by the API.",
+            "The client polls job status; live push notifications are not required.",
+            "The queue supports delayed retries and dead-letter routing, or equivalent broker/application behavior. Workers use bounded attempts and idempotent job handling.",
+            "The database stores job state and storage references, not the file contents."
+          ]
+        }
+      },
+      "layout": {
+        "nodeCount": 8,
+        "allFinite": true,
+        "fallbackNodeOverlaps": 0
+      }
+    },
+    {
+      "model": "gpt-6-luna",
+      "reasoning": "medium",
+      "id": "checkout",
+      "elapsedMs": 17553,
+      "usage": {
+        "input_tokens": 599,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 2002,
+        "output_tokens_details": {
+          "reasoning_tokens": 1025
+        },
+        "total_tokens": 2601
+      },
+      "result": {
+        "ok": true,
+        "proposal": {
+          "components": [
+            {
+              "ref": "web",
+              "name": "Storefront",
+              "kind": "client"
+            },
+            {
+              "ref": "api",
+              "name": "API gateway",
+              "kind": "gateway"
+            },
+            {
+              "ref": "checkout",
+              "name": "Checkout service",
+              "kind": "service"
+            },
+            {
+              "ref": "cartdb",
+              "name": "Cart database",
+              "kind": "database"
+            },
+            {
+              "ref": "inventory",
+              "name": "Inventory service",
+              "kind": "service"
+            },
+            {
+              "ref": "invdb",
+              "name": "Inventory database",
+              "kind": "database"
+            },
+            {
+              "ref": "payment",
+              "name": "Payment provider",
+              "kind": "external-service"
+            },
+            {
+              "ref": "orderdb",
+              "name": "Order database and outbox",
+              "kind": "database"
+            },
+            {
+              "ref": "relay",
+              "name": "Outbox relay",
+              "kind": "service"
+            },
+            {
+              "ref": "fulq",
+              "name": "Fulfillment queue",
+              "kind": "queue"
+            },
+            {
+              "ref": "fulfill",
+              "name": "Fulfillment service",
+              "kind": "service"
+            }
+          ],
+          "connections": [
+            {
+              "sourceRef": "web",
+              "targetRef": "api",
+              "kind": "request-response"
+            },
+            {
+              "sourceRef": "api",
+              "targetRef": "checkout",
+              "kind": "request-response"
+            },
+            {
+              "sourceRef": "checkout",
+              "targetRef": "cartdb",
+              "kind": "data-access"
+            },
+            {
+              "sourceRef": "checkout",
+              "targetRef": "inventory",
+              "kind": "request-response"
+            },
+            {
+              "sourceRef": "inventory",
+              "targetRef": "invdb",
+              "kind": "data-access"
+            },
+            {
+              "sourceRef": "checkout",
+              "targetRef": "payment",
+              "kind": "request-response"
+            },
+            {
+              "sourceRef": "checkout",
+              "targetRef": "orderdb",
+              "kind": "data-access"
+            },
+            {
+              "sourceRef": "relay",
+              "targetRef": "orderdb",
+              "kind": "data-access"
+            },
+            {
+              "sourceRef": "relay",
+              "targetRef": "fulq",
+              "kind": "async-messaging"
+            },
+            {
+              "sourceRef": "fulq",
+              "targetRef": "fulfill",
+              "kind": "async-messaging"
+            },
+            {
+              "sourceRef": "fulfill",
+              "targetRef": "orderdb",
+              "kind": "data-access"
+            }
+          ],
+          "summary": "The storefront submits checkout through the gateway. Checkout reads the cart, creates or updates a pending order, requests an inventory reservation, and authorizes payment through the provider. On success it records the confirmed order and a fulfillment event in the order database's outbox. The relay publishes outbox events to the fulfillment queue; the fulfillment service consumes them and updates order status as work progresses. If reservation or payment fails, checkout records the failure and attempts applicable compensation, such as releasing the reservation or voiding authorization. The outbox makes order persistence and event publication recoverable across a process failure, but delivery and consumption can be repeated; consumers should be idempotent and reconciliation should handle incomplete workflows.",
+          "assumptions": [
+            "The cart is persisted separately and checkout validates its contents and prices before creating an order.",
+            "Inventory reservations have an expiry and can be released; the payment provider supports authorization and, where needed, void or refund operations.",
+            "Order and outbox records can be committed atomically in the same database transaction. The outbox relay retries publication, and fulfillment handles duplicate events using stable order/event identifiers.",
+            "Inventory, payment, and order persistence do not share a distributed transaction. Timeouts or partial failures can leave temporary reservations, authorizations, or pending orders; retries, compensation, and reconciliation reduce but do not eliminate inconsistency.",
+            "Queue delivery and downstream processing are not guaranteed exactly once. Fulfillment may be delayed or repeated, and the order status reflects progress rather than guaranteeing completion.",
+            "The fulfillment service abstracts any downstream fulfillment or shipping integration, which is outside this system boundary."
+          ]
+        }
+      },
+      "layout": {
+        "nodeCount": 11,
+        "allFinite": true,
+        "fallbackNodeOverlaps": 0
+      }
+    },
+    {
+      "model": "gpt-6-luna",
+      "reasoning": "medium",
+      "id": "files",
+      "elapsedMs": 12924,
+      "usage": {
+        "input_tokens": 592,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 1382,
+        "output_tokens_details": {
+          "reasoning_tokens": 889
+        },
+        "total_tokens": 1974
+      },
+      "result": {
+        "ok": true,
+        "proposal": {
+          "components": [
+            {
+              "ref": "app",
+              "name": "Web and Mobile Clients",
+              "kind": "client"
+            },
+            {
+              "ref": "api",
+              "name": "File and Sharing API",
+              "kind": "service"
+            },
+            {
+              "ref": "meta",
+              "name": "Metadata and Sharing Database",
+              "kind": "database"
+            },
+            {
+              "ref": "obj",
+              "name": "Object Storage",
+              "kind": "storage"
+            }
+          ],
+          "connections": [
+            {
+              "sourceRef": "app",
+              "targetRef": "api",
+              "kind": "request-response"
+            },
+            {
+              "sourceRef": "api",
+              "targetRef": "meta",
+              "kind": "data-access"
+            },
+            {
+              "sourceRef": "api",
+              "targetRef": "obj",
+              "kind": "request-response"
+            },
+            {
+              "sourceRef": "app",
+              "targetRef": "obj",
+              "kind": "data-access"
+            }
+          ],
+          "summary": "Clients use the API for metadata operations, upload initiation and completion, download authorization, and sharing-link creation or resolution. The API checks permissions and reads or updates file metadata and sharing state in the database. For authorized transfers, it obtains short-lived, scoped upload or download grants from object storage; clients then transfer file bytes directly to or from storage. Large uploads use resumable multipart transfer, and downloads can use byte ranges. File bytes stay out of the API and metadata database.",
+          "assumptions": [
+            "File-transfer bytes dominate workload; metadata and authorization operations are comparatively small. No specific volume, concurrency, or throughput target is provided.",
+            "Files may be large enough to require resumable multipart uploads and ranged downloads; clients transfer bytes directly to object storage.",
+            "Users authenticate through an existing identity mechanism, and the API receives or validates their identity.",
+            "Owners and explicitly authorized collaborators can access files. Sharing links are read-only bearer links by default, can have expiry and revocation, and are checked by the API before it issues a short-lived storage grant.",
+            "The database stores metadata, ownership, permissions, and sharing-link state, not file bytes."
+          ]
+        }
+      },
+      "layout": {
+        "nodeCount": 4,
+        "allFinite": true,
+        "fallbackNodeOverlaps": 0
+      }
+    },
+    {
+      "model": "gpt-6-luna",
+      "reasoning": "medium",
+      "id": "crud",
+      "elapsedMs": 2561,
+      "usage": {
+        "input_tokens": 591,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 203,
+        "output_tokens_details": {
+          "reasoning_tokens": 50
+        },
+        "total_tokens": 794
+      },
+      "result": {
+        "ok": true,
+        "proposal": {
+          "components": [
+            {
+              "ref": "web",
+              "name": "Browser Client",
+              "kind": "client"
+            },
+            {
+              "ref": "app",
+              "name": "Application Service",
+              "kind": "service"
+            },
+            {
+              "ref": "db",
+              "name": "Application Database",
+              "kind": "database"
+            }
+          ],
+          "connections": [
+            {
+              "sourceRef": "web",
+              "targetRef": "app",
+              "kind": "request-response"
+            },
+            {
+              "sourceRef": "app",
+              "targetRef": "db",
+              "kind": "data-access"
+            }
+          ],
+          "summary": "The browser client sends CRUD requests to a single application service. The service reads and writes application records in the database and returns responses to the client.",
+          "assumptions": [
+            "The application is for a small internal team and uses a single database.",
+            "Authentication, deployment, and external integrations are outside this minimal architecture."
+          ]
+        }
+      },
+      "layout": {
+        "nodeCount": 3,
+        "allFinite": true,
+        "fallbackNodeOverlaps": 0
+      }
+    },
+    {
+      "model": "gpt-6-luna",
+      "reasoning": "medium",
+      "id": "ambiguous",
+      "elapsedMs": 6813,
+      "usage": {
+        "input_tokens": 581,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 688,
+        "output_tokens_details": {
+          "reasoning_tokens": 321
+        },
+        "total_tokens": 1269
+      },
+      "result": {
+        "ok": true,
+        "proposal": {
+          "components": [
+            {
+              "ref": "app",
+              "name": "Web or Mobile App",
+              "kind": "client"
+            },
+            {
+              "ref": "api",
+              "name": "API Gateway",
+              "kind": "gateway"
+            },
+            {
+              "ref": "backend",
+              "name": "App Backend",
+              "kind": "service"
+            },
+            {
+              "ref": "db",
+              "name": "Application Database",
+              "kind": "database"
+            }
+          ],
+          "connections": [
+            {
+              "sourceRef": "app",
+              "targetRef": "api",
+              "kind": "request-response"
+            },
+            {
+              "sourceRef": "api",
+              "targetRef": "backend",
+              "kind": "request-response"
+            },
+            {
+              "sourceRef": "backend",
+              "targetRef": "db",
+              "kind": "data-access"
+            }
+          ],
+          "summary": "The app calls the backend through the API gateway to save, retrieve, and share things. The backend stores the things and their ownership and sharing settings in the database. Recipients open shared things through the same app and request path. Use a managed database with backups and appropriate availability settings; this design alone does not guarantee speed or reliability.",
+          "assumptions": [
+            "“Things” are small structured records, such as notes or saved items, rather than large files.",
+            "Sharing means granting access to a thing, for example through a share link; the backend checks the stored sharing settings when a recipient requests it.",
+            "Real-time collaboration, file uploads, and offline synchronization are out of scope."
+          ]
+        }
+      },
+      "layout": {
+        "nodeCount": 4,
+        "allFinite": true,
+        "fallbackNodeOverlaps": 0
+      }
+    },
+    {
+      "model": "gpt-6-sol",
+      "reasoning": "medium",
+      "id": "url-shortener",
+      "elapsedMs": 14086,
+      "usage": {
+        "input_tokens": 607,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 1182,
+        "output_tokens_details": {
+          "reasoning_tokens": 516
+        },
+        "total_tokens": 1789
+      },
+      "result": {
+        "ok": true,
+        "proposal": {
+          "components": [
+            {
+              "ref": "web",
+              "name": "Web and API clients",
+              "kind": "client"
+            },
+            {
+              "ref": "edge",
+              "name": "HTTP gateway",
+              "kind": "gateway"
+            },
+            {
+              "ref": "links",
+              "name": "Link service",
+              "kind": "service"
+            },
+            {
+              "ref": "linkcache",
+              "name": "Redirect cache",
+              "kind": "cache"
+            },
+            {
+              "ref": "linkdb",
+              "name": "Link database",
+              "kind": "database"
+            },
+            {
+              "ref": "clickq",
+              "name": "Click event queue",
+              "kind": "queue"
+            },
+            {
+              "ref": "aggregator",
+              "name": "Click aggregator",
+              "kind": "service"
+            },
+            {
+              "ref": "analyticsdb",
+              "name": "Analytics database",
+              "kind": "database"
+            },
+            {
+              "ref": "analytics",
+              "name": "Analytics service",
+              "kind": "service"
+            }
+          ],
+          "connections": [
+            {
+              "sourceRef": "web",
+              "targetRef": "edge",
+              "kind": "request-response"
+            },
+            {
+              "sourceRef": "edge",
+              "targetRef": "links",
+              "kind": "request-response"
+            },
+            {
+              "sourceRef": "links",
+              "targetRef": "linkcache",
+              "kind": "data-access"
+            },
+            {
+              "sourceRef": "links",
+              "targetRef": "linkdb",
+              "kind": "data-access"
+            },
+            {
+              "sourceRef": "links",
+              "targetRef": "clickq",
+              "kind": "async-messaging"
+            },
+            {
+              "sourceRef": "clickq",
+              "targetRef": "aggregator",
+              "kind": "async-messaging"
+            },
+            {
+              "sourceRef": "aggregator",
+              "targetRef": "analyticsdb",
+              "kind": "data-access"
+            },
+            {
+              "sourceRef": "edge",
+              "targetRef": "analytics",
+              "kind": "request-response"
+            },
+            {
+              "sourceRef": "analytics",
+              "targetRef": "analyticsdb",
+              "kind": "data-access"
+            }
+          ],
+          "summary": "The gateway routes link creation and redirects to the link service. The service stores new mappings in the link database and resolves redirects through the cache, falling back to the database on a miss. Redirects publish click events for asynchronous daily aggregation; analytics requests read those aggregates. These paths describe the design, not a capacity or availability guarantee.",
+          "assumptions": [
+            "10 million daily active users generate about five redirects each per day (50 million redirects/day) and one million new links/day: a 50:1 redirect-to-create ratio.",
+            "Planning peak is 10 times the daily average, approximately 5,800 redirects/second and 116 creations/second. Capacity must be validated with load tests.",
+            "Short codes are randomly generated, with uniqueness enforced by the link database. Link mappings expire one year after creation.",
+            "Raw click events are retained for 30 days; daily per-link aggregates are retained for one year. Analytics may lag redirects and may miss clicks if event publication fails.",
+            "The availability objective is 99.9% monthly for link creation and redirects, not a property guaranteed by this topology. Analytics is best-effort."
+          ]
+        }
+      },
+      "layout": {
+        "nodeCount": 9,
+        "allFinite": true,
+        "fallbackNodeOverlaps": 0
+      }
+    },
+    {
+      "model": "gpt-6-sol",
+      "reasoning": "medium",
+      "id": "chat",
+      "elapsedMs": 15111,
+      "usage": {
+        "input_tokens": 599,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 1126,
+        "output_tokens_details": {
+          "reasoning_tokens": 516
+        },
+        "total_tokens": 1725
+      },
+      "result": {
+        "ok": true,
+        "proposal": {
+          "components": [
+            {
+              "ref": "app",
+              "name": "Chat Client",
+              "kind": "client"
+            },
+            {
+              "ref": "gw",
+              "name": "Realtime Gateway",
+              "kind": "gateway"
+            },
+            {
+              "ref": "chat",
+              "name": "Chat Service",
+              "kind": "service"
+            },
+            {
+              "ref": "db",
+              "name": "Message Database",
+              "kind": "database"
+            },
+            {
+              "ref": "presence",
+              "name": "Presence Service",
+              "kind": "service"
+            },
+            {
+              "ref": "state",
+              "name": "Presence Store",
+              "kind": "cache"
+            },
+            {
+              "ref": "events",
+              "name": "Realtime Events",
+              "kind": "queue"
+            }
+          ],
+          "connections": [
+            {
+              "sourceRef": "app",
+              "targetRef": "gw",
+              "kind": "request-response"
+            },
+            {
+              "sourceRef": "gw",
+              "targetRef": "chat",
+              "kind": "request-response"
+            },
+            {
+              "sourceRef": "chat",
+              "targetRef": "db",
+              "kind": "data-access"
+            },
+            {
+              "sourceRef": "gw",
+              "targetRef": "presence",
+              "kind": "request-response"
+            },
+            {
+              "sourceRef": "presence",
+              "targetRef": "state",
+              "kind": "data-access"
+            },
+            {
+              "sourceRef": "chat",
+              "targetRef": "events",
+              "kind": "async-messaging"
+            },
+            {
+              "sourceRef": "presence",
+              "targetRef": "events",
+              "kind": "async-messaging"
+            },
+            {
+              "sourceRef": "events",
+              "targetRef": "gw",
+              "kind": "async-messaging"
+            },
+            {
+              "sourceRef": "gw",
+              "targetRef": "app",
+              "kind": "streaming"
+            }
+          ],
+          "summary": "Clients send messages, request history, and check presence through the gateway. The Chat Service persists messages before acknowledging them, then publishes delivery events for gateways to push to connected recipients. The Presence Service tracks active sessions and publishes presence changes. On reconnect, clients fetch missed messages from stored history; periodic history sync also repairs missed live events.",
+          "assumptions": [
+            "Workload is unspecified: start with one-to-one chats and small groups of up to 20 members; size the database, event system, and gateway fleet after measuring users, messages, connections, and peaks.",
+            "A message is accepted only after persistence. Delivery events and client displays may be duplicated, so clients deduplicate by message ID; exactly-once delivery and read receipts are not assumed.",
+            "Offline delivery means messages remain in history for retrieval after reconnect, not device push notifications. History retention is a configurable product policy.",
+            "Presence is approximate: clients send heartbeats, session entries expire, and brief disconnects may temporarily appear online.",
+            "The event queue distributes live messages and presence changes across gateway instances; stored history, rather than the queue, is the source for recovery."
+          ]
+        }
+      },
+      "layout": {
+        "nodeCount": 7,
+        "allFinite": true,
+        "fallbackNodeOverlaps": 0
+      }
+    },
+    {
+      "model": "gpt-6-sol",
+      "reasoning": "medium",
+      "id": "media",
+      "elapsedMs": 14638,
+      "usage": {
+        "input_tokens": 601,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 1075,
+        "output_tokens_details": {
+          "reasoning_tokens": 516
+        },
+        "total_tokens": 1676
+      },
+      "result": {
+        "ok": true,
+        "proposal": {
+          "components": [
+            {
+              "ref": "user",
+              "name": "User App",
+              "kind": "client"
+            },
+            {
+              "ref": "api",
+              "name": "Job API",
+              "kind": "service"
+            },
+            {
+              "ref": "files",
+              "name": "Media Storage",
+              "kind": "storage"
+            },
+            {
+              "ref": "jobs",
+              "name": "Job Database",
+              "kind": "database"
+            },
+            {
+              "ref": "queue",
+              "name": "Processing Queue",
+              "kind": "queue"
+            },
+            {
+              "ref": "worker",
+              "name": "Media Workers",
+              "kind": "service"
+            }
+          ],
+          "connections": [
+            {
+              "sourceRef": "user",
+              "targetRef": "api",
+              "kind": "request-response"
+            },
+            {
+              "sourceRef": "user",
+              "targetRef": "files",
+              "kind": "data-access"
+            },
+            {
+              "sourceRef": "api",
+              "targetRef": "files",
+              "kind": "data-access"
+            },
+            {
+              "sourceRef": "api",
+              "targetRef": "jobs",
+              "kind": "data-access"
+            },
+            {
+              "sourceRef": "api",
+              "targetRef": "queue",
+              "kind": "async-messaging"
+            },
+            {
+              "sourceRef": "queue",
+              "targetRef": "worker",
+              "kind": "async-messaging"
+            },
+            {
+              "sourceRef": "worker",
+              "targetRef": "files",
+              "kind": "data-access"
+            },
+            {
+              "sourceRef": "worker",
+              "targetRef": "jobs",
+              "kind": "data-access"
+            },
+            {
+              "sourceRef": "worker",
+              "targetRef": "queue",
+              "kind": "async-messaging"
+            }
+          ],
+          "summary": "The Job API authorizes direct uploads to Media Storage. After the user confirms an upload, the API verifies the file, creates a job, and enqueues it. Workers read the source, generate thumbnails or transcode video, store outputs, and update job status. Users poll the API for status and obtain authorized direct downloads of completed outputs. Workers retry transient failures through the queue with bounded backoff; exhausted or permanent failures are recorded as failed jobs with an error reason.",
+          "assumptions": [
+            "Starting workload: approximately 10,000 uploads per day, 80% images and 20% videos, with arrival peaks around five times the daily average.",
+            "The queue supports durable delivery and delayed retries; workers may receive a job more than once, so processing and status updates are idempotent by job ID.",
+            "The API only enqueues verified uploads. A job is marked complete after its outputs have been stored.",
+            "Clients poll for status; live progress updates are not required."
+          ]
+        }
+      },
+      "layout": {
+        "nodeCount": 6,
+        "allFinite": true,
+        "fallbackNodeOverlaps": 0
+      }
+    },
+    {
+      "model": "gpt-6-sol",
+      "reasoning": "medium",
+      "id": "checkout",
+      "elapsedMs": 20174,
+      "usage": {
+        "input_tokens": 599,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 1510,
+        "output_tokens_details": {
+          "reasoning_tokens": 848
+        },
+        "total_tokens": 2109
+      },
+      "result": {
+        "ok": true,
+        "proposal": {
+          "components": [
+            {
+              "ref": "web",
+              "name": "Storefront",
+              "kind": "client"
+            },
+            {
+              "ref": "checkout",
+              "name": "Cart & Checkout Service",
+              "kind": "service"
+            },
+            {
+              "ref": "cartdb",
+              "name": "Cart Database",
+              "kind": "database"
+            },
+            {
+              "ref": "inventory",
+              "name": "Inventory Service",
+              "kind": "service"
+            },
+            {
+              "ref": "stockdb",
+              "name": "Inventory Database",
+              "kind": "database"
+            },
+            {
+              "ref": "payments",
+              "name": "Payment Provider",
+              "kind": "external-service"
+            },
+            {
+              "ref": "orders",
+              "name": "Order Database",
+              "kind": "database"
+            },
+            {
+              "ref": "fulfillment",
+              "name": "Fulfillment Worker",
+              "kind": "service"
+            },
+            {
+              "ref": "shipping",
+              "name": "Shipping Provider",
+              "kind": "external-service"
+            }
+          ],
+          "connections": [
+            {
+              "sourceRef": "web",
+              "targetRef": "checkout",
+              "kind": "request-response"
+            },
+            {
+              "sourceRef": "checkout",
+              "targetRef": "cartdb",
+              "kind": "data-access"
+            },
+            {
+              "sourceRef": "checkout",
+              "targetRef": "orders",
+              "kind": "data-access"
+            },
+            {
+              "sourceRef": "checkout",
+              "targetRef": "inventory",
+              "kind": "request-response"
+            },
+            {
+              "sourceRef": "inventory",
+              "targetRef": "stockdb",
+              "kind": "data-access"
+            },
+            {
+              "sourceRef": "checkout",
+              "targetRef": "payments",
+              "kind": "request-response"
+            },
+            {
+              "sourceRef": "fulfillment",
+              "targetRef": "orders",
+              "kind": "data-access"
+            },
+            {
+              "sourceRef": "fulfillment",
+              "targetRef": "shipping",
+              "kind": "request-response"
+            }
+          ],
+          "summary": "The storefront manages carts and starts checkout through the Cart & Checkout Service. Checkout persists a pending order, reserves inventory, processes payment through the external provider, then marks the order paid and ready for fulfillment. A separate worker polls the Order Database for ready orders, submits them to the shipping provider, and records fulfillment status. Checkout also reads order status for the storefront.",
+          "assumptions": [
+            "Orders contain physical goods; the shipping provider represents an external fulfillment handoff.",
+            "Inventory reservations have expiration times. The Inventory Service uses atomic inventory updates and can release or expire reservations.",
+            "The Order Database stores both order state and a durable fulfillment-ready record in one transaction; the worker polls these records rather than relying on a separate queue.",
+            "Checkout retries use a stable checkout idempotency key, and payment and shipping requests use stable operation keys where their providers support them.",
+            "Inventory, payment, and order writes are not one transaction. Failures may leave a reservation, an authorized or captured payment, or a pending order requiring retry or reconciliation; refunds and reservation releases are compensating actions.",
+            "The worker may repeat a shipping request after a crash or timeout. Provider-side idempotency can reduce duplicates, but this design does not guarantee exactly-once payment or fulfillment."
+          ]
+        }
+      },
+      "layout": {
+        "nodeCount": 9,
+        "allFinite": true,
+        "fallbackNodeOverlaps": 0
+      }
+    },
+    {
+      "model": "gpt-6-sol",
+      "reasoning": "medium",
+      "id": "files",
+      "elapsedMs": 12471,
+      "usage": {
+        "input_tokens": 592,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 888,
+        "output_tokens_details": {
+          "reasoning_tokens": 456
+        },
+        "total_tokens": 1480
+      },
+      "result": {
+        "ok": true,
+        "proposal": {
+          "components": [
+            {
+              "ref": "web",
+              "name": "Web client",
+              "kind": "client"
+            },
+            {
+              "ref": "api",
+              "name": "File and sharing API",
+              "kind": "service"
+            },
+            {
+              "ref": "db",
+              "name": "Metadata database",
+              "kind": "database"
+            },
+            {
+              "ref": "objects",
+              "name": "Private object storage",
+              "kind": "storage"
+            }
+          ],
+          "connections": [
+            {
+              "sourceRef": "web",
+              "targetRef": "api",
+              "kind": "request-response"
+            },
+            {
+              "sourceRef": "api",
+              "targetRef": "db",
+              "kind": "data-access"
+            },
+            {
+              "sourceRef": "api",
+              "targetRef": "objects",
+              "kind": "data-access"
+            },
+            {
+              "sourceRef": "web",
+              "targetRef": "objects",
+              "kind": "data-access"
+            }
+          ],
+          "summary": "The API stores file metadata, ownership, upload state, and sharing permissions in the database; file bytes stay in private object storage. After authorizing each upload or download, it returns a short-lived storage URL. The client transfers bytes directly to storage, using resumable multipart uploads for large files. The API finalizes uploads and marks files available only after confirming completion. Sharing links are checked by the API before it issues a download URL.",
+          "assumptions": [
+            "Planning workload: roughly 1,000 uploads and 10,000 downloads per day; typical files are 20 MB, with a 20 GB maximum. These are sizing inputs, not capacity guarantees.",
+            "Users sign in. A sharing link contains an unguessable token and can be restricted to named signed-in recipients; the API checks token validity, expiry, revocation, and recipient access. Only token hashes are stored.",
+            "Object storage is private. Issued download URLs cannot be revoked immediately; a short expiry bounds access after a link is revoked.",
+            "Incomplete multipart uploads are tracked in metadata and cleaned up through storage lifecycle rules."
+          ]
+        }
+      },
+      "layout": {
+        "nodeCount": 4,
+        "allFinite": true,
+        "fallbackNodeOverlaps": 0
+      }
+    },
+    {
+      "model": "gpt-6-sol",
+      "reasoning": "medium",
+      "id": "crud",
+      "elapsedMs": 2995,
+      "usage": {
+        "input_tokens": 591,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 181,
+        "output_tokens_details": {
+          "reasoning_tokens": 31
+        },
+        "total_tokens": 772
+      },
+      "result": {
+        "ok": true,
+        "proposal": {
+          "components": [
+            {
+              "ref": "browser",
+              "name": "Browser Client",
+              "kind": "client"
+            },
+            {
+              "ref": "app",
+              "name": "Application Service",
+              "kind": "service"
+            },
+            {
+              "ref": "db",
+              "name": "Application Database",
+              "kind": "database"
+            }
+          ],
+          "connections": [
+            {
+              "sourceRef": "browser",
+              "targetRef": "app",
+              "kind": "request-response"
+            },
+            {
+              "sourceRef": "app",
+              "targetRef": "db",
+              "kind": "data-access"
+            }
+          ],
+          "summary": "The browser sends create, read, update, and delete requests to the application service, which reads and writes records in the database.",
+          "assumptions": [
+            "A small internal team uses a single application service and database.",
+            "Authentication is handled within the application service; no separate identity component is modeled."
+          ]
+        }
+      },
+      "layout": {
+        "nodeCount": 3,
+        "allFinite": true,
+        "fallbackNodeOverlaps": 0
+      }
+    },
+    {
+      "model": "gpt-6-sol",
+      "reasoning": "medium",
+      "id": "ambiguous",
+      "elapsedMs": 7532,
+      "usage": {
+        "input_tokens": 581,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 516,
+        "output_tokens_details": {
+          "reasoning_tokens": 265
+        },
+        "total_tokens": 1097
+      },
+      "result": {
+        "ok": true,
+        "proposal": {
+          "components": [
+            {
+              "ref": "app",
+              "name": "Web or Mobile App",
+              "kind": "client"
+            },
+            {
+              "ref": "api",
+              "name": "App Service",
+              "kind": "service"
+            },
+            {
+              "ref": "db",
+              "name": "Application Database",
+              "kind": "database"
+            }
+          ],
+          "connections": [
+            {
+              "sourceRef": "app",
+              "targetRef": "api",
+              "kind": "request-response"
+            },
+            {
+              "sourceRef": "api",
+              "targetRef": "db",
+              "kind": "data-access"
+            }
+          ],
+          "summary": "The app service handles sign-in, saves and retrieves items, and checks permissions when users share items with other users. A database stores accounts, items, and sharing permissions. Keep the service stateless so it can be replicated; use database backups and monitoring as operational measures for reliability.",
+          "assumptions": [
+            "Things are small records, such as notes or saved links, rather than large files.",
+            "Sharing is with registered users, not through public links.",
+            "The app service handles authentication; no separate identity provider is required initially."
+          ]
+        }
+      },
+      "layout": {
+        "nodeCount": 3,
+        "allFinite": true,
+        "fallbackNodeOverlaps": 0
+      }
+    }
+  ]
+}

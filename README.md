@@ -22,6 +22,7 @@ Architekt currently supports the core editing loop:
 - Recover safely when saved data is invalid or unavailable
 - Undo and redo structural edits and completed node drags
 - Use standard history shortcuts such as `Ctrl/Cmd+Z`, `Ctrl/Cmd+Shift+Z`, and `Ctrl+Y`
+- Generate an AI architecture draft, review its assumptions and typed relationships, then explicitly apply it as one undoable, editable diagram replacement
 
 The editor is intentionally small right now. I am building it one complete interaction at a time instead of filling the interface with controls before their behavior is properly defined.
 
@@ -45,7 +46,7 @@ That separation gives the project a few useful properties:
 - Invalid connections are rejected before they reach the canvas.
 - Saved data is validated by rebuilding it through the same domain operations used by the editor.
 - Undo and redo can restore meaningful graph and layout snapshots without storing renderer-only details.
-- Future AI output can be treated as a proposed set of validated edits instead of being allowed to manipulate the canvas directly.
+- AI output is validated as a proposal, then translated into a domain graph only when the user applies it; it never manipulates the canvas directly.
 
 ## Technical highlights
 
@@ -59,6 +60,7 @@ That separation gives the project a few useful properties:
 - Bounded undo/redo history with completed node drags grouped into single actions
 - Deterministic initial arrangement with manual Auto-layout recorded as one undo step
 - Adaptive visual anchors and a shared reciprocal path with independent directional arrows and labels, without adding renderer data to the saved graph
+- Server-only AI proposal generation with strict Structured Outputs, independent runtime/domain validation, bounded requests, and safe typed failures
 - Automated coverage for the domain, layout, rendering adapter, persistence, editor state, history, and keyboard shortcuts
 
 ## Stack
@@ -72,7 +74,17 @@ That separation gives the project a few useful properties:
 
 ## Current direction
 
-Architekt is under active development. Auto-Layout and adaptive multi-side connection anchors are implemented, automatically tested, and manually accepted in the browser. Future work will make separate, deliberate decisions around more advanced diagram editing and the boundaries of AI-assisted editing.
+Architekt is under active development. Auto-Layout, adaptive multi-side connection anchors, and AI Architecture Generation are implemented and accepted. Generation produces a transient draft for review; explicit Apply replaces the diagram in one undo step. Live evaluation of seven system-design prompts with Luna and Sol retained `gpt-6-luna` with medium reasoning. See the [evaluation and limitations](docs/evaluations/ai-generation-2026-10-01.md).
+
+## Local setup and optional generation
+
+Use Node.js 22 or later (required by the installed official OpenAI SDK), then run `npm ci` and `npm run dev`.
+
+For local, controlled-access generation, add `OPENAI_API_KEY` to your ignored `.env.local`. Use `.env.example` as a reference; preserve any existing local settings. Optionally set `ARCHITEKT_OPENAI_MODEL` to a compatible Responses/Structured Outputs model. The default is `gpt-6-luna`; configuration is server-only and never supplied by the browser. Without a key, the app still builds and the editor works; generation returns a safe 503 error.
+
+`POST /api/architecture/generate` accepts exactly `{ "prompt": "Describe your system" }`. Prompts must be nonblank and at most 5,000 UTF-16 code units before trimming; raw bodies are limited to 32 KiB. Success is the existing `ArchitectureProposal` object (`components`, `connections`, `summary`, `assumptions`). Failure is `{ "error": { "type": "...", "retryable": false, "message": "..." } }`; retryability depends on the failure. Responses use `Cache-Control: no-store`.
+
+Generation uses medium reasoning, a 40-second deadline, zero automatic retries, a 12,000-token output cap, and `store: false`. Prompts and proposals are not logged or persisted by the application. Review and Discard leave the workspace unchanged; Apply stores only the resulting graph and positions through ordinary autosave. Drafts can omit operational details or make mistakes and require human review. Authentication and distributed abuse/rate controls are required before anonymous public deployment; these local limits do not provide that protection. See [ARCHITECTURE.md](ARCHITECTURE.md) for boundary and error contracts.
 
 Screenshots and a live demo will be added when the editor's visual language is mature enough to represent the project well. For now, the repository reflects the working product and the engineering decisions behind it.
 

@@ -126,6 +126,12 @@ The secondary text Auto-layout button sits in the editor action row beside the v
 
 Changed explicit layouts fit the current canvas immediately with conservative padding and no animation. Horizontal rank and node spacing leave useful room for semantic edge labels and handles; labels remain neutral presentation, not inputs to layout or custom edge routing.
 
+## AI proposal review
+
+A quiet Generate architecture control expands a compact prompt and review area above the canvas. The canvas remains the primary workspace; long reviews scroll within a bounded panel. Loading shows a clear status and Cancel. Safe errors stay inline. The review identifies the result as an AI-generated draft and explicitly says it is not a validated design. Summary and assumptions precede lists of component names/kinds and directed connection names/kinds. Apply to diagram is the single primary action and is disabled during rename or drag; Discard is secondary. The existing diagram remains visible and unchanged until Apply, which fits the arranged result. Cancel, Discard, and successful Apply return keyboard focus to the persistent Generate architecture control. No second diagram preview is shown.
+
+The complete controls/list area is capped at half the editor height and scrolls independently so generated graphs cannot collapse the canvas. Before Apply, the review states that it replaces the current diagram and can be undone. A polite status announces draft readiness. Generate becomes Cancel on the same focused button during loading. Primary generation actions use white text on indigo in either theme.
+
 
 ## Adaptive anchor interaction
 
