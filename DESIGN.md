@@ -132,6 +132,10 @@ A quiet Generate architecture control expands a compact prompt and review area a
 
 The complete controls/list area is capped at half the editor height and scrolls independently so generated graphs cannot collapse the canvas. Before Apply, the review states that it replaces the current diagram and can be undone. A polite status announces draft readiness. Generate becomes Cancel on the same focused button during loading. Primary generation actions use white text on indigo in either theme.
 
+## Architecture analysis
+
+Analysis is a secondary, collapsed-by-default native disclosure in the existing controls area. Its bounded content scrolls independently and leaves canvas space at narrow widths. A concise summary shows component, connection, disconnected-region, and reciprocal-pair counts. Review questions and structural observations use neutral wording, with evidence behind native disclosures and incoming/outgoing counts behind a separate disclosure. An empty graph invites component creation; zero findings means only that the current checks found none. A polite status announces changes in finding counts while Analysis is open. Analysis never selects, mutates, or scores the diagram.
+
 
 ## Adaptive anchor interaction
 

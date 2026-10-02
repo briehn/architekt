@@ -92,6 +92,7 @@ import {
 } from "./architecture-generation-review";
 import { applyArchitectureProposal } from "./apply-architecture-proposal";
 import { ArchitectureGenerationPanel } from "./architecture-generation-panel";
+import { ArchitectureAnalysisPanel } from "./architecture-analysis-panel";
 
 function componentId(value: string): ComponentId {
   return value as ComponentId;
@@ -1612,6 +1613,7 @@ export function ArchitectureEditor() {
             onApply={handleApplyArchitectureProposal}
             onDiscard={() => { generationControllerRef.current?.discard(); generationToggleRef.current?.focus(); }}
           />
+          <ArchitectureAnalysisPanel graph={editorState.graph} />
           <p aria-live="polite" className="sr-only" role="status">
             {viewState.announcement ?? ""}
           </p>

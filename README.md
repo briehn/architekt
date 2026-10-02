@@ -23,6 +23,7 @@ Architekt currently supports the core editing loop:
 - Undo and redo structural edits and completed node drags
 - Use standard history shortcuts such as `Ctrl/Cmd+Z`, `Ctrl/Cmd+Shift+Z`, and `Ctrl+Y`
 - Generate an AI architecture draft, review its assumptions and typed relationships, then explicitly apply it as one undoable, editable diagram replacement
+- Open a read-only Analysis disclosure for graph counts, structural observations, and evidence-backed relationship-review questions
 
 The editor is intentionally small right now. I am building it one complete interaction at a time instead of filling the interface with controls before their behavior is properly defined.
 
@@ -47,6 +48,7 @@ That separation gives the project a few useful properties:
 - Saved data is validated by rebuilding it through the same domain operations used by the editor.
 - Undo and redo can restore meaningful graph and layout snapshots without storing renderer-only details.
 - AI output is validated as a proposal, then translated into a domain graph only when the user applies it; it never manipulates the canvas directly.
+- Deterministic analysis reads the canonical graph and derives findings without changing the diagram, undo history, or saved workspace.
 
 ## Technical highlights
 
@@ -61,6 +63,7 @@ That separation gives the project a few useful properties:
 - Deterministic initial arrangement with manual Auto-layout recorded as one undo step
 - Adaptive visual anchors and a shared reciprocal path with independent directional arrows and labels, without adding renderer data to the saved graph
 - Server-only AI proposal generation with strict Structured Outputs, independent runtime/domain validation, bounded requests, and safe typed failures
+- Framework-independent topology analysis with stable findings for isolated components, disconnected regions, directed cycles, direct Client → Database links, and reciprocal Request/response links
 - Automated coverage for the domain, layout, rendering adapter, persistence, editor state, history, and keyboard shortcuts
 
 ## Stack
@@ -74,7 +77,7 @@ That separation gives the project a few useful properties:
 
 ## Current direction
 
-Architekt is under active development. Auto-Layout, adaptive multi-side connection anchors, and AI Architecture Generation are implemented and accepted. Generation produces a transient draft for review; explicit Apply replaces the diagram in one undo step. Live evaluation of seven system-design prompts with Luna and Sol retained `gpt-6-luna` with medium reasoning. See the [evaluation and limitations](docs/evaluations/ai-generation-2026-10-01.md).
+Architekt is under active development. Auto-Layout, adaptive multi-side connection anchors, AI Architecture Generation, and Deterministic Architecture Analysis are implemented and accepted. Generation produces a transient draft for review; explicit Apply replaces the diagram in one undo step. Analysis surfaces only facts and review questions supported by the current graph; it does not establish runtime behavior or design quality. Live evaluation of seven system-design prompts with Luna and Sol retained `gpt-6-luna` with medium reasoning. See the [evaluation and limitations](docs/evaluations/ai-generation-2026-10-01.md).
 
 ## Local setup and optional generation
 

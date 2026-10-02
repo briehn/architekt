@@ -1,8 +1,30 @@
 # Architekt TODO
 
+## Completed milestone: Deterministic Architecture Analysis
+
+**Status: Complete.** Slices 1–3 provide deterministic graph observations and cautious relationship-review questions in a read-only editor disclosure. Findings are derived from the current graph and are neither saved nor added to history.
+
+### Slice 1: Pure topology analysis
+
+* [x] Add a framework-independent `analyzeArchitecture(graph)` API with typed summary, per-component degree counts, and structured findings
+* [x] Report grouped isolated components, disconnected weak regions, and directed cyclic regions with one valid cycle witness per strongly connected region
+* [x] Produce canonical ordering and deterministic finding keys independent of graph insertion order
+* [x] Keep factual wording separate from typed evidence; preserve graph, history, and persistence boundaries
+* [x] Cover topology, false cycle counterexamples, references, determinism, graph immutability, and a 100-node / 198-edge fixture
+
+### Slice 2: Relationship-review findings
+
+* [x] Report explicit Client → Database connections with directed endpoint kinds, connection kind, and current-name wording
+* [x] Report pairs with two opposite Request/response connections once, while retaining their separate cyclic-region observation
+* [x] Disambiguate duplicate names, keep keys stable across renames, and test insertion order and semantic counterexamples
+
+### Slice 3: Editor presentation and acceptance
+
+* [x] Add a restrained, accessible analysis disclosure to the editor and complete browser acceptance
+
 ## Completed milestone: AI Architecture Generation
 
-**Status: Complete.** Steps 1–4 are implemented and accepted for the controlled-access application. Live quality evaluation retains `gpt-6-luna` with medium reasoning. See [Step 4 evidence and limitations](docs/evaluations/ai-generation-2026-10-01.md). No next milestone is started.
+**Status: Complete.** Steps 1–4 are implemented and accepted for the controlled-access application. Live quality evaluation retains `gpt-6-luna` with medium reasoning. See [Step 4 evidence and limitations](docs/evaluations/ai-generation-2026-10-01.md).
 
 ### Step 1: Architecture proposal contract and translation
 
@@ -457,5 +479,5 @@ Arrange fresh architecture diagrams deterministically and let users explicitly r
 
 * Keep canvas kind presentation read-only unless a later product decision changes the established list-editing interaction
 * Consider richer component metadata, provider-specific technologies, or an inspector only when a concrete workflow requires them
-* Design semantic connection analysis or validation separately; component and connection kinds currently classify the graph without restricting topology
+* Extend semantic connection analysis or validation only when supported by stronger metadata; current kinds still classify the graph without restricting topology
 * Treat future AI-generated architectures as untrusted proposals whose component and connection kinds must pass the same runtime validation and domain operations
