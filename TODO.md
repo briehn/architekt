@@ -1,5 +1,41 @@
 # Architekt TODO
 
+## Current milestone: Generic Architecture Boundaries / Groups
+
+**Status: In progress.** Slices 1-4 establish canonical membership, V4 persistence/history, derived canvas rendering with boundary movement, and boundary-aware explicit Auto-Layout. Membership UI and final acceptance remain.
+
+### Slice 1: Boundary domain foundation
+
+* [x] Add branded BoundaryId and generic ArchitectureBoundary with one authoritative member list
+* [x] Validate IDs, names, existing members, duplicate members, and exclusive membership in immutable graph operations
+* [x] Support atomic assignment/transfer, boundary rename/deletion, and component-deletion membership cleanup
+* [x] Canonicalize member IDs in ordinal order and protect graph snapshots from caller-owned arrays
+* [x] Cover new behavior and existing component/connection regressions with focused domain tests
+
+### Slice 2: Persistence and editor operations
+
+* [x] Add V4 persistence with V1–V3 read compatibility and validated boundary restoration
+* [x] Add pure editor operations and snapshot-history integration for boundary membership
+* [x] Verify AI Apply replaces boundaries atomically and Undo restores them
+
+### Slice 3: Derived geometry, renderer, and movement
+
+* [x] Derive boundary geometry from canonical membership, component positions, and valid measurements without persisting renderer dimensions
+* [x] Render non-empty top-level boundaries behind components and edges without React Flow parent relationships
+* [x] Support exclusive selection, header drag, keyboard movement, deletion, one-step history, and focused tests
+
+### Slice 4: Boundary-aware two-pass Auto-Layout
+
+* [x] Arrange members inside each non-empty boundary, then arrange derived blocks with ungrouped components
+* [x] Preserve exact ungrouped coordinates, canonical component-only positions, and one-step history
+* [x] Cover grouped topology, deterministic ordering, failure atomicity, scale, and browser behavior
+
+### Planned Slice 5: Membership UI and final acceptance
+
+* [ ] Add creation, rename, deletion, and explicit membership editing controls without geometry-based membership inference
+* [ ] Complete browser accessibility, responsive, theme, and interaction acceptance for those controls
+* [ ] Close the overall boundary milestone only after final validation
+
 ## Completed milestone: Deterministic Architecture Analysis
 
 **Status: Complete.** Slices 1–3 provide deterministic graph observations and cautious relationship-review questions in a read-only editor disclosure. Findings are derived from the current graph and are neither saved nor added to history.

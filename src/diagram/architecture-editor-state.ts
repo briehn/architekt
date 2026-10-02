@@ -1,5 +1,6 @@
 import type { NodeChange } from "@xyflow/react";
 
+import type { ArchitectureBoundary } from "../domain/architecture-boundary";
 import type {
   ArchitectureComponent,
   ArchitectureComponentKind,
@@ -9,18 +10,23 @@ import type {
   ArchitectureConnectionKind,
 } from "../domain/architecture-connection";
 import type {
+  AddBoundaryRejection,
   AddComponentRejection,
   AddConnectionRejection,
   ArchitectureGraph,
+  AssignComponentToBoundaryRejection,
   ChangeComponentKindRejection,
   ChangeConnectionKindRejection,
   RenameComponentRejection,
+  RemoveBoundaryRejection,
   RemoveComponentRejection,
   RemoveConnectionRejection,
+  RenameBoundaryRejection,
 } from "../domain/architecture-graph";
-import type { ComponentId, ConnectionId } from "../domain/identifiers";
+import type { BoundaryId, ComponentId, ConnectionId } from "../domain/identifiers";
 import {
   layoutArchitectureGraph,
+  layoutBoundaryAwareArchitectureGraph,
   type DiagramNodeSize,
   type DiagramNodeSizes,
 } from "./auto-layout";
@@ -71,6 +77,22 @@ export type ChangeConnectionKindInEditorStateResult =
 export type RemoveConnectionFromEditorStateResult =
   | { ok: true; state: ArchitectureEditorState }
   | { ok: false; error: RemoveConnectionRejection };
+
+export type AddBoundaryToEditorStateResult =
+  | { ok: true; state: ArchitectureEditorState }
+  | { ok: false; error: AddBoundaryRejection };
+
+export type RenameBoundaryInEditorStateResult =
+  | { ok: true; state: ArchitectureEditorState }
+  | { ok: false; error: RenameBoundaryRejection };
+
+export type RemoveBoundaryFromEditorStateResult =
+  | { ok: true; state: ArchitectureEditorState }
+  | { ok: false; error: RemoveBoundaryRejection };
+
+export type AssignComponentToBoundaryInEditorStateResult =
+  | { ok: true; state: ArchitectureEditorState }
+  | { ok: false; error: AssignComponentToBoundaryRejection };
 
 export type AutoLayoutArchitectureEditorStateResult =
   | { ok: true; state: ArchitectureEditorState }
@@ -127,7 +149,10 @@ export function applyReactFlowNodeChangesToEditorState(
 export function autoLayoutArchitectureEditorState(
   state: ArchitectureEditorState,
 ): AutoLayoutArchitectureEditorStateResult {
-  const layoutResult = layoutArchitectureGraph(
+  const layout = state.graph.getBoundaries().some((boundary) => boundary.memberComponentIds.length > 0)
+    ? layoutBoundaryAwareArchitectureGraph
+    : layoutArchitectureGraph;
+  const layoutResult = layout(
     state.graph,
     projectKnownNodeSizes(state),
   );
@@ -155,7 +180,7 @@ export function autoLayoutArchitectureEditorState(
   };
 }
 
-function projectKnownNodeSizes(
+export function projectKnownNodeSizes(
   state: ArchitectureEditorState,
 ): DiagramNodeSizes {
   const knownNodeSizes = new Map<ComponentId, DiagramNodeSize>();
@@ -369,4 +394,59 @@ export function removeComponentFromEditorState(
       ),
     },
   };
+}
+
+function withBoundaryGraph(
+  state: ArchitectureEditorState,
+  graph: ArchitectureGraph,
+): ArchitectureEditorState {
+  return graph === state.graph
+    ? state
+    : {
+        graph,
+        nodePositions: state.nodePositions,
+        nodeMeasurements: state.nodeMeasurements,
+      };
+}
+
+export function addBoundaryToEditorState(
+  state: ArchitectureEditorState,
+  boundary: ArchitectureBoundary,
+): AddBoundaryToEditorStateResult {
+  const result = state.graph.addBoundary(boundary);
+  return result.ok
+    ? { ok: true, state: withBoundaryGraph(state, result.graph) }
+    : result;
+}
+
+export function renameBoundaryInEditorState(
+  state: ArchitectureEditorState,
+  boundaryId: BoundaryId,
+  name: string,
+): RenameBoundaryInEditorStateResult {
+  const result = state.graph.renameBoundary(boundaryId, name);
+  return result.ok
+    ? { ok: true, state: withBoundaryGraph(state, result.graph) }
+    : result;
+}
+
+export function removeBoundaryFromEditorState(
+  state: ArchitectureEditorState,
+  boundaryId: BoundaryId,
+): RemoveBoundaryFromEditorStateResult {
+  const result = state.graph.removeBoundary(boundaryId);
+  return result.ok
+    ? { ok: true, state: withBoundaryGraph(state, result.graph) }
+    : result;
+}
+
+export function assignComponentToBoundaryInEditorState(
+  state: ArchitectureEditorState,
+  componentId: ComponentId,
+  boundaryId: BoundaryId | null,
+): AssignComponentToBoundaryInEditorStateResult {
+  const result = state.graph.assignComponentToBoundary(componentId, boundaryId);
+  return result.ok
+    ? { ok: true, state: withBoundaryGraph(state, result.graph) }
+    : result;
 }

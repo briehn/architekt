@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { minimalProposal } from "../application/__fixtures__/architecture-proposals";
 import { generationFailure } from "../application/architecture-generation";
 import { ArchitectureGraph } from "../domain/architecture-graph";
+import type { BoundaryId } from "../domain/identifiers";
 import { createArchitectureEditorHistory } from "./architecture-editor-history";
 import { createArchitectureEditorState } from "./architecture-editor-state";
 import {
@@ -92,5 +93,41 @@ describe("transient generation review", () => {
     } finally {
       globalThis.fetch = originalFetch;
     }
+  });
+});
+
+describe("generation review preserves boundaries", () => {
+  it("leaves a boundary-only workspace untouched on Cancel, failure, and Discard", async () => {
+    const bounded = ArchitectureGraph.empty().addBoundary({
+      id: "empty" as BoundaryId,
+      name: "Empty boundary",
+      memberComponentIds: [],
+    });
+    if (!bounded.ok) throw new Error("Invalid boundary fixture");
+    const workspace = createArchitectureEditorHistory(createArchitectureEditorState(bounded.graph));
+    const pending = deferredRequest();
+    const controller = new ArchitectureGenerationReviewController(() => {}, pending.request);
+    controller.setPrompt("A system");
+    const cancelled = controller.generate();
+    controller.cancel();
+    pending.resolve(0, minimalProposal());
+    await cancelled;
+    expect(controller.getState().status).toBe("idle");
+    expect(workspace.present.graph).toBe(bounded.graph);
+
+    const failed = controller.generate();
+    pending.resolve(1, generationFailure("generation-failed"));
+    await failed;
+    expect(controller.getState().status).toBe("error");
+    expect(workspace.present.graph).toBe(bounded.graph);
+
+    const generated = controller.generate();
+    pending.resolve(2, minimalProposal());
+    await generated;
+    controller.discard();
+    expect(controller.getState().status).toBe("idle");
+    expect(workspace.present.graph).toBe(bounded.graph);
+    expect(workspace.present.graph.getBoundaries()).toHaveLength(1);
+    expect(workspace.past).toHaveLength(0);
   });
 });

@@ -51,7 +51,7 @@ function deriveEdges(state: ArchitectureEditorState) {
 }
 
 describe("adaptive anchor integration boundaries", () => {
-  it("derives 100 nodes / 198 reciprocal edges deterministically without changing V3 content", () => {
+  it("derives 100 nodes / 198 reciprocal edges deterministically without persisting anchor content", () => {
     const state = fixture(100);
     const document = toPersistedArchitectureEditorDocument(state);
     const edges = deriveEdges(state);
@@ -60,7 +60,7 @@ describe("adaptive anchor integration boundaries", () => {
     expect(edges.every((edge) => edge.sourceHandle && edge.targetHandle)).toBe(true);
     expect(deriveEdges(state)).toEqual(edges);
     expect(toPersistedArchitectureEditorDocument(state)).toEqual(document);
-    expect(document).toMatchObject({ schemaVersion: 3 });
+    expect(document).toMatchObject({ schemaVersion: 4 });
     for (const connection of document.graph.connections) {
       expect(Object.keys(connection).sort()).toEqual([
         "id", "kind", "sourceComponentId", "targetComponentId",
@@ -120,7 +120,7 @@ describe("adaptive anchor integration boundaries", () => {
     expect(moved.past).toHaveLength(1);
     expect(moved.present.graph).toBe(initial.present.graph);
     expect(toPersistedArchitectureEditorDocument(moved.present)).toMatchObject({
-      schemaVersion: 3,
+      schemaVersion: 4,
       nodePositions: [{ componentId: "node-0", x: 0, y: 0 }, { componentId: "node-1", x: 250, y: 150 }],
     });
     expect(deriveEdges(redoArchitectureEditorHistory(undoArchitectureEditorHistory(moved)).present))

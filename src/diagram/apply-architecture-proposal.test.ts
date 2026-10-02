@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { minimalProposal } from "../application/__fixtures__/architecture-proposals";
-import type { ComponentId, ConnectionId } from "../domain/identifiers";
+import type { BoundaryId, ComponentId, ConnectionId } from "../domain/identifiers";
 import { ArchitectureGraph } from "../domain/architecture-graph";
 import { toPersistedArchitectureEditorDocument } from "../persistence/architecture-editor-document";
 import { applyArchitectureProposal } from "./apply-architecture-proposal";
@@ -41,7 +41,7 @@ describe("atomic proposal Apply", () => {
       expect(redone.present.graph).toBe(result.history.present.graph);
       expect(redone.present.nodePositions).toBe(result.history.present.nodePositions);
       const document = toPersistedArchitectureEditorDocument(result.history.present);
-      expect(document.schemaVersion).toBe(3);
+      expect(document.schemaVersion).toBe(4);
       expect(JSON.stringify(document)).not.toMatch(/prompt|summary|assumptions|proposal|old/);
       expect(JSON.stringify(result.history)).not.toMatch(/prompt|summary|assumptions|proposal/);
     });
@@ -56,5 +56,62 @@ describe("atomic proposal Apply", () => {
     expect(result).toMatchObject({ ok: false, error: "invalid-proposal" });
     expect(history.past).toHaveLength(0);
     expect(history.present.graph.getComponents()).toHaveLength(0);
+  });
+});
+
+describe("proposal Apply over canonical boundaries", () => {
+  it.each(["bounded", "boundary-only"] as const)(
+    "replaces a %s workspace once and Undo restores boundaries, memberships, and positions",
+    (kind) => {
+      let graph = ArchitectureGraph.empty();
+      if (kind === "bounded") {
+        const component = graph.addComponent({
+          id: "old" as ComponentId, name: "Old", kind: "service",
+        });
+        if (!component.ok) throw new Error("Invalid component fixture");
+        graph = component.graph;
+      }
+      const boundary = graph.addBoundary({
+        id: "old-boundary" as BoundaryId,
+        name: "Old boundary",
+        memberComponentIds: kind === "bounded" ? ["old" as ComponentId] : [],
+      });
+      if (!boundary.ok) throw new Error("Invalid boundary fixture");
+      const prior = createFreshArchitectureEditorState(boundary.graph);
+      const result = applyArchitectureProposal(createArchitectureEditorHistory(prior), minimalProposal(), ids());
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.history.past).toHaveLength(1);
+      expect(result.history.present.graph.getBoundaries()).toEqual([]);
+      const document = toPersistedArchitectureEditorDocument(result.history.present);
+      expect(document.graph.boundaries).toEqual([]);
+      expect(JSON.stringify(document)).not.toMatch(/prompt|summary|assumptions|proposal/);
+      const undone = undoArchitectureEditorHistory(result.history);
+      expect(undone.present.graph).toBe(prior.graph);
+      expect(undone.present.graph.getBoundaryById("old-boundary" as BoundaryId)?.memberComponentIds)
+        .toEqual(kind === "bounded" ? ["old"] : []);
+      expect(undone.present.nodePositions).toBe(prior.nodePositions);
+      const redone = redoArchitectureEditorHistory(undone);
+      expect(redone.present.graph.getBoundaries()).toEqual([]);
+      expect(redone.present.graph).toBe(result.history.present.graph);
+    },
+  );
+
+  it("keeps boundaries on failed Apply", () => {
+    const boundary = ArchitectureGraph.empty().addBoundary({
+      id: "old-boundary" as BoundaryId,
+      name: "Old boundary",
+      memberComponentIds: [],
+    });
+    if (!boundary.ok) throw new Error("Invalid boundary fixture");
+    const history = createArchitectureEditorHistory(createArchitectureEditorState(boundary.graph));
+    const result = applyArchitectureProposal(history, minimalProposal(), {
+      createComponentId: () => "duplicate" as ComponentId,
+      createConnectionId: () => "duplicate" as ConnectionId,
+    });
+    expect(result).toMatchObject({ ok: false, error: "invalid-proposal" });
+    expect(history.present.graph).toBe(boundary.graph);
+    expect(history.present.graph.getBoundaries()).toHaveLength(1);
+    expect(history.past).toHaveLength(0);
   });
 });

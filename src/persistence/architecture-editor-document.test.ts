@@ -11,7 +11,7 @@ import type {
 } from "../domain/architecture-connection";
 import { ARCHITECTURE_CONNECTION_KINDS } from "../domain/architecture-connection";
 import { ArchitectureGraph } from "../domain/architecture-graph";
-import type { ComponentId, ConnectionId } from "../domain/identifiers";
+import type { BoundaryId, ComponentId, ConnectionId } from "../domain/identifiers";
 import {
   renameComponentInEditorState,
   type ArchitectureEditorState,
@@ -22,6 +22,7 @@ import {
   type PersistedArchitectureEditorDocumentV1,
   type PersistedArchitectureEditorDocumentV2,
   type PersistedArchitectureEditorDocumentV3,
+  type PersistedArchitectureEditorDocumentV4,
   type RestoreArchitectureEditorStateError,
 } from "./architecture-editor-document";
 
@@ -197,6 +198,15 @@ function validV3Document(): PersistedArchitectureEditorDocumentV3 {
   };
 }
 
+function validV4Document(): PersistedArchitectureEditorDocumentV4 {
+  const legacy = validV3Document();
+  return {
+    schemaVersion: 4,
+    graph: { ...legacy.graph, boundaries: [] },
+    nodePositions: legacy.nodePositions,
+  };
+}
+
 function restoreSuccessfully(value: unknown): ArchitectureEditorState {
   const result = restoreArchitectureEditorState(value);
 
@@ -233,12 +243,12 @@ function expectGraphMembers(
 }
 
 describe("toPersistedArchitectureEditorDocument", () => {
-  it("serializes graph structure, kinds, and positions as a plain V3 document", () => {
+  it("serializes graph structure, kinds, and positions as a plain V4 document", () => {
     const document = toPersistedArchitectureEditorDocument(
       editorStateForSerialization(),
     );
 
-    expect(document).toEqual(validV3Document());
+    expect(document).toEqual(validV4Document());
     expect(JSON.parse(JSON.stringify(document))).toEqual(document);
   });
 
@@ -262,11 +272,11 @@ describe("toPersistedArchitectureEditorDocument", () => {
     ]);
   });
 
-  it("serializes a renamed component and connection kinds in V3", () => {
+  it("serializes a renamed component and connection kinds in V4", () => {
     const renamedState = renamedEditorStateForSerialization();
     const document = toPersistedArchitectureEditorDocument(renamedState);
 
-    expect(document.schemaVersion).toBe(3);
+    expect(document.schemaVersion).toBe(4);
     expect(document.graph.components).toContainEqual({
       id: "api",
       name: "Public API",
@@ -453,7 +463,7 @@ describe("restoreArchitectureEditorState", () => {
     },
   );
 
-  it("round trips every supported component kind through V3", () => {
+  it("round trips every supported component kind through V4", () => {
     let graph = ArchitectureGraph.empty();
     const nodePositions = new Map<
       ComponentId,
@@ -479,13 +489,13 @@ describe("restoreArchitectureEditorState", () => {
       JSON.parse(JSON.stringify(document)),
     );
 
-    expect(document.schemaVersion).toBe(3);
+    expect(document.schemaVersion).toBe(4);
     expect(restoredState.graph.getComponents()).toEqual(expectedComponents);
     expect(restoredState.nodePositions).toEqual(nodePositions);
     expect(restoredState.nodeMeasurements).toEqual(new Map());
   });
 
-  it("round trips all five connection kinds through V3", () => {
+  it("round trips all five connection kinds through V4", () => {
     let graph = ArchitectureGraph.empty();
     const source = component("source", "Source", "service");
     graph = addComponent(graph, source);
@@ -732,10 +742,10 @@ describe("restoreArchitectureEditorState", () => {
       type: "invalid-document",
     });
     expect(
-      restoreFailure({ ...validDocument(), schemaVersion: 4 }),
+      restoreFailure({ ...validDocument(), schemaVersion: 5 }),
     ).toEqual({
       type: "unsupported-schema-version",
-      schemaVersion: 4,
+      schemaVersion: 5,
     });
   });
 
@@ -1017,5 +1027,100 @@ describe("restoreArchitectureEditorState", () => {
       x: 40,
       y: 80,
     });
+  });
+});
+
+describe("V4 boundary persistence", () => {
+  const boundary = (
+    id: string,
+    name: string,
+    memberComponentIds: string[],
+  ) => ({
+    id: id as BoundaryId,
+    name,
+    memberComponentIds: memberComponentIds.map(componentId),
+  });
+
+  it("round trips multiple boundaries, duplicate names, canonical members, and positions", () => {
+    let graph = graphForSerialization();
+    const first = graph.addBoundary(boundary("z", "Tier", ["database", "api"]));
+    if (!first.ok) throw new Error("Invalid boundary fixture");
+    graph = first.graph;
+    const second = graph.addBoundary(boundary("a", "Tier", []));
+    if (!second.ok) throw new Error("Invalid boundary fixture");
+    const positions = new Map([
+      [componentId("api"), { x: -901, y: 777 }],
+      [componentId("database"), { x: 1444, y: -222 }],
+    ]);
+    const document = toPersistedArchitectureEditorDocument({
+      graph: second.graph,
+      nodePositions: positions,
+    });
+    expect(document.graph.boundaries).toEqual([
+      { id: "a", name: "Tier", memberComponentIds: [] },
+      { id: "z", name: "Tier", memberComponentIds: ["api", "database"] },
+    ]);
+    const state = restoreSuccessfully(JSON.parse(JSON.stringify(document)));
+    expect(state.graph.getBoundaries()).toEqual(second.graph.getBoundaries());
+    expect(state.nodePositions).toEqual(positions);
+    expect(state.nodeMeasurements).toEqual(new Map());
+  });
+
+  it("preserves boundary-only workspaces with zero positions", () => {
+    const result = ArchitectureGraph.empty().addBoundary(boundary("empty", "Empty", []));
+    if (!result.ok) throw new Error("Invalid boundary fixture");
+    const document = toPersistedArchitectureEditorDocument({
+      graph: result.graph,
+      nodePositions: new Map(),
+    });
+    expect(document).toMatchObject({
+      schemaVersion: 4,
+      graph: { components: [], connections: [], boundaries: [
+        { id: "empty", name: "Empty", memberComponentIds: [] },
+      ] },
+      nodePositions: [],
+    });
+    expect(restoreSuccessfully(document).graph.getBoundaries()).toEqual(result.graph.getBoundaries());
+  });
+
+  it.each([validDocument(), validV2Document(), validV3Document()])(
+    "loads legacy V1–V3 without boundaries and preserves positions",
+    (document) => {
+      const state = restoreSuccessfully(document);
+      expect(state.graph.getBoundaries()).toEqual([]);
+      expect(state.nodePositions.get(componentId("api"))).toEqual({ x: 40, y: 80 });
+    },
+  );
+
+  it.each([
+    undefined,
+    null,
+    {},
+    [{ id: "x", name: "X" }],
+    [{ id: 1, name: "X", memberComponentIds: [] }],
+    [{ id: "x", name: 1, memberComponentIds: [] }],
+    [{ id: "x", name: "X", memberComponentIds: "api" }],
+    [{ id: "x", name: "X", memberComponentIds: [7] }],
+    [{ id: "x", name: "X", memberComponentIds: [], width: 400 }],
+  ])("rejects malformed boundary records: %j", (boundaries) => {
+    const document = validV4Document();
+    expect(restoreFailure({
+      ...document,
+      graph: { ...document.graph, boundaries },
+    })).toEqual({ type: "invalid-document" });
+  });
+
+  it.each([
+    [[{ id: "x", name: "X", memberComponentIds: [] }, { id: "x", name: "X", memberComponentIds: [] }], "boundary-id-already-exists"],
+    [[{ id: "x", name: "   ", memberComponentIds: [] }], "boundary-name-empty"],
+    [[{ id: "x", name: "X", memberComponentIds: ["missing"] }], "member-component-id-does-not-exist"],
+    [[{ id: "x", name: "X", memberComponentIds: ["api", "api"] }], "duplicate-member-component-id"],
+    [[{ id: "x", name: "X", memberComponentIds: ["api"] }, { id: "y", name: "Y", memberComponentIds: ["api"] }], "member-component-already-in-boundary"],
+  ] as const)("rejects invalid boundary graph: %j", (boundaries, type) => {
+    const document = validV4Document();
+    expect(restoreFailure({
+      ...document,
+      graph: { ...document.graph, boundaries },
+    })).toMatchObject({ type: "invalid-graph", rejection: { type } });
   });
 });

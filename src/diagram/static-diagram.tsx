@@ -7,14 +7,20 @@ import {
   ConnectionMode,
   ReactFlow,
   useReactFlow,
-  type Node,
   type OnConnect,
   type OnNodeDrag,
   type OnNodesChange,
   type ReactFlowInstance,
 } from "@xyflow/react";
 
-import type { ComponentId } from "../domain/identifiers";
+import type { BoundaryId, ComponentId } from "../domain/identifiers";
+import type { DiagramPosition } from "./diagram-layout";
+import {
+  BoundaryNode,
+  type BoundaryFlowNode,
+  type InteractiveBoundaryFlowNode,
+  splitBoundaryNodeChanges,
+} from "./boundary-renderer";
 import {
   ANCHOR_KEYBOARD_INSTRUCTIONS,
   ANCHOR_KEYBOARD_INSTRUCTIONS_ID,
@@ -41,7 +47,7 @@ import {
   withReciprocalEdgeTypes,
 } from "./reciprocal-edge-renderer";
 
-const nodeTypes = { architekt: ArchitektNode };
+const nodeTypes = { architekt: ArchitektNode, boundary: BoundaryNode };
 const edgeTypes = { reciprocal: ReciprocalArchitectureEdge };
 const semanticEdgeLabelStyle = {
   fill: "var(--text-secondary)",
@@ -94,17 +100,25 @@ function AutoLayoutFitViewRequest({
 }
 
 export function requestComponentRenameFromNode(
-  node: Pick<Node, "id">,
+  node: ArchitectureFlowNode,
   onNodeRenameRequested: (componentId: ComponentId) => void,
 ): void {
-  onNodeRenameRequested(node.id as ComponentId);
+  onNodeRenameRequested(node.data.componentId);
 }
 
 type StaticDiagramProps = {
   nodes: ArchitectureFlowNode[];
   edges: ArchitectureFlowEdge[];
+  boundaryNodes?: readonly BoundaryFlowNode[];
+  selectedBoundaryId?: BoundaryId | null;
   selectedComponentIds?: ReadonlySet<ComponentId>;
   onSelectedNodesDelete?(componentIds: readonly ComponentId[]): void;
+  onBoundarySelected?(boundaryId: BoundaryId | null): void;
+  onBoundaryDelete?(boundaryId: BoundaryId): void;
+  onBoundaryDragStart?(boundaryId: BoundaryId, position: DiagramPosition): void;
+  onBoundaryDragStop?(boundaryId: BoundaryId): void;
+  onBoundaryPositionChange?(boundaryId: BoundaryId, position: DiagramPosition): void;
+  onBoundaryKeyboardMove?(boundaryId: BoundaryId, delta: DiagramPosition): void;
   canDeleteSelectedNodes?(): boolean;
   onConnect: OnConnect;
   onNodeDragStart: OnNodeDrag;
@@ -177,8 +191,16 @@ export function withArchitectureEdgePresentation(
 export function StaticDiagram({
   nodes,
   edges,
+  boundaryNodes = [],
+  selectedBoundaryId = null,
   selectedComponentIds = new Set(),
   onSelectedNodesDelete,
+  onBoundarySelected,
+  onBoundaryDelete,
+  onBoundaryDragStart,
+  onBoundaryDragStop,
+  onBoundaryPositionChange,
+  onBoundaryKeyboardMove,
   canDeleteSelectedNodes,
   onConnect,
   onNodeDragStart,
@@ -229,6 +251,7 @@ export function StaticDiagram({
       node.data.kind,
     ),
     type: "architekt",
+    zIndex: 1,
     data: {
       componentId: node.data.componentId,
       name: node.data.name,
@@ -256,6 +279,17 @@ export function StaticDiagram({
       },
     },
   }));
+  const boundaryNodesById = new Map(boundaryNodes.map((node) => [node.id, node]));
+  const interactiveBoundaryNodes: InteractiveBoundaryFlowNode[] = boundaryNodes.map((node) => ({
+    ...node,
+    selected: node.data.boundaryId === selectedBoundaryId,
+    data: {
+      ...node.data,
+      onSelect: () => onBoundarySelected?.(node.data.boundaryId),
+      onMove: (delta) => onBoundaryKeyboardMove?.(node.data.boundaryId, delta),
+      onDelete: () => onBoundaryDelete?.(node.data.boundaryId),
+    },
+  }));
   const architektEdges = withReciprocalEdgeTypes(
     withArchitectureEdgePresentation(
       withAdaptiveEdgeAnchors(edges, nodes),
@@ -269,36 +303,76 @@ export function StaticDiagram({
         {ANCHOR_KEYBOARD_INSTRUCTIONS}
       </p>
       <ReactFlow
-        nodes={architektNodes}
+        nodes={[...interactiveBoundaryNodes, ...architektNodes]}
         edges={architektEdges}
         onConnect={onConnect}
         onConnectStart={handleConnectStart}
         onPaneClick={onPointerConnectionCancelled}
-        onNodeDragStart={onNodeDragStart}
-        onNodeDragStop={onNodeDragStop}
-        onNodesChange={onNodesChange}
-        onNodesDelete={(deletedNodes) =>
-          onSelectedNodesDelete?.(
-            deletedNodes.map((node) => node.data.componentId),
-          )
-        }
+        onNodeDragStart={(event, node, nodes) => {
+          const boundary = boundaryNodesById.get(node.id);
+          if (boundary) onBoundaryDragStart?.(boundary.data.boundaryId, node.position);
+          else onNodeDragStart(event, node, nodes);
+        }}
+        onNodeDragStop={(event, node, nodes) => {
+          const boundary = boundaryNodesById.get(node.id);
+          if (boundary) onBoundaryDragStop?.(boundary.data.boundaryId);
+          else onNodeDragStop(event, node, nodes);
+        }}
+        onNodesChange={(changes) => {
+          const { componentChanges, boundaryChanges } =
+            splitBoundaryNodeChanges(changes, boundaryNodes);
+          let nextSelectedBoundaryId: BoundaryId | null = null;
+          let boundarySelectionChanged = false;
+          for (const change of boundaryChanges) {
+            if (!("id" in change)) continue;
+            const boundary = boundaryNodesById.get(change.id);
+            if (!boundary) continue;
+            if (change.type === "position" && change.position) {
+              onBoundaryPositionChange?.(boundary.data.boundaryId, change.position);
+            } else if (change.type === "select") {
+              if (change.selected) {
+                nextSelectedBoundaryId = boundary.data.boundaryId;
+                boundarySelectionChanged = true;
+              } else if (selectedBoundaryId === boundary.data.boundaryId) {
+                boundarySelectionChanged = true;
+              }
+            }
+          }
+          if (boundarySelectionChanged) onBoundarySelected?.(nextSelectedBoundaryId);
+          if (componentChanges.length > 0) onNodesChange(componentChanges);
+        }}
+        onNodesDelete={(deletedNodes) => {
+          const componentIds: ComponentId[] = [];
+          for (const node of deletedNodes) {
+            const boundary = boundaryNodesById.get(node.id);
+            if (boundary) onBoundaryDelete?.(boundary.data.boundaryId);
+            else {
+              const component = nodes.find((candidate) => candidate.id === node.id);
+              if (component) componentIds.push(component.data.componentId);
+            }
+          }
+          if (componentIds.length > 0) onSelectedNodesDelete?.(componentIds);
+        }}
         onBeforeDelete={async ({ nodes: nodesToDelete, edges: edgesToDelete }) =>
           nodesToDelete.length > 0 && (canDeleteSelectedNodes?.() ?? true)
             ? { nodes: nodesToDelete, edges: edgesToDelete }
             : false
         }
-        onNodeDoubleClick={(_event, node) =>
-          requestComponentRenameFromNode(node, onNodeRenameRequested)
-        }
+        onNodeDoubleClick={(_event, node) => {
+          const component = nodes.find((candidate) => candidate.id === node.id);
+          if (component) requestComponentRenameFromNode(component, onNodeRenameRequested);
+        }}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         fitView
+        minZoom={0.1}
         nodesDraggable
         nodesConnectable
         connectionMode={ConnectionMode.Loose}
         connectionDragThreshold={5}
         connectOnClick={false}
         elementsSelectable
+        elevateNodesOnSelect={false}
         deleteKeyCode={["Delete", "Backspace"]}
         edgesReconnectable={false}
       >

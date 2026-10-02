@@ -1,3 +1,4 @@
+import type { ArchitectureBoundary } from "./architecture-boundary";
 import type {
   ArchitectureComponent,
   ArchitectureComponentKind,
@@ -98,6 +99,78 @@ export type RemoveConnectionResult =
   | { ok: true; graph: ArchitectureGraph }
   | { ok: false; error: RemoveConnectionRejection };
 
+export type AddBoundaryRejection =
+  | {
+      type: "boundary-id-already-exists";
+      boundaryId: ArchitectureBoundary["id"];
+    }
+  | {
+      type: "boundary-name-empty";
+      boundaryId: ArchitectureBoundary["id"];
+    }
+  | {
+      type: "member-component-id-does-not-exist";
+      componentId: ArchitectureComponent["id"];
+    }
+  | {
+      type: "duplicate-member-component-id";
+      componentId: ArchitectureComponent["id"];
+    }
+  | {
+      type: "member-component-already-in-boundary";
+      componentId: ArchitectureComponent["id"];
+      boundaryId: ArchitectureBoundary["id"];
+    };
+
+export type AddBoundaryResult =
+  | { ok: true; graph: ArchitectureGraph }
+  | { ok: false; error: AddBoundaryRejection };
+
+export type RenameBoundaryRejection =
+  | {
+      type: "boundary-id-does-not-exist";
+      boundaryId: ArchitectureBoundary["id"];
+    }
+  | {
+      type: "boundary-name-empty";
+      boundaryId: ArchitectureBoundary["id"];
+    };
+
+export type RenameBoundaryResult =
+  | { ok: true; graph: ArchitectureGraph }
+  | { ok: false; error: RenameBoundaryRejection };
+
+export type RemoveBoundaryRejection = {
+  type: "boundary-id-does-not-exist";
+  boundaryId: ArchitectureBoundary["id"];
+};
+
+export type RemoveBoundaryResult =
+  | { ok: true; graph: ArchitectureGraph }
+  | { ok: false; error: RemoveBoundaryRejection };
+
+export type AssignComponentToBoundaryRejection =
+  | {
+      type: "component-id-does-not-exist";
+      componentId: ArchitectureComponent["id"];
+    }
+  | RemoveBoundaryRejection;
+
+export type AssignComponentToBoundaryResult =
+  | { ok: true; graph: ArchitectureGraph }
+  | { ok: false; error: AssignComponentToBoundaryRejection };
+
+function compareComponentIds(
+  left: ArchitectureComponent["id"],
+  right: ArchitectureComponent["id"],
+): number {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
+function copyBoundary(boundary: ArchitectureBoundary): ArchitectureBoundary {
+  return { ...boundary, memberComponentIds: [...boundary.memberComponentIds] };
+}
+
 export class ArchitectureGraph {
   private constructor(
     private readonly componentsById: ReadonlyMap<
@@ -108,12 +181,17 @@ export class ArchitectureGraph {
       ArchitectureConnection["id"],
       ArchitectureConnection
     >,
+    private readonly boundariesById: ReadonlyMap<
+      ArchitectureBoundary["id"],
+      ArchitectureBoundary
+    >,
   ) {}
 
   static empty(): ArchitectureGraph {
     return new ArchitectureGraph(
       new Map<ArchitectureComponent["id"], ArchitectureComponent>(),
       new Map<ArchitectureConnection["id"], ArchitectureConnection>(),
+      new Map<ArchitectureBoundary["id"], ArchitectureBoundary>(),
     );
   }
 
@@ -144,6 +222,7 @@ export class ArchitectureGraph {
       graph: new ArchitectureGraph(
         new Map(this.componentsById).set(storedComponent.id, storedComponent),
         this.connectionsById,
+        this.boundariesById,
       ),
     };
   }
@@ -162,9 +241,27 @@ export class ArchitectureGraph {
           newConnectionsById.delete(connectionId);
         }
       });
+      let nextBoundariesById: ReadonlyMap<ArchitectureBoundary["id"], ArchitectureBoundary> =
+        this.boundariesById;
+      const containingBoundary = this.findBoundaryContainingComponent(componentId);
+      if (containingBoundary) {
+        nextBoundariesById = new Map(this.boundariesById).set(
+          containingBoundary.id,
+          {
+            ...containingBoundary,
+            memberComponentIds: containingBoundary.memberComponentIds.filter(
+              (memberId) => memberId !== componentId,
+            ),
+          },
+        );
+      }
       return {
         ok: true,
-        graph: new ArchitectureGraph(newComponentsById, newConnectionsById),
+        graph: new ArchitectureGraph(
+          newComponentsById,
+          newConnectionsById,
+          nextBoundariesById,
+        ),
       };
     } else {
       return {
@@ -215,6 +312,7 @@ export class ArchitectureGraph {
           name,
         }),
         this.connectionsById,
+        this.boundariesById,
       ),
     };
   }
@@ -247,6 +345,7 @@ export class ArchitectureGraph {
           kind,
         }),
         this.connectionsById,
+        this.boundariesById,
       ),
     };
   }
@@ -279,6 +378,7 @@ export class ArchitectureGraph {
           ...connection,
           kind,
         }),
+        this.boundariesById,
       ),
     };
   }
@@ -349,6 +449,7 @@ export class ArchitectureGraph {
           storedConnection.id,
           storedConnection,
         ),
+        this.boundariesById,
       ),
     };
   }
@@ -369,8 +470,205 @@ export class ArchitectureGraph {
     newConnectionsById.delete(connectionId);
     return {
       ok: true,
-      graph: new ArchitectureGraph(this.componentsById, newConnectionsById),
+      graph: new ArchitectureGraph(
+        this.componentsById,
+        newConnectionsById,
+        this.boundariesById,
+      ),
     };
+  }
+
+  addBoundary(boundary: ArchitectureBoundary): AddBoundaryResult {
+    if (this.boundariesById.has(boundary.id)) {
+      return {
+        ok: false,
+        error: { type: "boundary-id-already-exists", boundaryId: boundary.id },
+      };
+    }
+    if (boundary.name.trim().length === 0) {
+      return {
+        ok: false,
+        error: { type: "boundary-name-empty", boundaryId: boundary.id },
+      };
+    }
+
+    const seenMembers = new Set<ArchitectureComponent["id"]>();
+    for (const componentId of boundary.memberComponentIds) {
+      if (!this.componentsById.has(componentId)) {
+        return {
+          ok: false,
+          error: { type: "member-component-id-does-not-exist", componentId },
+        };
+      }
+      if (seenMembers.has(componentId)) {
+        return {
+          ok: false,
+          error: { type: "duplicate-member-component-id", componentId },
+        };
+      }
+      seenMembers.add(componentId);
+
+      const containingBoundary = this.findBoundaryContainingComponent(componentId);
+      if (containingBoundary) {
+        return {
+          ok: false,
+          error: {
+            type: "member-component-already-in-boundary",
+            componentId,
+            boundaryId: containingBoundary.id,
+          },
+        };
+      }
+    }
+
+    // Membership is a set; ID ordering gives equivalent input the same representation.
+    const storedBoundary: ArchitectureBoundary = {
+      id: boundary.id,
+      name: boundary.name,
+      memberComponentIds: [...seenMembers].sort(compareComponentIds),
+    };
+    return {
+      ok: true,
+      graph: new ArchitectureGraph(
+        this.componentsById,
+        this.connectionsById,
+        new Map(this.boundariesById).set(storedBoundary.id, storedBoundary),
+      ),
+    };
+  }
+
+  renameBoundary(
+    boundaryId: ArchitectureBoundary["id"],
+    name: ArchitectureBoundary["name"],
+  ): RenameBoundaryResult {
+    const boundary = this.boundariesById.get(boundaryId);
+    if (!boundary) {
+      return {
+        ok: false,
+        error: { type: "boundary-id-does-not-exist", boundaryId },
+      };
+    }
+    if (name.trim().length === 0) {
+      return {
+        ok: false,
+        error: { type: "boundary-name-empty", boundaryId },
+      };
+    }
+    if (name === boundary.name) {
+      return { ok: true, graph: this };
+    }
+
+    return {
+      ok: true,
+      graph: new ArchitectureGraph(
+        this.componentsById,
+        this.connectionsById,
+        new Map(this.boundariesById).set(boundaryId, { ...boundary, name }),
+      ),
+    };
+  }
+
+  removeBoundary(boundaryId: ArchitectureBoundary["id"]): RemoveBoundaryResult {
+    if (!this.boundariesById.has(boundaryId)) {
+      return {
+        ok: false,
+        error: { type: "boundary-id-does-not-exist", boundaryId },
+      };
+    }
+    const nextBoundariesById = new Map(this.boundariesById);
+    nextBoundariesById.delete(boundaryId);
+    return {
+      ok: true,
+      graph: new ArchitectureGraph(
+        this.componentsById,
+        this.connectionsById,
+        nextBoundariesById,
+      ),
+    };
+  }
+
+  assignComponentToBoundary(
+    componentId: ArchitectureComponent["id"],
+    boundaryId: ArchitectureBoundary["id"] | null,
+  ): AssignComponentToBoundaryResult {
+    if (!this.componentsById.has(componentId)) {
+      return {
+        ok: false,
+        error: { type: "component-id-does-not-exist", componentId },
+      };
+    }
+    const targetBoundary = boundaryId === null
+      ? undefined
+      : this.boundariesById.get(boundaryId);
+    if (boundaryId !== null && !targetBoundary) {
+      return {
+        ok: false,
+        error: { type: "boundary-id-does-not-exist", boundaryId },
+      };
+    }
+
+    const currentBoundary = this.findBoundaryContainingComponent(componentId);
+    if ((currentBoundary?.id ?? null) === boundaryId) {
+      return { ok: true, graph: this };
+    }
+
+    const nextBoundariesById = new Map(this.boundariesById);
+    if (currentBoundary) {
+      nextBoundariesById.set(currentBoundary.id, {
+        ...currentBoundary,
+        memberComponentIds: currentBoundary.memberComponentIds.filter(
+          (memberId) => memberId !== componentId,
+        ),
+      });
+    }
+    if (targetBoundary) {
+      nextBoundariesById.set(targetBoundary.id, {
+        ...targetBoundary,
+        memberComponentIds: [...targetBoundary.memberComponentIds, componentId].sort(
+          compareComponentIds,
+        ),
+      });
+    }
+
+    return {
+      ok: true,
+      graph: new ArchitectureGraph(
+        this.componentsById,
+        this.connectionsById,
+        nextBoundariesById,
+      ),
+    };
+  }
+
+  private findBoundaryContainingComponent(
+    componentId: ArchitectureComponent["id"],
+  ): ArchitectureBoundary | undefined {
+    for (const boundary of this.boundariesById.values()) {
+      if (boundary.memberComponentIds.includes(componentId)) {
+        return boundary;
+      }
+    }
+    return undefined;
+  }
+
+  getBoundaryById(
+    boundaryId: ArchitectureBoundary["id"],
+  ): ArchitectureBoundary | undefined {
+    const boundary = this.boundariesById.get(boundaryId);
+    return boundary ? copyBoundary(boundary) : undefined;
+  }
+
+  getBoundaryContainingComponent(
+    componentId: ArchitectureComponent["id"],
+  ): ArchitectureBoundary | undefined {
+    const boundary = this.findBoundaryContainingComponent(componentId);
+    return boundary ? copyBoundary(boundary) : undefined;
+  }
+
+  getBoundaries(): ReadonlyArray<ArchitectureBoundary> {
+    return Array.from(this.boundariesById.values())
+      .sort((left, right) => left.id < right.id ? -1 : left.id > right.id ? 1 : 0)
+      .map(copyBoundary);
   }
 
   getComponents(): ReadonlyArray<Readonly<ArchitectureComponent>> {

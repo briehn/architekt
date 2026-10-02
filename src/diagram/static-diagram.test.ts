@@ -2,7 +2,6 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
-import type { Node } from "@xyflow/react";
 import type { ComponentId } from "../domain/identifiers";
 import type { ArchitectureConnectionKind } from "../domain/architecture-connection";
 import type {
@@ -45,13 +44,13 @@ function edge(
 }
 
 describe("requestComponentRenameFromNode", () => {
-  it("reports the React Flow node ID as the component ID", () => {
+  it("reports the typed component ID from node data", () => {
     const onNodeRenameRequested = vi.fn();
-    const node = { id: "api" } as Pick<Node, "id">;
+    const componentNode = node("renderer-id", "API");
 
-    requestComponentRenameFromNode(node, onNodeRenameRequested);
+    requestComponentRenameFromNode(componentNode, onNodeRenameRequested);
 
-    expect(onNodeRenameRequested).toHaveBeenCalledWith("api" as ComponentId);
+    expect(onNodeRenameRequested).toHaveBeenCalledWith("renderer-id" as ComponentId);
   });
 
   it("labels the focusable React Flow node with its name and kind", () => {

@@ -1,3 +1,4 @@
+import type { ArchitectureBoundary } from "../domain/architecture-boundary";
 import {
   isArchitectureComponentKind,
   type ArchitectureComponent,
@@ -9,14 +10,15 @@ import {
   type ArchitectureConnectionKind,
 } from "../domain/architecture-connection";
 import {
+  type AddBoundaryRejection,
   type AddComponentRejection,
   type AddConnectionRejection,
   ArchitectureGraph,
 } from "../domain/architecture-graph";
-import type { ComponentId, ConnectionId } from "../domain/identifiers";
+import type { BoundaryId, ComponentId, ConnectionId } from "../domain/identifiers";
 import type { ArchitectureEditorState } from "../diagram/architecture-editor-state";
 
-export const ARCHITECTURE_EDITOR_DOCUMENT_SCHEMA_VERSION = 3;
+export const ARCHITECTURE_EDITOR_DOCUMENT_SCHEMA_VERSION = 4;
 
 type PersistedArchitectureConnectionV1V2 = Readonly<{
   id: string;
@@ -71,6 +73,22 @@ export type PersistedArchitectureEditorDocumentV3 =
     PersistedArchitectureConnectionV3
   >;
 
+export type PersistedArchitectureBoundaryV4 = Readonly<{
+  id: string;
+  name: string;
+  memberComponentIds: readonly string[];
+}>;
+
+export type PersistedArchitectureEditorDocumentV4 = Readonly<{
+  schemaVersion: 4;
+  graph: Readonly<{
+    components: PersistedArchitectureEditorDocumentV3["graph"]["components"];
+    connections: PersistedArchitectureEditorDocumentV3["graph"]["connections"];
+    boundaries: readonly PersistedArchitectureBoundaryV4[];
+  }>;
+  nodePositions: PersistedArchitectureEditorDocumentV3["nodePositions"];
+}>;
+
 export type RestoreArchitectureEditorStateError =
   | {
       type: "unsupported-schema-version";
@@ -79,7 +97,7 @@ export type RestoreArchitectureEditorStateError =
   | { type: "invalid-document" }
   | {
       type: "invalid-graph";
-      rejection: AddComponentRejection | AddConnectionRejection;
+      rejection: AddComponentRejection | AddConnectionRejection | AddBoundaryRejection;
     }
   | { type: "invalid-node-positions" };
 
@@ -95,6 +113,8 @@ type PersistedConnectionV1V2 =
   PersistedArchitectureEditorDocumentV1["graph"]["connections"][number];
 type PersistedConnectionV3 =
   PersistedArchitectureEditorDocumentV3["graph"]["connections"][number];
+type PersistedBoundaryV4 =
+  PersistedArchitectureEditorDocumentV4["graph"]["boundaries"][number];
 type PersistedConnectionRecord = Record<string, unknown> &
   PersistedConnectionV1V2;
 
@@ -153,6 +173,20 @@ function isPersistedConnectionV3(
   );
 }
 
+function isPersistedBoundaryV4(value: unknown): value is PersistedBoundaryV4 {
+  return (
+    isRecord(value) &&
+    Object.keys(value).length === 3 &&
+    hasOwn(value, "id") &&
+    hasOwn(value, "name") &&
+    hasOwn(value, "memberComponentIds") &&
+    typeof value.id === "string" &&
+    typeof value.name === "string" &&
+    Array.isArray(value.memberComponentIds) &&
+    value.memberComponentIds.every((memberId) => typeof memberId === "string")
+  );
+}
+
 function migrateLegacyConnections(
   connections: readonly PersistedConnectionV1V2[],
 ): readonly PersistedConnectionV3[] {
@@ -183,9 +217,10 @@ function invalidNodePositions(): RestoreArchitectureEditorStateResult {
 
 export function toPersistedArchitectureEditorDocument(
   state: Pick<ArchitectureEditorState, "graph" | "nodePositions">,
-): PersistedArchitectureEditorDocumentV3 {
+): PersistedArchitectureEditorDocumentV4 {
   const components = state.graph.getComponents();
   const connections = state.graph.getConnections();
+  const boundaries = state.graph.getBoundaries();
   const componentIds = new Set(components.map((component) => component.id));
 
   if (
@@ -233,6 +268,11 @@ export function toPersistedArchitectureEditorDocument(
         targetComponentId: connection.targetComponentId,
         kind: connection.kind,
       })),
+      boundaries: boundaries.map((boundary) => ({
+        id: boundary.id,
+        name: boundary.name,
+        memberComponentIds: [...boundary.memberComponentIds],
+      })),
     },
     nodePositions,
   };
@@ -248,7 +288,8 @@ export function restoreArchitectureEditorState(
   if (
     value.schemaVersion !== 1 &&
     value.schemaVersion !== 2 &&
-    value.schemaVersion !== 3
+    value.schemaVersion !== 3 &&
+    value.schemaVersion !== 4
   ) {
     return {
       ok: false,
@@ -291,7 +332,7 @@ export function restoreArchitectureEditorState(
 
   let persistedConnections: readonly PersistedConnectionV3[];
 
-  if (value.schemaVersion === 3) {
+  if (value.schemaVersion === 3 || value.schemaVersion === 4) {
     if (!value.graph.connections.every(isPersistedConnectionV3)) {
       return invalidDocument();
     }
@@ -305,6 +346,17 @@ export function restoreArchitectureEditorState(
     persistedConnections = migrateLegacyConnections(
       value.graph.connections,
     );
+  }
+
+  let persistedBoundaries: readonly PersistedBoundaryV4[] = [];
+  if (value.schemaVersion === 4) {
+    if (
+      !Array.isArray(value.graph.boundaries) ||
+      !value.graph.boundaries.every(isPersistedBoundaryV4)
+    ) {
+      return invalidDocument();
+    }
+    persistedBoundaries = value.graph.boundaries;
   }
 
   if (
@@ -346,6 +398,26 @@ export function restoreArchitectureEditorState(
       kind: persistedConnection.kind,
     };
     const result = graph.addConnection(connection);
+
+    if (!result.ok) {
+      return {
+        ok: false,
+        error: { type: "invalid-graph", rejection: result.error },
+      };
+    }
+
+    graph = result.graph;
+  }
+
+  for (const persistedBoundary of persistedBoundaries) {
+    const boundary: ArchitectureBoundary = {
+      id: persistedBoundary.id as BoundaryId,
+      name: persistedBoundary.name,
+      memberComponentIds: persistedBoundary.memberComponentIds.map(
+        (componentId) => componentId as ComponentId,
+      ),
+    };
+    const result = graph.addBoundary(boundary);
 
     if (!result.ok) {
       return {

@@ -118,6 +118,12 @@ Use a 4px base unit and an 8px rhythm for most product spacing. Headers are 48-5
 
 Desktop (>=1024px) shows full editor chrome. Tablet (768-1023px) collapses secondary panels while preserving the canvas and primary tools. Mobile (<768px) prioritizes viewing, pan/zoom, and inspection; full editing is undecided/deferred.
 
+## Boundary containers
+
+Non-empty generic boundaries appear as quiet neutral rectangles behind member components and ordinary edges. A 32px header carries the boundary name and is the only selectable and draggable part; long names truncate visually while the full name remains accessible. The interior does not intercept member nodes, anchors, edges, or practical canvas hit targets. The idle border is neutral, selection uses the shared accent border and soft ring, and keyboard focus has its own visible focus outline. No provider icons, type colors, or semantic boundary styles are introduced.
+
+One boundary may be selected at a time, exclusively from component selection. Header drag moves its canonical members together while preserving their spacing; independent component movement reshapes the derived rectangle but never changes membership. The focused header supports Enter/Space selection, arrow movement by 5px or 20px with Shift, and Delete/Backspace deletion of a selected boundary. Empty boundaries have no canvas rectangle. No boundary creation or membership editing control appears in this slice.
+
 ## Auto-Layout interaction
 
 Diagrams start in a left-to-right flow. Four shared anchors allow incoming or outgoing connections on any side, with attachment adapting to relative node geometry. Arrowheads and the ordered connection list convey canonical direction; a side does not imply source or target.
@@ -125,6 +131,8 @@ Diagrams start in a left-to-right flow. Four shared anchors allow incoming or ou
 The secondary text Auto-layout button sits in the editor action row beside the visually separated Undo/Redo group. The row wraps at narrow widths so the canvas is not compressed to keep controls on one line. The native button supports Tab, Enter, and Space with the existing focus ring; activation leaves focus on the button. It is disabled for an empty graph, an active node drag, or inline rename, while incomplete measurements remain acceptable. A changed layout gives a polite visually hidden status, a no-op announces that the diagram is already arranged, and failure uses a concise visible alert.
 
 Changed explicit layouts fit the current canvas immediately with conservative padding and no animation. Horizontal rank and node spacing leave useful room for semantic edge labels and handles; labels remain neutral presentation, not inputs to layout or custom edge routing.
+
+With non-empty boundaries, Auto-layout arranges members inside each boundary first, then spaces the resulting boundary rectangles alongside ungrouped components. Empty boundaries are ignored. The action still moves only components; the visible containers rederive around them and fit within the ordinary canvas view, including narrow viewports where the zoom floor permits a full fit. Undo restores all prior component positions in one step. No additional layout controls or boundary positioning fields appear.
 
 ## AI proposal review
 

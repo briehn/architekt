@@ -39,7 +39,7 @@ Users model systems with Generic, Client, Service, Database, Cache, Queue, Gatew
 - Connection semantics classify intent without restricting valid topology. Any supported kind can describe any structurally valid directional connection, and Request/response does not imply a reverse edge.
 - Protocols and arbitrary free-form connection annotations are not supported yet. They remain separate future product decisions rather than being inferred from semantic kind.
 - React Flow is a renderer only; it is never canonical application state.
-- Fresh diagrams begin in a deterministic left-to-right arrangement before canvas measurements exist; saved V1/V2/V3 diagrams keep their stored positions exactly.
+- Fresh diagrams begin in a deterministic left-to-right arrangement before canvas measurements exist; saved V1/V2/V3/V4 diagrams keep their stored positions exactly.
 - Auto-layout is an explicit whole-diagram action. A changed arrangement is one undo step and fits the canvas immediately; failure keeps the current workspace intact.
 - AI generation produces a transient draft for review: summary, assumptions, typed components, and directed typed connections. The draft is an aid to inspect, not a validated system design. Apply explicitly replaces the diagram with an editable, arranged graph in one undo step; Discard, error, and cancellation leave the workspace untouched.
 - Live evaluation retains Luna with medium reasoning for reviewed starting diagrams. Generated assumptions, calculations, access-control details and failure handling still require human review; structural validation does not establish system-design correctness. See `docs/evaluations/ai-generation-2026-10-01.md` for the fixed prompt set and acceptance limits.

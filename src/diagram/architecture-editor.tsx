@@ -26,7 +26,7 @@ import {
   type AddConnectionRejection,
   ArchitectureGraph,
 } from "../domain/architecture-graph";
-import type { ComponentId, ConnectionId } from "../domain/identifiers";
+import type { BoundaryId, ComponentId, ConnectionId } from "../domain/identifiers";
 import {
   clearLocalArchitectureEditorState,
   loadLocalArchitectureEditorState,
@@ -46,6 +46,8 @@ import {
   renameComponentInEditorState,
   removeComponentFromEditorState,
   removeConnectionFromEditorState,
+  removeBoundaryFromEditorState,
+  projectKnownNodeSizes,
 } from "./architecture-editor-state";
 import {
   COMPONENT_CREATION_KIND_ORDER,
@@ -93,6 +95,14 @@ import {
 import { applyArchitectureProposal } from "./apply-architecture-proposal";
 import { ArchitectureGenerationPanel } from "./architecture-generation-panel";
 import { ArchitectureAnalysisPanel } from "./architecture-analysis-panel";
+import { toBoundaryFlowNodes } from "./boundary-renderer";
+import {
+  captureBoundaryMovement,
+  moveBoundaryBy,
+  translateBoundaryMembers,
+  type BoundaryMovementStart,
+} from "./boundary-movement";
+import type { DiagramPosition } from "./diagram-layout";
 
 function componentId(value: string): ComponentId {
   return value as ComponentId;
@@ -598,6 +608,7 @@ export function ArchitectureEditor() {
     useState<PendingPointerConnectionSource | null>(null);
   const [selectedCanvasComponentIds, setSelectedCanvasComponentIds] =
     useState<ReadonlySet<ComponentId>>(() => new Set());
+  const [selectedBoundaryId, setSelectedBoundaryId] = useState<BoundaryId | null>(null);
   const [generationPanelIsOpen, setGenerationPanelIsOpen] = useState(false);
   const [generationReview, setGenerationReview] = useState<ArchitectureGenerationReviewState>({ status: "idle", prompt: "" });
   const generationControllerRef = useRef<ArchitectureGenerationReviewController | null>(null);
@@ -606,6 +617,10 @@ export function ArchitectureEditor() {
   const autosaveBaselineRef = useRef<PersistedEditorStateBaseline | null>(null);
   const latestEditorStateRef = useRef<ArchitectureEditorState | null>(null);
   const dragStartHistoryRef = useRef<ArchitectureEditorHistory | null>(null);
+  const boundaryDragRef = useRef<Readonly<{
+    start: BoundaryMovementStart;
+    rendererStart: DiagramPosition;
+  }> | null>(null);
   const latestViewStateRef = useRef<ArchitectureEditorViewState>(viewState);
   const renameInputRef = useRef<HTMLInputElement | null>(null);
   const nameControlRefs = useRef(
@@ -773,6 +788,7 @@ export function ArchitectureEditor() {
 
       setPendingPointerConnectionSource(null);
       setSelectedCanvasComponentIds(new Set());
+      setSelectedBoundaryId(null);
       closeRename(activeRenameComponentId);
 
       setViewState((currentViewState) => {
@@ -950,12 +966,24 @@ export function ArchitectureEditor() {
     diagramNodes,
     editorState.nodeMeasurements,
   );
+  const boundaryNodes = toBoundaryFlowNodes(
+    editorState.graph,
+    editorState.nodePositions,
+    projectKnownNodeSizes(editorState),
+  );
+  const activeSelectedBoundaryId = selectedBoundaryId !== null &&
+    editorState.graph.getBoundaryById(selectedBoundaryId)
+      ? selectedBoundaryId
+      : null;
 
   function handleNodesChange(changes: NodeChange[]) {
     if (changes.some((change) => change.type === "select")) {
       setSelectedCanvasComponentIds((currentSelection) =>
         applyCanvasNodeSelectionChanges(currentSelection, changes),
       );
+      if (changes.some((change) => change.type === "select" && change.selected)) {
+        setSelectedBoundaryId(null);
+      }
     }
 
     setViewState((currentViewState) => {
@@ -1009,7 +1037,88 @@ export function ArchitectureEditor() {
     });
   }
 
+  function handleBoundarySelected(boundaryId: BoundaryId | null) {
+    setSelectedBoundaryId(boundaryId);
+    if (boundaryId !== null) {
+      setSelectedCanvasComponentIds(new Set());
+      setPendingPointerConnectionSource(null);
+    }
+  }
+
+  function handleBoundaryDragStart(
+    boundaryId: BoundaryId,
+    rendererStart: DiagramPosition,
+  ) {
+    const current = latestViewStateRef.current;
+    if (
+      current.status === "loading" ||
+      dragStartHistoryRef.current !== null ||
+      renameSession !== null
+    ) return;
+    const start = captureBoundaryMovement(current.history.present, boundaryId);
+    if (!start) return;
+    dragStartHistoryRef.current = current.history;
+    boundaryDragRef.current = { start, rendererStart };
+    handleBoundarySelected(boundaryId);
+    setNodeDragIsActive(true);
+  }
+
+  function handleBoundaryPositionChange(
+    boundaryId: BoundaryId,
+    rendererPosition: DiagramPosition,
+  ) {
+    const drag = boundaryDragRef.current;
+    if (!drag || drag.start.boundaryId !== boundaryId) return;
+    const delta = {
+      x: rendererPosition.x - drag.rendererStart.x,
+      y: rendererPosition.y - drag.rendererStart.y,
+    };
+    setViewState((current) => {
+      if (current.status === "loading") return current;
+      const next = translateBoundaryMembers(current.history.present, drag.start, delta);
+      const history = replaceArchitectureEditorStateWithoutHistory(current.history, next);
+      return history === current.history ? current : { ...current, history };
+    });
+  }
+
+  function handleBoundaryDragStop(boundaryId: BoundaryId) {
+    if (boundaryDragRef.current?.start.boundaryId !== boundaryId) return;
+    boundaryDragRef.current = null;
+    handleNodeDragStop();
+  }
+
+  function handleBoundaryKeyboardMove(boundaryId: BoundaryId, delta: DiagramPosition) {
+    if (renameSession !== null || dragStartHistoryRef.current !== null) return;
+    handleBoundarySelected(boundaryId);
+    setViewState((current) => {
+      if (current.status === "loading") return current;
+      const next = moveBoundaryBy(current.history.present, boundaryId, delta);
+      const history = recordArchitectureEditorState(current.history, next);
+      return history === current.history ? current : { ...current, history };
+    });
+  }
+
+  function handleBoundaryDelete(boundaryId: BoundaryId) {
+    if (
+      activeSelectedBoundaryId !== boundaryId ||
+      !canDeleteSelectedCanvasComponents(
+        renameSession !== null,
+        dragStartHistoryRef.current !== null,
+        isEditableKeyboardTarget(document.activeElement),
+      )
+    ) return;
+    setViewState((current) => {
+      if (current.status === "loading") return current;
+      const result = removeBoundaryFromEditorState(current.history.present, boundaryId);
+      if (!result.ok) return current;
+      const history = recordArchitectureEditorState(current.history, result.state);
+      return history === current.history ? current : { ...current, history };
+    });
+    setSelectedBoundaryId(null);
+  }
+
   function handleAddComponent(kind: ArchitectureComponentKind) {
+    if (boundaryDragRef.current !== null) return;
     const componentId = createComponentId();
 
     setViewState((currentViewState) => {
@@ -1038,6 +1147,7 @@ export function ArchitectureEditor() {
   }
 
   function handleAutoLayout() {
+    if (boundaryDragRef.current !== null) return;
     setViewState((currentViewState) => {
       if (currentViewState.status === "loading") {
         return currentViewState;
@@ -1088,6 +1198,7 @@ export function ArchitectureEditor() {
       announcement: "Generated diagram applied. Undo is available.",
     });
     setSelectedCanvasComponentIds(new Set());
+    setSelectedBoundaryId(null);
     setPendingPointerConnectionSource(null);
     setCanvasNodeFocusRequest(null);
     generationControllerRef.current?.applied();
@@ -1096,6 +1207,7 @@ export function ArchitectureEditor() {
   }
 
   function handleDeleteComponent(componentId: ComponentId) {
+    if (boundaryDragRef.current !== null) return;
     setSelectedCanvasComponentIds((currentSelection) => {
       if (!currentSelection.has(componentId)) return currentSelection;
       const nextSelection = new Set(currentSelection);
@@ -1133,6 +1245,7 @@ export function ArchitectureEditor() {
   }
 
   function handleDeleteSelectedComponents(componentIds: readonly ComponentId[]) {
+    if (boundaryDragRef.current !== null) return;
     setSelectedCanvasComponentIds(new Set());
     setPendingPointerConnectionSource((pendingSource) =>
       pendingSource !== null && componentIds.includes(pendingSource.componentId)
@@ -1155,6 +1268,7 @@ export function ArchitectureEditor() {
     componentId: ComponentId,
     kind: ArchitectureComponentKind,
   ) {
+    if (boundaryDragRef.current !== null) return;
     // A select change is the user's current action, so it must retain focus rather
     // than restoring focus to an abandoned rename control.
     closeRename(null, "preserve-current");
@@ -1177,6 +1291,7 @@ export function ArchitectureEditor() {
   }
 
   function submitRename() {
+    if (boundaryDragRef.current !== null) return;
     if (renameDraft === null) {
       return;
     }
@@ -1257,6 +1372,7 @@ export function ArchitectureEditor() {
     component: Readonly<{ id: ComponentId; name: string }>,
     origin: RenameOrigin,
   ) {
+    if (boundaryDragRef.current !== null) return;
     setPendingPointerConnectionSource(null);
     setRenameSession(createRenameSession(component.id, component.name, origin));
   }
@@ -1298,6 +1414,7 @@ export function ArchitectureEditor() {
       : null;
 
   function handleDeleteConnection(connectionId: ConnectionId) {
+    if (boundaryDragRef.current !== null) return;
     setViewState((currentViewState) => {
       if (currentViewState.status === "loading") {
         return currentViewState;
@@ -1325,6 +1442,7 @@ export function ArchitectureEditor() {
     connectionId: ConnectionId,
     kind: ArchitectureConnectionKind,
   ) {
+    if (boundaryDragRef.current !== null) return;
     setViewState((currentViewState) => {
       if (currentViewState.status === "loading") {
         return currentViewState;
@@ -1346,6 +1464,7 @@ export function ArchitectureEditor() {
     architectureConnection: ArchitectureConnection,
     announceSuccess: boolean,
   ) {
+    if (boundaryDragRef.current !== null) return;
     setViewState((currentViewState) => {
       if (currentViewState.status === "loading") {
         return currentViewState;
@@ -1387,6 +1506,7 @@ export function ArchitectureEditor() {
   }
 
   function handleConnect(connection: Connection) {
+    if (boundaryDragRef.current !== null) return;
     setPendingPointerConnectionSource(null);
     submitConnection(
       toArchitectureConnection(connection, createConnectionId()),
@@ -1472,6 +1592,7 @@ export function ArchitectureEditor() {
     closeRename(null);
     setPendingPointerConnectionSource(null);
     setSelectedCanvasComponentIds(new Set());
+    setSelectedBoundaryId(null);
     setViewState({
       status: "ready",
       history: freshHistory,
@@ -1847,6 +1968,14 @@ export function ArchitectureEditor() {
       <div className="min-h-0 flex-1">
         <StaticDiagram
           selectedComponentIds={selectedCanvasComponentIds}
+          selectedBoundaryId={activeSelectedBoundaryId}
+          boundaryNodes={boundaryNodes}
+          onBoundarySelected={handleBoundarySelected}
+          onBoundaryDelete={handleBoundaryDelete}
+          onBoundaryDragStart={handleBoundaryDragStart}
+          onBoundaryDragStop={handleBoundaryDragStop}
+          onBoundaryPositionChange={handleBoundaryPositionChange}
+          onBoundaryKeyboardMove={handleBoundaryKeyboardMove}
           onSelectedNodesDelete={handleDeleteSelectedComponents}
           canDeleteSelectedNodes={() =>
             canDeleteSelectedCanvasComponents(

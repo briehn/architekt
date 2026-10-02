@@ -9,11 +9,16 @@ import type {
   ArchitectureConnectionKind,
 } from "../domain/architecture-connection";
 import { ArchitectureGraph } from "../domain/architecture-graph";
-import type { ComponentId, ConnectionId } from "../domain/identifiers";
+import type { BoundaryId, ComponentId, ConnectionId } from "../domain/identifiers";
 import {
+  addBoundaryToEditorState,
+  assignComponentToBoundaryInEditorState,
+  removeBoundaryFromEditorState,
+  renameBoundaryInEditorState,
   renameComponentInEditorState,
   type ArchitectureEditorState,
 } from "../diagram/architecture-editor-state";
+import { toPersistedArchitectureEditorDocument } from "./architecture-editor-document";
 import {
   clearLocalArchitectureEditorState,
   loadLocalArchitectureEditorState,
@@ -275,7 +280,7 @@ describe("loadLocalArchitectureEditorState", () => {
     ).toEqual({ ok: true });
     expect(storage.setItemCalls).toHaveLength(1);
     expect(JSON.parse(storage.setItemCalls[0]?.value ?? "")).toMatchObject({
-      schemaVersion: 3,
+      schemaVersion: 4,
       graph: {
         components: [
           { id: "api", name: "Public API", kind: "generic" },
@@ -335,7 +340,7 @@ describe("loadLocalArchitectureEditorState", () => {
     ).toEqual({ ok: true });
     expect(storage.setItemCalls).toHaveLength(1);
     expect(JSON.parse(storage.setItemCalls[0]?.value ?? "")).toMatchObject({
-      schemaVersion: 3,
+      schemaVersion: 4,
       graph: {
         components: [
           { id: "api", name: "Public API", kind: "service" },
@@ -435,13 +440,13 @@ describe("loadLocalArchitectureEditorState", () => {
 
   it("preserves unsupported schema versions as a distinct failure", () => {
     const storage = new MemoryStorage();
-    storage.values.set(storageKey, JSON.stringify({ schemaVersion: 4 }));
+    storage.values.set(storageKey, JSON.stringify({ schemaVersion: 5 }));
 
     expect(loadLocalArchitectureEditorState(storage)).toEqual({
       status: "failed",
       error: {
         type: "unsupported-schema-version",
-        schemaVersion: 4,
+        schemaVersion: 5,
       },
     });
   });
@@ -467,7 +472,7 @@ describe("saveLocalArchitectureEditorState", () => {
     expect(storage.setItemCalls).toHaveLength(1);
     expect(storage.setItemCalls[0]?.key).toBe(storageKey);
     expect(JSON.parse(storage.setItemCalls[0]?.value ?? "")).toEqual({
-      schemaVersion: 3,
+      schemaVersion: 4,
       graph: {
         components: [
           { id: "api", name: "API", kind: "service" },
@@ -481,6 +486,7 @@ describe("saveLocalArchitectureEditorState", () => {
             kind: "request-response",
           },
         ],
+        boundaries: [],
       },
       nodePositions: [
         { componentId: "api", x: 40, y: 80 },
@@ -619,7 +625,7 @@ describe("local architecture editor storage round trip", () => {
     expect(storage.setItemCalls).toHaveLength(1);
     expect(storage.setItemCalls[0]?.key).toBe(storageKey);
     expect(JSON.parse(storage.setItemCalls[0]?.value ?? "")).toMatchObject({
-      schemaVersion: 3,
+      schemaVersion: 4,
       graph: {
         components: expect.arrayContaining([
           { id: "api", name: "Public API", kind: "service" },
@@ -652,5 +658,111 @@ describe("local architecture editor storage round trip", () => {
       expect(loadResult.state.nodePositions).toEqual(state.nodePositions);
       expect(loadResult.state.nodeMeasurements).toEqual(new Map());
     }
+  });
+});
+
+describe("V3 migration to V4", () => {
+  it("loads V3 without rewriting and writes V4 after a boundary edit", () => {
+    const storage = new MemoryStorage();
+    const current = toPersistedArchitectureEditorDocument(editorState());
+    storage.values.set(storageKey, JSON.stringify({
+      schemaVersion: 3,
+      graph: {
+        components: current.graph.components,
+        connections: current.graph.connections,
+      },
+      nodePositions: current.nodePositions,
+    }));
+    const loaded = loadLocalArchitectureEditorState(storage);
+    expect(loaded.status).toBe("loaded");
+    expect(storage.setItemCalls).toHaveLength(0);
+    if (loaded.status !== "loaded") return;
+    expect(loaded.state.graph.getBoundaries()).toEqual([]);
+    const created = addBoundaryToEditorState(loaded.state, {
+      id: "new-boundary" as BoundaryId,
+      name: "New boundary",
+      memberComponentIds: [componentId("api")],
+    });
+    if (!created.ok) throw new Error("Boundary edit failed");
+    expect(saveLocalArchitectureEditorState(storage, created.state)).toEqual({ ok: true });
+    expect(JSON.parse(storage.setItemCalls[0]?.value ?? "")).toMatchObject({
+      schemaVersion: 4,
+      graph: {
+        boundaries: [{ id: "new-boundary", name: "New boundary", memberComponentIds: ["api"] }],
+      },
+    });
+    expect(created.state.nodePositions).toBe(loaded.state.nodePositions);
+  });
+});
+
+describe("V4 boundary storage", () => {
+  it("loads a boundary-only document without rewriting it", () => {
+    const storage = new MemoryStorage();
+    const original = JSON.stringify({
+      schemaVersion: 4,
+      graph: { components: [], connections: [], boundaries: [
+        { id: "empty", name: "Empty", memberComponentIds: [] },
+      ] },
+      nodePositions: [],
+    });
+    storage.values.set(storageKey, original);
+    const loaded = loadLocalArchitectureEditorState(storage);
+    expect(loaded.status).toBe("loaded");
+    if (loaded.status !== "loaded") return;
+    expect(loaded.state.graph.getBoundaries()).toHaveLength(1);
+    expect(loaded.state.nodePositions.size).toBe(0);
+    expect(storage.setItemCalls).toHaveLength(0);
+    expect(storage.values.get(storageKey)).toBe(original);
+  });
+
+  it("saves create, rename, membership, and delete through the ordinary adapter", () => {
+    const storage = new MemoryStorage();
+    const id = "boundary" as BoundaryId;
+    let state = editorState();
+    const created = addBoundaryToEditorState(state, {
+      id, name: "Boundary", memberComponentIds: [],
+    });
+    if (!created.ok) throw new Error("Create failed");
+    state = created.state;
+    expect(saveLocalArchitectureEditorState(storage, state)).toEqual({ ok: true });
+    const renamed = renameBoundaryInEditorState(state, id, "Renamed");
+    if (!renamed.ok) throw new Error("Rename failed");
+    state = renamed.state;
+    expect(saveLocalArchitectureEditorState(storage, state)).toEqual({ ok: true });
+    const assigned = assignComponentToBoundaryInEditorState(state, componentId("api"), id);
+    if (!assigned.ok) throw new Error("Assign failed");
+    state = assigned.state;
+    expect(saveLocalArchitectureEditorState(storage, state)).toEqual({ ok: true });
+    const removed = removeBoundaryFromEditorState(state, id);
+    if (!removed.ok) throw new Error("Delete failed");
+    state = removed.state;
+    expect(saveLocalArchitectureEditorState(storage, state)).toEqual({ ok: true });
+    expect(storage.setItemCalls).toHaveLength(4);
+    expect(storage.setItemCalls.map(({ value }) => JSON.parse(value).graph.boundaries))
+      .toEqual([
+        [{ id: "boundary", name: "Boundary", memberComponentIds: [] }],
+        [{ id: "boundary", name: "Renamed", memberComponentIds: [] }],
+        [{ id: "boundary", name: "Renamed", memberComponentIds: ["api"] }],
+        [],
+      ]);
+  });
+
+  it("preserves invalid V4 bytes for recovery until explicit reset", () => {
+    const storage = new MemoryStorage();
+    const original = JSON.stringify({
+      schemaVersion: 4,
+      graph: { components: [], connections: [], boundaries: [
+        { id: "broken", name: " ", memberComponentIds: [] },
+      ] },
+      nodePositions: [],
+    });
+    storage.values.set(storageKey, original);
+    expect(loadLocalArchitectureEditorState(storage)).toMatchObject({
+      status: "failed", error: { type: "saved-state-invalid" },
+    });
+    expect(storage.values.get(storageKey)).toBe(original);
+    expect(storage.setItemCalls).toHaveLength(0);
+    expect(clearLocalArchitectureEditorState(storage)).toEqual({ ok: true });
+    expect(storage.values.has(storageKey)).toBe(false);
   });
 });

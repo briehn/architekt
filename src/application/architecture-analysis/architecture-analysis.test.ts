@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { ArchitectureComponentKind } from "../../domain/architecture-component";
 import type { ArchitectureConnectionKind } from "../../domain/architecture-connection";
 import { ArchitectureGraph } from "../../domain/architecture-graph";
-import type { ComponentId, ConnectionId } from "../../domain/identifiers";
+import type { BoundaryId, ComponentId, ConnectionId } from "../../domain/identifiers";
 import {
   analyzeArchitecture,
   describeArchitectureFinding,
@@ -636,5 +636,33 @@ describe("relationship-review findings", () => {
     ]);
     expectValidReferences(graph, analysis.findings);
     expect(graph.getConnections()).toHaveLength(198);
+  });
+});
+
+describe("boundary independence", () => {
+  it("derives identical analysis after boundary add, rename, membership transfer, and removal", () => {
+    const graph = graphWith(["api", "database"], [{
+      id: "api-db", source: "api", target: "database", kind: "request-response",
+    }], {}, { api: "client", database: "database" });
+    const baseline = analyzeArchitecture(graph);
+    const first = graph.addBoundary({
+      id: "a" as BoundaryId, name: "A", memberComponentIds: [componentId("api")],
+    });
+    if (!first.ok) throw new Error("Invalid boundary fixture");
+    const second = first.graph.addBoundary({
+      id: "b" as BoundaryId, name: "B", memberComponentIds: [],
+    });
+    if (!second.ok) throw new Error("Invalid boundary fixture");
+    const renamed = second.graph.renameBoundary("a" as BoundaryId, "Renamed");
+    if (!renamed.ok) throw new Error("Invalid rename fixture");
+    const transferred = renamed.graph.assignComponentToBoundary(
+      componentId("api"), "b" as BoundaryId,
+    );
+    if (!transferred.ok) throw new Error("Invalid membership fixture");
+    const removed = transferred.graph.removeBoundary("b" as BoundaryId);
+    if (!removed.ok) throw new Error("Invalid removal fixture");
+    for (const candidate of [first.graph, second.graph, renamed.graph, transferred.graph, removed.graph]) {
+      expect(analyzeArchitecture(candidate)).toEqual(baseline);
+    }
   });
 });

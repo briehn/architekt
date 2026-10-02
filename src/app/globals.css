@@ -101,6 +101,60 @@ body {
   outline-offset: 4px;
 }
 
+.architekt-diagram .react-flow__node-boundary {
+  pointer-events: none;
+}
+
+.architekt-diagram .architekt-boundary {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-subtle) 70%, transparent);
+  pointer-events: none;
+}
+
+.architekt-diagram .architekt-boundary--selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+.architekt-diagram .architekt-boundary__header {
+  display: block;
+  width: 100%;
+  height: 32px;
+  overflow: hidden;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 6px 6px 0 0;
+  background: var(--surface-subtle);
+  color: var(--text-secondary);
+  cursor: grab;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 20px;
+  padding: 5px 12px;
+  pointer-events: auto;
+  text-align: left;
+}
+
+.architekt-diagram .architekt-boundary__header:active {
+  cursor: grabbing;
+}
+
+.architekt-diagram .architekt-boundary__header:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.architekt-diagram .architekt-boundary__name {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .architekt-diagram .architekt-anchor {
   display: grid;
   place-items: center;
