@@ -8,6 +8,7 @@ import {
   useState,
 } from "react";
 import type { Connection, NodeChange } from "@xyflow/react";
+import { ChartNoAxesCombined, LayoutGrid, ListTree, PanelRightClose, Redo2, Sparkles, Undo2, X } from "lucide-react";
 
 import {
   ARCHITECTURE_COMPONENT_KINDS,
@@ -230,6 +231,8 @@ type PersistedEditorStateBaseline = Pick<
   "graph" | "nodePositions"
 >;
 
+type UtilityDockView = "structure" | "analysis" | "ai" | null;
+
 export type RenameDraft = Readonly<{
   componentId: ComponentId;
   name: string;
@@ -310,7 +313,7 @@ export function ComponentTypePicker({
   onAddComponent,
 }: ComponentTypePickerProps) {
   return (
-    <div aria-label="Add component" className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-[repeat(auto-fit,minmax(8.5rem,1fr))]" role="group">
+    <div aria-label="Add component" className="flex flex-col gap-0.5" role="group">
       {COMPONENT_CREATION_KIND_ORDER.map((kind) => {
         const presentation = getComponentKindPresentation(kind);
         const { Icon } = presentation;
@@ -318,7 +321,7 @@ export function ComponentTypePicker({
         return (
           <button
             aria-label={`Add ${presentation.generatedName} component`}
-            className="flex h-10 min-w-0 items-center justify-center gap-2 rounded-md border border-border bg-surface px-2 text-xs font-semibold text-text-primary transition-colors hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+            className="flex min-h-10 min-w-0 items-center gap-3 rounded-sm px-2.5 text-left text-sm text-text-primary transition-colors hover:bg-chrome-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
             key={kind}
             onClick={() => onAddComponent(kind)}
             type="button"
@@ -346,7 +349,7 @@ export function ComponentListKindSelect({
   return (
     <select
       aria-label={accessibleName}
-      className="h-full max-w-36 border-l border-border bg-surface px-2 pr-7 text-xs text-text-primary outline-none transition-colors hover:bg-surface focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-focus-ring"
+      className="h-8 min-w-0 flex-1 rounded-sm border border-border bg-surface px-2 pr-7 text-xs text-text-primary outline-none transition-colors hover:border-text-muted focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-focus-ring"
       onChange={(event) => {
         const kind = getArchitectureComponentKindFromSelectValue(
           event.target.value,
@@ -456,12 +459,13 @@ export function AutoLayoutButton({
   return (
     <button
       aria-label="Auto-layout"
-      className="h-9 rounded-md border border-border bg-surface px-3 text-xs font-semibold text-text-primary transition-colors hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-default disabled:bg-surface-subtle disabled:text-text-muted disabled:hover:bg-surface-subtle"
+    className="workbench-command"
       disabled={disabled}
       onClick={onAutoLayout}
       type="button"
     >
-      Auto-layout
+      <LayoutGrid aria-hidden="true" className="size-4 shrink-0" />
+      <span>Auto-layout</span>
     </button>
   );
 }
@@ -480,7 +484,7 @@ export function ConnectionListKindSelect({
   return (
     <select
       aria-label={accessibleName}
-      className="h-full max-w-40 shrink-0 border-l border-border bg-surface px-2 pr-7 text-xs text-text-primary outline-none transition-colors hover:bg-surface focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-focus-ring"
+      className="h-8 min-w-0 flex-1 rounded-sm border border-border bg-surface px-2 pr-7 text-xs text-text-primary outline-none transition-colors hover:border-text-muted focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-focus-ring"
       onChange={(event) => {
         const kind = getArchitectureConnectionKindFromSelectValue(
           event.target.value,
@@ -609,10 +613,16 @@ export function ArchitectureEditor() {
   const [selectedCanvasComponentIds, setSelectedCanvasComponentIds] =
     useState<ReadonlySet<ComponentId>>(() => new Set());
   const [selectedBoundaryId, setSelectedBoundaryId] = useState<BoundaryId | null>(null);
-  const [generationPanelIsOpen, setGenerationPanelIsOpen] = useState(false);
+  const [dockView, setDockView] = useState<UtilityDockView>(null);
+  const [creationLibraryIsOpen, setCreationLibraryIsOpen] = useState(false);
   const [generationReview, setGenerationReview] = useState<ArchitectureGenerationReviewState>({ status: "idle", prompt: "" });
   const generationControllerRef = useRef<ArchitectureGenerationReviewController | null>(null);
   const generationToggleRef = useRef<HTMLButtonElement | null>(null);
+  const structureToggleRef = useRef<HTMLButtonElement | null>(null);
+  const analysisToggleRef = useRef<HTMLButtonElement | null>(null);
+  const creationToggleRef = useRef<HTMLButtonElement | null>(null);
+  const dockCloseRef = useRef<HTMLButtonElement | null>(null);
+  const creationCloseRef = useRef<HTMLButtonElement | null>(null);
   const storageRef = useRef<StorageLike | null>(null);
   const autosaveBaselineRef = useRef<PersistedEditorStateBaseline | null>(null);
   const latestEditorStateRef = useRef<ArchitectureEditorState | null>(null);
@@ -848,6 +858,26 @@ export function ArchitectureEditor() {
     };
   }, [navigateHistory, pendingPointerConnectionSource, renameSession]);
 
+  useEffect(() => {
+    function closeActiveSheetOnEscape(event: KeyboardEvent) {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      if (creationLibraryIsOpen && target.closest(".workbench-library")) {
+        event.preventDefault();
+        setCreationLibraryIsOpen(false);
+        creationToggleRef.current?.focus();
+      } else if (dockView !== null && target.closest(".workbench-dock")) {
+        event.preventDefault();
+        setDockView(null);
+        (dockView === "ai" ? generationToggleRef : dockView === "analysis" ? analysisToggleRef : structureToggleRef).current?.focus();
+      }
+    }
+
+    window.addEventListener("keydown", closeActiveSheetOnEscape);
+    return () => window.removeEventListener("keydown", closeActiveSheetOnEscape);
+  }, [creationLibraryIsOpen, dockView]);
+
   const persistEditorState = useCallback(
     (editorStateToSave: ArchitectureEditorState) => {
       const storage = storageRef.current;
@@ -936,13 +966,13 @@ export function ArchitectureEditor() {
 
   if (viewState.status === "loading") {
     return (
-      <div
-        className="flex h-full min-h-0 w-full items-center justify-center bg-surface px-4"
-        role="status"
-      >
-        <p className="text-sm text-text-muted">
-          Loading saved workspace…
-        </p>
+      <div className="workbench-shell">
+        <header className="workbench-command-bar">
+          <h1 className="workbench-identity">Architekt</h1>
+        </header>
+        <div className="flex min-h-0 flex-1 items-center justify-center bg-canvas px-4" role="status">
+          <p className="text-sm text-text-muted">Loading saved workspace…</p>
+        </div>
       </div>
     );
   }
@@ -1202,7 +1232,7 @@ export function ArchitectureEditor() {
     setPendingPointerConnectionSource(null);
     setCanvasNodeFocusRequest(null);
     generationControllerRef.current?.applied();
-    setGenerationPanelIsOpen(false);
+    setDockView(null);
     generationToggleRef.current?.focus();
   }
 
@@ -1603,6 +1633,7 @@ export function ArchitectureEditor() {
 
   const components = editorState.graph.getComponents();
   const connections = editorState.graph.getConnections();
+  const boundaries = editorState.graph.getBoundaries();
   const pendingSourceName = pendingPointerConnectionSource === null
     ? null
     : components.find(
@@ -1643,12 +1674,65 @@ export function ArchitectureEditor() {
       ? "Storage is unavailable. The example workspace is open, but changes will be lost on refresh."
       : null;
 
+  function openDock(view: Exclude<UtilityDockView, null>) {
+    setCreationLibraryIsOpen(false);
+    if (dockView === view) {
+      setDockView(null);
+      return;
+    }
+    setDockView(view);
+    window.requestAnimationFrame(() => dockCloseRef.current?.focus());
+  }
+
+  function closeDock() {
+    const closingView = dockView;
+    setDockView(null);
+    (closingView === "ai" ? generationToggleRef : closingView === "analysis" ? analysisToggleRef : structureToggleRef).current?.focus();
+  }
+
   return (
-    <div className="flex h-full min-h-0 w-full flex-col">
-      <div className="max-h-[50%] shrink-0 overflow-y-auto border-b border-border bg-surface px-3 py-3 sm:px-4">
+    <div className="workbench-shell">
+      <header className="workbench-command-bar">
+        <h1 className="workbench-identity">Architekt</h1>
+        <div className="workbench-command-actions" role="group" aria-label="Workspace actions">
+          <button
+            aria-expanded={creationLibraryIsOpen}
+            className="workbench-command workbench-mobile-create"
+            onClick={() => {
+              setDockView(null);
+              setCreationLibraryIsOpen((open) => !open);
+              window.requestAnimationFrame(() => creationCloseRef.current?.focus());
+            }}
+            ref={creationToggleRef}
+            type="button"
+          >
+            <LayoutGrid aria-hidden="true" className="size-4" />
+            <span>Add</span>
+          </button>
+          <div aria-label="History controls" className="workbench-history" role="group">
+            <button aria-label="Undo" className="workbench-command" disabled={!undoIsAvailable} onClick={() => navigateHistory("undo")} type="button">
+              <Undo2 aria-hidden="true" className="size-4" /><span>Undo</span>
+            </button>
+            <button aria-label="Redo" className="workbench-command" disabled={!redoIsAvailable} onClick={() => navigateHistory("redo")} type="button">
+              <Redo2 aria-hidden="true" className="size-4" /><span>Redo</span>
+            </button>
+          </div>
+          <AutoLayoutButton disabled={!autoLayoutIsAvailable} onAutoLayout={handleAutoLayout} />
+          <button aria-expanded={dockView === "structure"} aria-controls={dockView === "structure" ? "workbench-utility-dock" : undefined} aria-pressed={dockView === "structure"} className="workbench-command" onClick={() => openDock("structure")} ref={structureToggleRef} type="button">
+            <ListTree aria-hidden="true" className="size-4" /><span>Structure</span>
+          </button>
+          <button aria-expanded={dockView === "analysis"} aria-controls={dockView === "analysis" ? "workbench-utility-dock" : undefined} aria-pressed={dockView === "analysis"} className="workbench-command" onClick={() => openDock("analysis")} ref={analysisToggleRef} type="button">
+            <ChartNoAxesCombined aria-hidden="true" className="size-4" /><span>Analysis</span>
+          </button>
+          <button aria-expanded={dockView === "ai"} aria-controls={dockView === "ai" ? "workbench-utility-dock" : undefined} aria-pressed={dockView === "ai"} className="workbench-command workbench-command--generate" onClick={() => openDock("ai")} ref={generationToggleRef} type="button">
+            <Sparkles aria-hidden="true" className="size-4" /><span>Generate architecture</span>
+          </button>
+        </div>
+      </header>
+      <div className="workbench-notices">
         {viewState.status === "ready" && viewState.saveFailure !== null ? (
           <div
-            className="mb-3 flex items-center justify-between gap-3"
+            className="flex items-center justify-between gap-3"
             role="alert"
           >
             <p className="text-sm text-danger">Changes are not saved.</p>
@@ -1661,7 +1745,7 @@ export function ArchitectureEditor() {
             </button>
           </div>
         ) : viewState.status === "recovery-required" ? (
-          <div className="mb-3">
+          <div>
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-sm text-danger">{recoveryDescription}</p>
               <button
@@ -1680,108 +1764,111 @@ export function ArchitectureEditor() {
           </div>
         ) : memoryOnlyNotice ? (
           <p
-            className="mb-3 text-sm text-text-secondary"
+            className="text-sm text-text-secondary"
             role="status"
           >
             {memoryOnlyNotice}
           </p>
         ) : null}
 
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-xs font-semibold text-text-secondary">
-              Add component
-            </p>
-            <div className="flex flex-wrap items-center justify-end gap-2">
-              <AutoLayoutButton
-                disabled={!autoLayoutIsAvailable}
-                onAutoLayout={handleAutoLayout}
-              />
-              <div
-                aria-label="History controls"
-                className="flex gap-2 border-l border-border pl-2"
-                role="group"
-              >
-                <button
-                  className="h-9 rounded-md border border-border bg-surface px-3 text-xs font-semibold text-text-primary transition-colors hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-default disabled:bg-surface-subtle disabled:text-text-muted disabled:hover:bg-surface-subtle"
-                  disabled={!undoIsAvailable}
-                  onClick={() => navigateHistory("undo")}
-                  type="button"
-                >
-                  Undo
-                </button>
-                <button
-                  className="h-9 rounded-md border border-border bg-surface px-3 text-xs font-semibold text-text-primary transition-colors hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-default disabled:bg-surface-subtle disabled:text-text-muted disabled:hover:bg-surface-subtle"
-                  disabled={!redoIsAvailable}
-                  onClick={() => navigateHistory("redo")}
-                  type="button"
-                >
-                  Redo
-                </button>
-              </div>
-            </div>
-          </div>
-          <ComponentTypePicker onAddComponent={handleAddComponent} />
-          <ArchitectureGenerationPanel
-            open={generationPanelIsOpen}
-            review={generationReview}
-            applyDisabled={renameSession !== null || nodeDragIsActive}
-            toggleButtonRef={generationToggleRef}
-            onToggle={() => setGenerationPanelIsOpen((open) => !open)}
-            onPromptChange={(prompt) => generationControllerRef.current?.setPrompt(prompt)}
-            onGenerate={() => { void generationControllerRef.current?.generate(); }}
-            onCancel={() => { generationControllerRef.current?.cancel(); generationToggleRef.current?.focus(); }}
-            onApply={handleApplyArchitectureProposal}
-            onDiscard={() => { generationControllerRef.current?.discard(); generationToggleRef.current?.focus(); }}
-          />
-          <ArchitectureAnalysisPanel graph={editorState.graph} />
-          <p aria-live="polite" className="sr-only" role="status">
-            {viewState.announcement ?? ""}
-          </p>
-        </div>
-
         {viewState.componentCreationRejection ? (
-          <p className="mt-2 text-sm text-danger" role="alert">
+          <p className="text-sm text-danger" role="alert">
             Could not create component. Try again.
           </p>
         ) : null}
 
         {viewState.autoLayoutFailure ? (
-          <p className="mt-2 text-sm text-danger" role="alert">
+          <p className="text-sm text-danger" role="alert">
             {AUTO_LAYOUT_FAILURE_MESSAGE}
           </p>
         ) : null}
 
         {connectionRejection ? (
-          <p className="mt-2 text-sm text-danger" role="alert">
+          <p className="text-sm text-danger" role="alert">
             {getAddConnectionErrorMessage(connectionRejection)}
           </p>
         ) : null}
 
         {pendingSourceName !== null ? (
-          <p className="mt-2 text-sm text-text-secondary" role="status">
+          <p className="text-sm text-text-secondary" role="status">
             {getPendingPointerConnectionStatus(pendingSourceName)}
           </p>
         ) : null}
 
-        <div className="mt-3 grid gap-3 border-t border-border pt-3 lg:grid-cols-2">
+        <p aria-live="polite" className="sr-only" role="status">{viewState.announcement ?? ""}</p>
+        <p aria-live="polite" className="sr-only" role="status">
+          {dockView !== "ai" && generationReview.status === "review"
+            ? "Architecture draft ready. Review it before applying."
+            : ""}
+        </p>
+      </div>
+
+      <div className="workbench-body">
+        <aside aria-label="Creation library" className={`workbench-library ${creationLibraryIsOpen ? "is-open" : ""}`}>
+          <div className="workbench-pane-heading">
+            <h2>Components</h2>
+            <button aria-label="Close creation library" className="workbench-pane-close workbench-mobile-close" onClick={() => { setCreationLibraryIsOpen(false); creationToggleRef.current?.focus(); }} ref={creationCloseRef} type="button"><X aria-hidden="true" className="size-4" /></button>
+          </div>
+          <ComponentTypePicker onAddComponent={(kind) => {
+            handleAddComponent(kind);
+            if (creationLibraryIsOpen) {
+              setCreationLibraryIsOpen(false);
+              creationToggleRef.current?.focus();
+            }
+          }} />
+        </aside>
+
+        {dockView !== null ? (
+          <aside aria-label={`${dockView === "ai" ? "AI" : dockView === "analysis" ? "Analysis" : "Structure"} utility panel`} className="workbench-dock" id="workbench-utility-dock">
+            <div className="workbench-pane-heading">
+              <h2>{dockView === "ai" ? "Generate architecture" : dockView === "analysis" ? "Analysis" : "Structure"}</h2>
+              <button aria-label="Close utility panel" className="workbench-pane-close" onClick={closeDock} ref={dockCloseRef} type="button"><PanelRightClose aria-hidden="true" className="size-4" /></button>
+            </div>
+            <div className="workbench-dock-content">
+              {dockView === "ai" ? (
+                <ArchitectureGenerationPanel
+                  review={generationReview}
+                  applyDisabled={renameSession !== null || nodeDragIsActive}
+                  onPromptChange={(prompt) => generationControllerRef.current?.setPrompt(prompt)}
+                  onGenerate={() => { void generationControllerRef.current?.generate(); }}
+                  onCancel={() => { generationControllerRef.current?.cancel(); generationToggleRef.current?.focus(); }}
+                  onApply={handleApplyArchitectureProposal}
+                  onDiscard={() => { generationControllerRef.current?.discard(); generationToggleRef.current?.focus(); }}
+                />
+              ) : null}
+              {dockView === "analysis" ? <ArchitectureAnalysisPanel graph={editorState.graph} /> : null}
+              {dockView === "structure" ? (
+        <div className="space-y-6">
+          {boundaries.length > 0 ? (
+            <section>
+              <h3 className="workbench-section-label">Boundaries</h3>
+              <ul aria-label="Boundaries" className="mt-1 divide-y divide-border/60">
+                {boundaries.map((boundary) => (
+                  <li className="flex min-w-0 items-center justify-between gap-2 py-2 text-sm" key={boundary.id}>
+                    <span className="min-w-0 truncate text-text-primary" title={boundary.name}>{boundary.name}</span>
+                    <span className="shrink-0 text-xs text-text-secondary">{boundary.memberComponentIds.length} {boundary.memberComponentIds.length === 1 ? "member" : "members"}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
           <div>
-            <p className="text-xs font-semibold text-text-secondary">
+            <h3 className="workbench-section-label">
               Components
-            </p>
+            </h3>
             {components.length > 0 ? (
               <ul
                 aria-label="Components"
-                className="mt-2 flex flex-wrap gap-2"
+                className="mt-1 divide-y divide-border/60"
               >
                 {components.map((component) => (
                   <li
-                    className="flex min-h-9 items-stretch overflow-hidden rounded-md border border-border bg-surface-subtle"
+                    className="flex min-w-0 flex-wrap items-center gap-1 py-2"
                     key={component.id}
                   >
                     {renameSession?.origin === "list" &&
                     renameDraft?.componentId === component.id ? (
-                      <div className="flex min-w-0 flex-1 flex-col justify-center px-2 py-1">
+                      <div className="flex min-w-0 basis-full flex-col justify-center py-1">
                         <form
                           className="flex min-w-0 items-center gap-1"
                           onSubmit={handleRenameSubmit}
@@ -1849,7 +1936,7 @@ export function ArchitectureEditor() {
                     ) : (
                       <button
                         aria-label={`Rename ${component.name}`}
-                        className="min-w-0 px-3 text-left text-sm text-text-primary transition-colors hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                        className="min-w-0 basis-full truncate rounded-sm px-1 py-1 text-left text-sm font-medium text-text-primary transition-colors hover:bg-chrome-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                         onClick={() => startRename(component, "list")}
                         ref={(element) => {
                           if (element) {
@@ -1875,7 +1962,7 @@ export function ArchitectureEditor() {
                     />
                     <button
                       aria-label={`Delete ${component.name}`}
-                      className="h-full border-l border-border px-3 text-xs font-semibold text-text-secondary transition-colors hover:bg-surface hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                      className="h-8 rounded-sm px-2 text-xs font-medium text-text-secondary transition-colors hover:bg-chrome-hover hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                       onClick={() => handleDeleteComponent(component.id)}
                       type="button"
                     >
@@ -1892,13 +1979,13 @@ export function ArchitectureEditor() {
           </div>
 
           <div>
-            <p className="text-xs font-semibold text-text-secondary">
+            <h3 className="workbench-section-label">
               Connections
-            </p>
+            </h3>
             {connectionRowsWithAmbiguity.length > 0 ? (
               <ul
                 aria-label="Connections"
-                className="mt-2 flex flex-wrap gap-2"
+                className="mt-1 divide-y divide-border/60"
               >
                 {connectionRowsWithAmbiguity.map(
                   ({
@@ -1908,11 +1995,11 @@ export function ArchitectureEditor() {
                     isAmbiguous,
                   }) => (
                     <li
-                      className="flex min-h-9 items-stretch overflow-hidden rounded-md border border-border bg-surface-subtle"
+                      className="flex min-w-0 flex-wrap items-center gap-1 py-2"
                       key={connection.id}
                     >
-                      <span className="flex min-w-0 flex-1 flex-col justify-center px-3 py-2">
-                        <span className="text-sm text-text-primary">
+                      <span className="flex min-w-0 basis-full flex-col justify-center px-1 py-1">
+                        <span className="break-words text-sm text-text-primary">
                           {sourceName} <span aria-hidden="true">→</span>
                           <span className="sr-only"> to </span>{" "}
                           {targetName}
@@ -1944,7 +2031,7 @@ export function ArchitectureEditor() {
                             ? `Delete connection from ${sourceName} (${connection.sourceComponentId}) to ${targetName} (${connection.targetComponentId})`
                             : `Delete connection from ${sourceName} to ${targetName}`
                         }
-                        className="border-l border-border px-3 text-xs font-semibold text-text-secondary transition-colors hover:bg-surface hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                        className="h-8 rounded-sm px-2 text-xs font-medium text-text-secondary transition-colors hover:bg-chrome-hover hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                         onClick={() =>
                           handleDeleteConnection(connection.id)
                         }
@@ -1963,9 +2050,12 @@ export function ArchitectureEditor() {
             )}
           </div>
         </div>
-      </div>
+              ) : null}
+            </div>
+          </aside>
+        ) : null}
 
-      <div className="min-h-0 flex-1">
+      <div className="workbench-canvas">
         <StaticDiagram
           selectedComponentIds={selectedCanvasComponentIds}
           selectedBoundaryId={activeSelectedBoundaryId}
@@ -2001,6 +2091,7 @@ export function ArchitectureEditor() {
           onNodeRenameRequested={handleNodeRenameRequested}
           onNodesChange={handleNodesChange}
         />
+      </div>
       </div>
     </div>
   );

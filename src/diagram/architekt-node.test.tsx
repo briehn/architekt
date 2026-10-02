@@ -95,8 +95,8 @@ describe("ArchitektNode", () => {
     expect(markup).toContain("Service");
     expect(markup).toContain('aria-label="API, Service"');
     expect(markup).toContain('aria-hidden="true"');
-    expect(markup).toContain('width="16"');
-    expect(markup).toContain('height="16"');
+    expect(markup).toContain('width="14"');
+    expect(markup).toContain('height="14"');
     expect(markup).toContain("text-text-primary");
     expect(markup).toContain("text-text-muted");
     expect(markup).not.toContain("<input");

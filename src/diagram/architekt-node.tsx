@@ -168,16 +168,16 @@ export function ArchitektNode({
         />
       ))}
       {rename === null ? (
-        <div className="flex flex-col items-start gap-1 text-left">
-          <span className="text-sm font-semibold text-text-primary">
+        <div className="flex flex-col items-start gap-0.5 text-left">
+          <span className="architekt-node__name text-sm font-semibold text-text-primary">
             {data.name}
           </span>
-          <span className="flex items-center gap-1.5 text-xs leading-4 text-text-muted">
+          <span className="architekt-node__kind flex items-center gap-1 leading-4 text-text-muted">
             <KindIcon
               aria-hidden="true"
               className="shrink-0"
               focusable="false"
-              size={16}
+              size={14}
               strokeWidth={1.75}
             />
             <span>{kindPresentation.label}</span>

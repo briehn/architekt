@@ -162,11 +162,10 @@ describe("withArchitectureEdgePresentation", () => {
         },
         labelBgStyle: {
           fill: "var(--surface)",
-          stroke: "var(--border)",
-          strokeWidth: 1,
+          stroke: "none",
         },
-        labelBgPadding: [2, 4],
-        labelBgBorderRadius: 4,
+        labelBgPadding: [1, 3],
+        labelBgBorderRadius: 0,
       });
     }
     for (const presentedEdge of presentedEdges) {
@@ -208,11 +207,10 @@ describe("withArchitectureEdgePresentation", () => {
         },
         labelBgStyle: {
           fill: "var(--surface)",
-          stroke: "var(--border)",
-          strokeWidth: 1,
+          stroke: "none",
         },
-        labelBgPadding: [2, 4],
-        labelBgBorderRadius: 4,
+        labelBgPadding: [1, 3],
+        labelBgBorderRadius: 0,
         ariaLabel: "API to Database, Request/response",
       },
       originalPresentation[1],

@@ -68,13 +68,12 @@ const database = { id: "database", name: "Database", kind: "database" } as const
 const service = { id: "service", name: "Service", kind: "service" } as const;
 
 describe("ArchitectureAnalysisPanel", () => {
-  it("starts as a small native disclosure with a keyboard-operable summary", () => {
+  it("renders analysis as utility-dock content with a live status", () => {
     const markup = renderToStaticMarkup(<ArchitectureAnalysisPanel graph={ArchitectureGraph.empty()} />);
-    expect(markup).toContain("<details");
-    expect(markup).toContain("<summary");
-    expect(markup).toContain("Analysis</summary>");
-    expect(markup).not.toContain(" open=\"\"");
-    expect(markup).not.toContain("Disconnected regions");
+    expect(markup).toContain("Summary");
+    expect(markup).toContain("Disconnected regions");
+    expect(markup).toContain("Add components to make analysis useful.");
+    expect(markup).not.toContain("Analysis</summary>");
     expect(markup).toContain('aria-live="polite"');
   });
 

@@ -1,8 +1,39 @@
 # Architekt TODO
 
-## Current milestone: Generic Architecture Boundaries / Groups
+## Current milestone: Schematic Workbench visual overhaul
 
-**Status: In progress.** Slices 1-4 establish canonical membership, V4 persistence/history, derived canvas rendering with boundary movement, and boundary-aware explicit Auto-Layout. Membership UI and final acceptance remain.
+**Status: Ready for product acceptance.** Phases 1–2.1 establish the compact editor shell and polished diagram drawing language. Empty boundaries remain canonical and listed in Structure; they have no canvas rectangle. The overall visual overhaul awaits product review and closeout.
+
+### Phase 1: Editor shell and visual foundations
+
+* [x] Move high-level actions into a compact command bar and nine component kinds into a narrow labeled library
+* [x] Move existing Structure, Analysis, and AI workflows into a bounded, independently scrolling utility dock without changing their domain behavior
+* [x] Keep the canvas height stable as utility views open, close, and switch
+* [x] Provide lower-sheet creation and utility access at narrow widths with keyboard-accessible close/focus behavior
+* [x] Establish quieter chrome, compact radii, restrained borders, and unboxed Structure rows in light and dark palettes
+* [x] Complete Phase 1 browser acceptance and validation: light desktop and 390px production views, dark responsive view, isolated boundary/empty workspace, AI review, editing/Undo, focused/full tests, lint, build, diff check, and source design detector
+
+### Phase 2: Drawing-language refinement
+
+* [x] Refine node, edge, anchor, selection/focus, canvas, and non-empty boundary presentation without changing graph or interaction semantics
+* [x] Keep the 176 x 72 fallback and existing measured node dimensions after browser inspection
+* [x] Validate the drawing language with a temporary 20-component, 24-connection fixture: two non-empty boundaries, an empty boundary, reciprocal pairs, cross-boundary edges, Auto-Layout, light/dark, desktop, and 390px
+* [x] Verify boundary and component dragging, keyboard boundary movement, roving anchor focus and connection creation, selection, rename, kind edits, and Undo
+
+### Phase 2.1: Diagram visual polish
+
+* [x] Quiet idle anchors while preserving 32px targets and clear hover, selection, focus, and pending states
+* [x] Make kind metadata secondary and tighten node content without changing measured dimensions or fallback geometry
+* [x] Reduce edge and arrowhead weight while preserving semantics and reciprocal rendering; simplify the creation library to one Components heading
+* [x] Complete focused regressions, full validation, and light/dark desktop/mobile browser acceptance
+
+### Remaining visual-overhaul closeout
+
+* [ ] Review the finished shell and drawing language as a single product experience before closing this milestone
+
+## Paused milestone: Generic Architecture Boundaries / Groups
+
+**Status: In progress; resume after the visual shell.** Slices 1-4 establish canonical membership, V4 persistence/history, derived canvas rendering with boundary movement, and boundary-aware explicit Auto-Layout. Membership UI and final acceptance remain.
 
 ### Slice 1: Boundary domain foundation
 

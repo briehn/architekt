@@ -877,7 +877,7 @@ describe("addConnectionToEditorState", () => {
         id: "created-from-renderer",
         source: api.id,
         target: database.id,
-        markerEnd: { type: "arrowclosed" },
+        markerEnd: { type: "arrowclosed", color: "var(--diagram-line)", width: 11, height: 11 },
         data: { kind: "generic" },
       },
     ]);
@@ -997,7 +997,7 @@ describe("removeConnectionFromEditorState", () => {
           id: apiToCache.id,
           source: api.id,
           target: cache.id,
-          markerEnd: { type: "arrowclosed" },
+          markerEnd: { type: "arrowclosed", color: "var(--diagram-line)", width: 11, height: 11 },
           data: { kind: "generic" },
         },
       ],

@@ -1,5 +1,4 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { createRef } from "react";
 import { describe, expect, it } from "vitest";
 import { minimalProposal } from "../application/__fixtures__/architecture-proposals";
 import { generationFailure } from "../application/architecture-generation";
@@ -8,11 +7,8 @@ import type { ArchitectureGenerationReviewState } from "./architecture-generatio
 
 function render(review: ArchitectureGenerationReviewState, applyDisabled = false) {
   return renderToStaticMarkup(<ArchitectureGenerationPanel
-    open
     review={review}
     applyDisabled={applyDisabled}
-    toggleButtonRef={createRef()}
-    onToggle={() => {}}
     onPromptChange={() => {}}
     onGenerate={() => {}}
     onCancel={() => {}}
@@ -52,5 +48,14 @@ describe("architecture generation panel", () => {
     expect(markup).toContain("Apply to diagram");
     expect(markup).toContain("Discard</button>");
     expect(markup).toMatch(/disabled=""[^>]*>Apply to diagram/);
+  });
+
+  it("renders the same generation workflow as dock content without a second toggle", () => {
+    const markup = render({ status: "review", prompt: "A system", proposal: minimalProposal(), applyError: false });
+    expect(markup).not.toContain("Generate architecture</button>");
+    expect(markup).toContain("AI-generated draft");
+    expect(markup).toContain("Apply to diagram");
+    expect(markup).toContain("Discard</button>");
+    expect(markup).not.toContain("max-h-[min(42vh,26rem)]");
   });
 });

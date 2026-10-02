@@ -130,7 +130,7 @@ export const ArchitectureAnalysisContent = memo(function ArchitectureAnalysisCon
   );
 
   return (
-    <div className="mt-3 max-h-[min(42vh,26rem)] min-w-0 overflow-y-auto rounded-lg border border-border bg-surface-subtle p-3">
+    <div className="min-w-0">
       <section aria-labelledby="analysis-summary-heading">
         <h2 className="text-sm font-semibold text-text-primary" id="analysis-summary-heading">Summary</h2>
         <dl className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-sm">
@@ -190,40 +190,24 @@ export const ArchitectureAnalysisContent = memo(function ArchitectureAnalysisCon
 });
 
 export function ArchitectureAnalysisPanel({ graph }: ArchitectureAnalysisPanelProps) {
-  const [open, setOpen] = useState(false);
   const [announcement, setAnnouncement] = useState("");
   const previousFindingCountRef = useRef<number | null>(null);
-  const analysis = useMemo(() => (open ? analyzeArchitecture(graph) : null), [graph, open]);
+  const analysis = useMemo(() => analyzeArchitecture(graph), [graph]);
 
   useEffect(() => {
-    if (!open || analysis === null) return;
     const count = analysis.findings.length;
     if (previousFindingCountRef.current !== null && previousFindingCountRef.current !== count) {
       setAnnouncement(getAnalysisFindingCountAnnouncement(analysis));
     }
     previousFindingCountRef.current = count;
-  }, [analysis, open]);
+  }, [analysis]);
 
   return (
-    <details
-      className="min-w-0 border-t border-border pt-3"
-      onToggle={(event) => {
-        if (event.currentTarget !== event.target) return;
-        previousFindingCountRef.current = null;
-        setAnnouncement("");
-        setOpen(event.currentTarget.open);
-      }}
-      open={open}
-    >
-      <summary className="w-fit cursor-pointer rounded-md border border-border bg-surface px-3 py-2 text-xs font-semibold text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring">
-        Analysis
-      </summary>
+    <div className="min-w-0">
       <span aria-live="polite" className="sr-only" role="status">
-        {open ? announcement : ""}
+        {announcement}
       </span>
-      {open && analysis !== null ? (
-        <ArchitectureAnalysisContent analysis={analysis} graph={graph} />
-      ) : null}
-    </details>
+      <ArchitectureAnalysisContent analysis={analysis} graph={graph} />
+    </div>
   );
 }

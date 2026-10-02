@@ -24,7 +24,12 @@ import {
 } from "./diagram-layout";
 import type { ArchitectureConnectionIntent } from "./pointer-connection-controller";
 
-const closedArrowMarker = { type: "arrowclosed" } satisfies EdgeMarker;
+const closedArrowMarker = {
+  type: "arrowclosed",
+  color: "var(--diagram-line)",
+  width: 11,
+  height: 11,
+} satisfies EdgeMarker;
 
 export type ReactFlowNodeMeasurements = ReadonlyMap<
   string,

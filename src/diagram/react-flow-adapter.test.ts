@@ -341,14 +341,14 @@ describe("toReactFlowDiagram", () => {
         id: "api-to-database",
         source: "api",
         target: "database",
-        markerEnd: { type: "arrowclosed" },
+        markerEnd: { type: "arrowclosed", color: "var(--diagram-line)", width: 11, height: 11 },
         data: { kind: "generic" },
       },
       {
         id: "database-to-api",
         source: "database",
         target: "api",
-        markerEnd: { type: "arrowclosed" },
+        markerEnd: { type: "arrowclosed", color: "var(--diagram-line)", width: 11, height: 11 },
         data: { kind: "generic" },
       },
     ];
@@ -395,7 +395,7 @@ describe("toReactFlowDiagram", () => {
         id: "api-to-database",
         source: "api",
         target: "database",
-        markerEnd: { type: "arrowclosed" },
+        markerEnd: { type: "arrowclosed", color: "var(--diagram-line)", width: 11, height: 11 },
         data: { kind: "generic" },
       },
     ]);
@@ -482,7 +482,7 @@ describe("toReactFlowDiagram", () => {
           id: architectureConnection.id,
           source: api.id,
           target: database.id,
-          markerEnd: { type: "arrowclosed" },
+          markerEnd: { type: "arrowclosed", color: "var(--diagram-line)", width: 11, height: 11 },
           data: { kind },
         },
       ]);

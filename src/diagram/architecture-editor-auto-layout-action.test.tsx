@@ -88,7 +88,7 @@ describe("Auto-layout editor action", () => {
     expect(markup).toContain('aria-label="Auto-layout"');
     expect(markup).toContain('type="button"');
     expect(markup).toContain("Auto-layout");
-    expect(markup).toContain("focus-visible:ring-2");
+    expect(markup).toContain('class="workbench-command"');
   });
 
   it("renders the button disabled when requested", () => {

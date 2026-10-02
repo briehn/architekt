@@ -56,8 +56,7 @@ const semanticEdgeLabelStyle = {
 } satisfies CSSProperties;
 const semanticEdgeLabelBackgroundStyle = {
   fill: "var(--surface)",
-  stroke: "var(--border)",
-  strokeWidth: 1,
+  stroke: "none",
 } satisfies CSSProperties;
 
 export type CanvasNodeFocusRequest = Readonly<{
@@ -176,8 +175,8 @@ export function withArchitectureEdgePresentation(
         : {
             labelStyle: semanticEdgeLabelStyle,
             labelBgStyle: semanticEdgeLabelBackgroundStyle,
-            labelBgPadding: [2, 4] as [number, number],
-            labelBgBorderRadius: 4,
+            labelBgPadding: [1, 3] as [number, number],
+            labelBgBorderRadius: 0,
           }),
       ariaLabel: getArchitectureEdgeAccessibleLabel(
         getAccessibleEndpointName(sourceNode, nameCounts),
@@ -382,7 +381,7 @@ export function StaticDiagram({
           gap={20}
           size={1}
           bgColor="var(--canvas)"
-          color="var(--border)"
+          color="var(--diagram-grid)"
           className="architekt-diagram__background"
         />
       </ReactFlow>
