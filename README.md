@@ -2,7 +2,7 @@
 
 **A visual workbench for thinking through software systems.** Describe a system to get an editable architecture draft, or build the diagram yourself. Architekt keeps components, directed relationships, boundaries, and layout as structured workspace data so you can inspect, revise, undo, and revisit a design.
 
-System design often ends up split between an easy-to-change whiteboard and notes that explain the decisions. Architekt currently focuses on the visual editing loop; its document model now stores a plain-text design brief, with the editing interface planned for the next slice.
+System design often ends up split between an easy-to-change whiteboard and notes that explain the decisions. Architekt keeps a plain-text Design Brief beside the diagram so requirements, assumptions, and tradeoffs stay with the editable workspace.
 
 ![Populated Architekt Schematic Workbench](docs/screenshots/workbench.png)
 
@@ -12,6 +12,7 @@ System design often ends up split between an easy-to-change whiteboard and notes
 - Connect nodes from four adaptive sides, including keyboard operation; reciprocal relationships keep distinct directions and labels.
 - Create named, one-level boundaries, explicitly manage membership, move grouped components, and run boundary-aware Auto-layout.
 - Use deterministic Analysis for topology observations and cautious relationship-review questions. It does not score a design.
+- Open the Design Brief from the document title to record requirements, open questions, and the reasons and downsides behind choices. Save the whole brief as one Undo step.
 - Generate a typed AI proposal, review its summary and assumptions, then explicitly **Apply** or **Discard** it. Apply replaces the diagram in one Undo step.
 - Undo and redo meaningful edits; save the current graph, boundary membership, and positions locally across refreshes. **Fit view** changes only the viewport.
 
@@ -72,6 +73,6 @@ On Windows, if Playwright's automatic server shutdown stalls, run `npm run start
 
 ## Intentional limits
 
-Architekt has one browser-local workspace. It has no accounts, cloud sync, public sharing, or editable document import/export yet. The document can store requirements and rationale, but the brief editing UI is not built yet; the graph itself does not capture workload, protocols, deployment, or runtime measurements. Analysis reports only facts and review questions supported by the modeled graph; it cannot prove security, capacity, availability, or correctness. AI drafts need human review. A public deployment with server-funded generation needs abuse and rate controls before anonymous access. Keyboard, DOM semantics, and visible focus have been checked; actual screen-reader speech has not been verified.
+Architekt has one browser-local workspace. It has no accounts, cloud sync, public sharing, or editable document import/export yet. Design Brief content is user-authored context, not verified architecture fact; deterministic Analysis does not use it, and AI does not write it in v1. The graph itself does not capture workload, protocols, deployment, or runtime measurements. Analysis reports only facts and review questions supported by the modeled graph; it cannot prove security, capacity, availability, or correctness. AI drafts need human review. A public deployment with server-funded generation needs abuse and rate controls before anonymous access. Keyboard, DOM semantics, and visible focus have been checked; actual screen-reader speech has not been verified.
 
 This is a personal portfolio project, built as a product rather than a starter template. The [architecture notes](ARCHITECTURE.md), [product intent](PRODUCT.md), and [work log](TODO.md) describe the decisions and current scope.

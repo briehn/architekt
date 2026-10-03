@@ -2,7 +2,7 @@
 
 ## Current milestone: Design Brief + Decision Rationale
 
-**Status: In progress.** Slice 1 establishes canonical document context, V5 persistence, and history. The Design Brief UI is not built yet.
+**Status: Complete.** Slice 1 establishes canonical document context, V5 persistence, and history. Slice 2 adds the restrained Workbench editor and browser acceptance.
 
 ### Slice 1: Design Context model, V5 persistence, and history foundation
 
@@ -14,8 +14,8 @@
 
 ### Slice 2: Design Brief interaction
 
-* [ ] Add a restrained Workbench brief surface with transient whole-brief draft and explicit Save/Cancel, using the Slice 1 validation and history operations; block Save during an active drag transaction
-* [ ] Verify editing, keyboard/accessibility, narrow layouts, unsaved-draft handling, and browser persistence/Undo acceptance
+* [x] Add a restrained Workbench brief surface with transient whole-brief draft and explicit Save/Cancel, using the Slice 1 validation and history operations; block Save during an active drag transaction
+* [x] Verify editing, keyboard/accessibility, narrow layouts, unsaved-draft handling, and browser persistence/Undo acceptance
 
 ## Completed checkpoint: Release readiness and portfolio packaging
 

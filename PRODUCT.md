@@ -16,7 +16,7 @@ Architekt is a system-design workspace for constructing and understanding softwa
 
 ## Positioning
 
-Architekt treats an architecture diagram as a real domain graph rather than merely a drag-and-drop canvas. Validated AI proposals and deterministic analysis already use that foundation. The document model now also stores user-authored requirements and decision rationale; the next slice will make that brief editable in the Workbench. Portable documents and grounded review follow as separate milestones.
+Architekt treats an architecture diagram as a real domain graph rather than merely a drag-and-drop canvas. Validated AI proposals and deterministic analysis already use that foundation. The Workbench also lets users edit a document-level Design Brief for requirements, assumptions, open questions, and decision rationale. Portable documents and grounded review follow as separate milestones.
 
 ## Operating Context
 
@@ -25,7 +25,7 @@ Users model systems with Generic, Client, Service, Database, Cache, Queue, Gatew
 ## Capabilities and Constraints
 
 - `ArchitectureGraph` is the canonical source of truth for architecture structure. `DesignContext` is separate, document-level user-authored reasoning, not a graph fact or an Analysis input.
-- V5 persists a plain-text title, requirements and constraints, assumptions and open questions, and decisions and tradeoffs. Empty values and a context-only document are valid. The brief has no user-facing editor in Slice 1.
+- V5 persists a plain-text title, requirements and constraints, assumptions and open questions, and decisions and tradeoffs. Empty values and a context-only document are valid. The compact document title opens the Design Brief dock; typing remains a draft until explicit whole-brief Save. This user-authored content is not verified architecture fact, is not used by deterministic Analysis, and is not AI-authored in v1.
 - New components are created directly from a compact, type-first picker. Each action assigns its chosen kind and a deterministic generated name such as `Service`, `Service 2`, or `Database`; users rename components later through the existing list or canvas rename flows.
 - Existing component kinds are edited from the component list. The canvas shows a read-only kind icon and label; canvas double-click remains dedicated to rename.
 - Generic represents migrated or intentionally unclassified components. V1 saved workspaces restore their previously untyped components as Generic.

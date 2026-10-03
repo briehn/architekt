@@ -74,7 +74,7 @@ export function ArchitectureGenerationPanel({
           {review.status === "review" ? (
             <div className="mt-3 border-t border-border pt-3">
               <h2 className="text-sm font-semibold text-text-primary">AI-generated draft</h2>
-              <p className="mt-1 text-xs text-text-secondary">This is not a validated design. Apply replaces your current diagram. You can Undo to restore it.</p>
+              <p className="mt-1 text-xs text-text-secondary">This is not a validated design. Apply replaces your current diagram. You can Undo to restore it. Your Design Brief will be kept. Review it against the new architecture after Apply.</p>
               <p className="mt-2 text-sm text-text-primary">{review.proposal.summary}</p>
               <div className="mt-3 space-y-4">
                 <div>
