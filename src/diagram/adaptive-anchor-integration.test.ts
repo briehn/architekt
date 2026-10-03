@@ -60,7 +60,7 @@ describe("adaptive anchor integration boundaries", () => {
     expect(edges.every((edge) => edge.sourceHandle && edge.targetHandle)).toBe(true);
     expect(deriveEdges(state)).toEqual(edges);
     expect(toPersistedArchitectureEditorDocument(state)).toEqual(document);
-    expect(document).toMatchObject({ schemaVersion: 4 });
+    expect(document).toMatchObject({ schemaVersion: 5 });
     for (const connection of document.graph.connections) {
       expect(Object.keys(connection).sort()).toEqual([
         "id", "kind", "sourceComponentId", "targetComponentId",
@@ -97,7 +97,7 @@ describe("adaptive anchor integration boundaries", () => {
     ));
     expect(moved.past).toHaveLength(1);
     expect(moved.present.graph).toBe(initial.present.graph);
-    expect(Object.keys(moved.past[0]).sort()).toEqual(["graph", "nodePositions"]);
+    expect(Object.keys(moved.past[0]).sort()).toEqual(["designContext", "graph", "nodePositions"]);
     expect(deriveEdges(moved.present)[0].sourceHandle).toBe("anchor-top");
     const undone = undoArchitectureEditorHistory(moved);
     expect(deriveEdges(undone.present)[0].sourceHandle).toBe("anchor-right");
@@ -120,7 +120,7 @@ describe("adaptive anchor integration boundaries", () => {
     expect(moved.past).toHaveLength(1);
     expect(moved.present.graph).toBe(initial.present.graph);
     expect(toPersistedArchitectureEditorDocument(moved.present)).toMatchObject({
-      schemaVersion: 4,
+      schemaVersion: 5,
       nodePositions: [{ componentId: "node-0", x: 0, y: 0 }, { componentId: "node-1", x: 250, y: 150 }],
     });
     expect(deriveEdges(redoArchitectureEditorHistory(undoArchitectureEditorHistory(moved)).present))

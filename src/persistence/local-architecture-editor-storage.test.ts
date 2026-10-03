@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { EMPTY_DESIGN_CONTEXT } from "../application/design-context";
 
 import type {
   ArchitectureComponent,
@@ -148,6 +149,7 @@ function editorState(): ArchitectureEditorState {
       [componentId("api"), { x: 40, y: 80 }],
       [componentId("database"), { x: 340, y: 160 }],
     ]),
+    designContext: EMPTY_DESIGN_CONTEXT,
     nodeMeasurements: new Map([
       ["api", { width: 180, height: 64 }],
       ["database", { width: 200, height: 72 }],
@@ -280,7 +282,7 @@ describe("loadLocalArchitectureEditorState", () => {
     ).toEqual({ ok: true });
     expect(storage.setItemCalls).toHaveLength(1);
     expect(JSON.parse(storage.setItemCalls[0]?.value ?? "")).toMatchObject({
-      schemaVersion: 4,
+      schemaVersion: 5,
       graph: {
         components: [
           { id: "api", name: "Public API", kind: "generic" },
@@ -340,7 +342,7 @@ describe("loadLocalArchitectureEditorState", () => {
     ).toEqual({ ok: true });
     expect(storage.setItemCalls).toHaveLength(1);
     expect(JSON.parse(storage.setItemCalls[0]?.value ?? "")).toMatchObject({
-      schemaVersion: 4,
+      schemaVersion: 5,
       graph: {
         components: [
           { id: "api", name: "Public API", kind: "service" },
@@ -440,13 +442,13 @@ describe("loadLocalArchitectureEditorState", () => {
 
   it("preserves unsupported schema versions as a distinct failure", () => {
     const storage = new MemoryStorage();
-    storage.values.set(storageKey, JSON.stringify({ schemaVersion: 5 }));
+    storage.values.set(storageKey, JSON.stringify({ schemaVersion: 6 }));
 
     expect(loadLocalArchitectureEditorState(storage)).toEqual({
       status: "failed",
       error: {
         type: "unsupported-schema-version",
-        schemaVersion: 5,
+        schemaVersion: 6,
       },
     });
   });
@@ -472,7 +474,8 @@ describe("saveLocalArchitectureEditorState", () => {
     expect(storage.setItemCalls).toHaveLength(1);
     expect(storage.setItemCalls[0]?.key).toBe(storageKey);
     expect(JSON.parse(storage.setItemCalls[0]?.value ?? "")).toEqual({
-      schemaVersion: 4,
+      schemaVersion: 5,
+      designContext: EMPTY_DESIGN_CONTEXT,
       graph: {
         components: [
           { id: "api", name: "API", kind: "service" },
@@ -625,7 +628,7 @@ describe("local architecture editor storage round trip", () => {
     expect(storage.setItemCalls).toHaveLength(1);
     expect(storage.setItemCalls[0]?.key).toBe(storageKey);
     expect(JSON.parse(storage.setItemCalls[0]?.value ?? "")).toMatchObject({
-      schemaVersion: 4,
+      schemaVersion: 5,
       graph: {
         components: expect.arrayContaining([
           { id: "api", name: "Public API", kind: "service" },
@@ -686,7 +689,7 @@ describe("V3 migration to V4", () => {
     if (!created.ok) throw new Error("Boundary edit failed");
     expect(saveLocalArchitectureEditorState(storage, created.state)).toEqual({ ok: true });
     expect(JSON.parse(storage.setItemCalls[0]?.value ?? "")).toMatchObject({
-      schemaVersion: 4,
+      schemaVersion: 5,
       graph: {
         boundaries: [{ id: "new-boundary", name: "New boundary", memberComponentIds: ["api"] }],
       },

@@ -551,6 +551,7 @@ describe("structural editor-state history recording", () => {
     expect(history.past[0]).toEqual({
       graph: state.graph,
       nodePositions: state.nodePositions,
+      designContext: state.designContext,
     });
     expect(history.present).toBe(nextState);
     expect(history.present.graph.getComponents()).toEqual([
@@ -582,6 +583,7 @@ describe("structural editor-state history recording", () => {
     expect(history.past[0]).toEqual({
       graph: state.graph,
       nodePositions: state.nodePositions,
+      designContext: state.designContext,
     });
     expect(history.present.graph.getComponents()).toEqual([api]);
   });
@@ -602,6 +604,7 @@ describe("structural editor-state history recording", () => {
     expect(history.past[0]).toEqual({
       graph: state.graph,
       nodePositions: state.nodePositions,
+      designContext: state.designContext,
     });
     expect(history.past[0]).not.toHaveProperty("nodeMeasurements");
     expect(history.present).toBe(renamedState);
@@ -653,6 +656,7 @@ describe("structural editor-state history recording", () => {
       {
         graph: connectedState.graph,
         nodePositions: connectedState.nodePositions,
+        designContext: connectedState.designContext,
       },
     ]);
     expect(history.past[0]).not.toHaveProperty("nodeMeasurements");
@@ -739,6 +743,7 @@ describe("structural editor-state history recording", () => {
       {
         graph: connectedState.graph,
         nodePositions: connectedState.nodePositions,
+        designContext: connectedState.designContext,
       },
     ]);
     expect(history.past[0]).not.toHaveProperty("nodeMeasurements");
@@ -792,6 +797,7 @@ describe("structural editor-state history recording", () => {
     expect(history.past[0]).toEqual({
       graph: state.graph,
       nodePositions: state.nodePositions,
+      designContext: state.designContext,
     });
     expect(history.present.graph.getConnections()).toEqual([apiToDatabase]);
   });
@@ -812,6 +818,7 @@ describe("structural editor-state history recording", () => {
     expect(history.past[0]).toEqual({
       graph: state.graph,
       nodePositions: state.nodePositions,
+      designContext: state.designContext,
     });
     expect(history.present.graph.getConnections()).toEqual([]);
   });
@@ -1207,6 +1214,7 @@ describe("ArchitectureEditorHistory auto-layout", () => {
     expect(history.past[0]).toEqual({
       graph: initialState.graph,
       nodePositions: initialState.nodePositions,
+      designContext: initialState.designContext,
     });
     expect(history.past[0]).not.toHaveProperty("nodeMeasurements");
     expect(history.present).toBe(layoutState);
@@ -1393,6 +1401,7 @@ describe("ArchitectureEditorHistory drag transactions", () => {
     expect(history.past[0]).toEqual({
       graph: state.graph,
       nodePositions: state.nodePositions,
+      designContext: state.designContext,
     });
     expect(history.past[0]).not.toHaveProperty("nodeMeasurements");
     expect(history.present).toBe(finalState);

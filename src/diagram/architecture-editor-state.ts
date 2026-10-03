@@ -1,5 +1,6 @@
 import type { NodeChange } from "@xyflow/react";
 
+import { EMPTY_DESIGN_CONTEXT, hasDesignContextContent, type DesignContext } from "../application/design-context";
 import type { ArchitectureBoundary } from "../domain/architecture-boundary";
 import type {
   ArchitectureComponent,
@@ -13,7 +14,6 @@ import type {
   AddBoundaryRejection,
   AddComponentRejection,
   AddConnectionRejection,
-  ArchitectureGraph,
   AssignComponentToBoundaryRejection,
   ChangeComponentKindRejection,
   ChangeConnectionKindRejection,
@@ -23,6 +23,7 @@ import type {
   RemoveConnectionRejection,
   RenameBoundaryRejection,
 } from "../domain/architecture-graph";
+import { ArchitectureGraph } from "../domain/architecture-graph";
 import type { BoundaryId, ComponentId, ConnectionId } from "../domain/identifiers";
 import {
   layoutArchitectureGraph,
@@ -47,6 +48,7 @@ import {
 export type ArchitectureEditorState = {
   readonly graph: ArchitectureGraph;
   readonly nodePositions: DiagramNodePositions;
+  readonly designContext: DesignContext;
   readonly nodeMeasurements: ReactFlowNodeMeasurements;
 };
 
@@ -104,8 +106,19 @@ export function createArchitectureEditorState(
   return {
     graph,
     nodePositions: createInitialDiagramNodePositions(graph),
+    designContext: EMPTY_DESIGN_CONTEXT,
     nodeMeasurements: new Map(),
   };
+}
+
+export function createEmptyArchitectureEditorState(): ArchitectureEditorState {
+  return createArchitectureEditorState(ArchitectureGraph.empty());
+}
+
+export function hasCanonicalArchitectureEditorContent(state: ArchitectureEditorState): boolean {
+  return state.graph.getComponents().length > 0 ||
+    state.graph.getBoundaries().length > 0 ||
+    hasDesignContextContent(state.designContext);
 }
 
 export function createFreshArchitectureEditorState(
@@ -142,6 +155,7 @@ export function applyReactFlowNodeChangesToEditorState(
   return {
     graph: state.graph,
     nodePositions,
+    designContext: state.designContext,
     nodeMeasurements,
   };
 }
@@ -175,6 +189,7 @@ export function autoLayoutArchitectureEditorState(
     state: {
       graph: state.graph,
       nodePositions: layoutResult.nodePositions,
+      designContext: state.designContext,
       nodeMeasurements: state.nodeMeasurements,
     },
   };
@@ -250,6 +265,7 @@ export function addComponentToEditorState(
     state: {
       graph: graphResult.graph,
       nodePositions,
+      designContext: state.designContext,
       nodeMeasurements: state.nodeMeasurements,
     },
   };
@@ -275,6 +291,7 @@ export function renameComponentInEditorState(
     state: {
       graph: graphResult.graph,
       nodePositions: state.nodePositions,
+      designContext: state.designContext,
       nodeMeasurements: state.nodeMeasurements,
     },
   };
@@ -300,6 +317,7 @@ export function changeComponentKindInEditorState(
     state: {
       graph: graphResult.graph,
       nodePositions: state.nodePositions,
+      designContext: state.designContext,
       nodeMeasurements: state.nodeMeasurements,
     },
   };
@@ -325,6 +343,7 @@ export function changeConnectionKindInEditorState(
     state: {
       graph: graphResult.graph,
       nodePositions: state.nodePositions,
+      designContext: state.designContext,
       nodeMeasurements: state.nodeMeasurements,
     },
   };
@@ -345,6 +364,7 @@ export function addConnectionToEditorState(
     state: {
       graph: graphResult.graph,
       nodePositions: state.nodePositions,
+      designContext: state.designContext,
       nodeMeasurements: state.nodeMeasurements,
     },
   };
@@ -365,6 +385,7 @@ export function removeConnectionFromEditorState(
     state: {
       graph: graphResult.graph,
       nodePositions: state.nodePositions,
+      designContext: state.designContext,
       nodeMeasurements: state.nodeMeasurements,
     },
   };
@@ -388,6 +409,7 @@ export function removeComponentFromEditorState(
         state.nodePositions,
         componentId,
       ),
+      designContext: state.designContext,
       nodeMeasurements: removeReactFlowNodeMeasurement(
         state.nodeMeasurements,
         componentId,
@@ -405,6 +427,7 @@ function withBoundaryGraph(
     : {
         graph,
         nodePositions: state.nodePositions,
+        designContext: state.designContext,
         nodeMeasurements: state.nodeMeasurements,
       };
 }

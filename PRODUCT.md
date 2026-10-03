@@ -16,7 +16,7 @@ Architekt is a system-design workspace for constructing and understanding softwa
 
 ## Positioning
 
-Architekt treats an architecture diagram as a real domain graph rather than merely a drag-and-drop canvas. That foundation enables future validated AI assistance, system-design analysis, capacity calculations, interview practice, and intelligent architecture changes.
+Architekt treats an architecture diagram as a real domain graph rather than merely a drag-and-drop canvas. Validated AI proposals and deterministic analysis already use that foundation. The document model now also stores user-authored requirements and decision rationale; the next slice will make that brief editable in the Workbench. Portable documents and grounded review follow as separate milestones.
 
 ## Operating Context
 
@@ -24,7 +24,8 @@ Users model systems with Generic, Client, Service, Database, Cache, Queue, Gatew
 
 ## Capabilities and Constraints
 
-- `ArchitectureGraph` is the canonical source of truth.
+- `ArchitectureGraph` is the canonical source of truth for architecture structure. `DesignContext` is separate, document-level user-authored reasoning, not a graph fact or an Analysis input.
+- V5 persists a plain-text title, requirements and constraints, assumptions and open questions, and decisions and tradeoffs. Empty values and a context-only document are valid. The brief has no user-facing editor in Slice 1.
 - New components are created directly from a compact, type-first picker. Each action assigns its chosen kind and a deterministic generated name such as `Service`, `Service 2`, or `Database`; users rename components later through the existing list or canvas rename flows.
 - Existing component kinds are edited from the component list. The canvas shows a read-only kind icon and label; canvas double-click remains dedicated to rename.
 - Generic represents migrated or intentionally unclassified components. V1 saved workspaces restore their previously untyped components as Generic.
@@ -33,19 +34,20 @@ Users model systems with Generic, Client, Service, Database, Cache, Queue, Gatew
 - Components offer shared connection anchors on all four sides. Attachment adapts to relative geometry, independently of canonical source-to-target direction; multiple edges may share a side.
 - Native drag and two-step click/tap creation use the same canvas anchors as keyboard creation. The first activated component is the source and the second is the destination. Selecting another side of the pending source changes only the start affordance. Escape or an empty-canvas click cancels pending creation without editing the graph.
 - Keyboard users Tab to one anchor per node, choose a side with arrow keys, and use Enter/Space to start or complete a connection. Focus may leave the canvas without cancelling the pending source; there is no focus trap.
-- Reciprocal connections share one visual center path with an arrowhead at each end; each canonical direction retains its own semantic label and accessible description. Adaptive sides are visual only, not named ports or modeled interfaces. Manual browser, touch, and accessibility acceptance is complete; see `TODO.md`.
+- Reciprocal connections share one visual center path with an arrowhead at each end; each canonical direction retains its own semantic label and accessible description. Adaptive sides are visual only, not named ports or modeled interfaces. Keyboard, touch, focus, and DOM semantics have been manually checked; actual screen-reader speech has not been verified.
 - Connection semantics describe the architectural relationship rather than its transport: Generic is intentionally unclassified, Request/response is a directed interaction that expects a response, Async messaging is decoupled message delivery, Streaming is an ongoing flow of values or events, and Data access is a read/write relationship with a data-holding component.
 - Generic connections remain canonical, persisted, accessible, and editable but have no visible canvas label. Request/response, Async messaging, Streaming, and Data access use concise visible edge labels.
 - Connection semantics classify intent without restricting valid topology. Any supported kind can describe any structurally valid directional connection, and Request/response does not imply a reverse edge.
 - Protocols and arbitrary free-form connection annotations are not supported yet. They remain separate future product decisions rather than being inferred from semantic kind.
 - React Flow is a renderer only; it is never canonical application state.
-- Fresh diagrams begin in a deterministic left-to-right arrangement before canvas measurements exist; saved V1/V2/V3/V4 diagrams keep their stored positions exactly.
+- Fresh diagrams begin in a deterministic left-to-right arrangement before canvas measurements exist; saved V1–V5 diagrams keep their stored positions exactly.
 - Auto-layout is an explicit whole-diagram action. A changed arrangement is one undo step and fits the canvas immediately; failure keeps the current workspace intact.
-- AI generation produces a transient draft for review: summary, assumptions, typed components, and directed typed connections. The draft is an aid to inspect, not a validated system design. Apply explicitly replaces the diagram with an editable, arranged graph in one undo step; Discard, error, and cancellation leave the workspace untouched.
+- Fit view reframes the current graph and non-empty boundaries without moving components, creating history, or persisting viewport state.
+- AI generation produces a transient draft for review: summary, assumptions, typed components, and directed typed connections. The draft is an aid to inspect, not a validated system design. Apply explicitly replaces the diagram with an editable, arranged graph in one undo step while preserving user-authored DesignContext; Discard, error, and cancellation leave the workspace untouched.
 - Live evaluation retains Luna with medium reasoning for reviewed starting diagrams. Generated assumptions, calculations, access-control details and failure handling still require human review; structural validation does not establish system-design correctness. See `docs/evaluations/ai-generation-2026-10-01.md` for the fixed prompt set and acceptance limits.
 - A collapsed Analysis disclosure presents deterministic counts, structural observations, and limited relationship-review questions from the current graph. Evidence can be expanded, but analysis never edits the diagram. Its findings are transient and cannot prove runtime behavior, security, scalability, or correctness.
 - Ordinary graph edits and later node measurements never rearrange the diagram automatically. Pinning, partial layout, and orientation choice are outside the current product scope.
-- Users can create named, one-level generic boundaries with zero or more explicitly chosen members; empty boundaries remain available in Structure for later use and have no canvas rectangle. Structure supports rename, deletion, assignment, transfer, and ungrouping. Boundary deletion keeps components and connections; membership edits preserve positions and use ordinary Undo/Redo and V4 local persistence. Visual containment never changes membership automatically.
+- Users can create named, one-level generic boundaries with zero or more explicitly chosen members; empty boundaries remain available in Structure for later use and have no canvas rectangle. Structure supports rename, deletion, assignment, transfer, and ungrouping. Boundary deletion keeps components and connections; membership edits preserve positions and use ordinary Undo/Redo and V5 local persistence. Visual containment never changes membership automatically.
 - Boundaries are generic organizational groups. Nested or overlapping membership, provider-specific meanings, AI-generated boundaries, boundary-aware Analysis, boundary-to-boundary canonical connections, obstacle-aware routing, and collaborative grouping remain outside the current scope.
 - The domain layer remains independent of React, Next.js, React Flow, Zustand, persistence, and AI.
 - React Flow-specific position and visual-style data stay outside the domain model.
@@ -61,7 +63,7 @@ Architekt should feel like a polished, professional developer tool—not a gener
 ## Evidence on Hand
 
 - The implemented framework-independent graph and its invariants are documented in `ARCHITECTURE.md` and tested in `src/domain/architecture-graph.test.ts`.
-- The current workspace shell and static renderer demonstration are in `src/app/page.tsx` and `src/diagram/static-diagram.tsx`.
+- The current workspace shell and interactive editor are in `src/app/page.tsx` and `src/diagram/architecture-editor.tsx`; `src/diagram/static-diagram.tsx` renders the derived canvas.
 - There are no customer testimonials, case studies, benchmarks, pricing claims, or production-use evidence; future work must not fabricate them.
 
 ## Product Principles

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { EMPTY_DESIGN_CONTEXT } from "../application/design-context";
 
 import {
   ARCHITECTURE_COMPONENT_KINDS,
@@ -23,6 +24,7 @@ import {
   type PersistedArchitectureEditorDocumentV2,
   type PersistedArchitectureEditorDocumentV3,
   type PersistedArchitectureEditorDocumentV4,
+  type PersistedArchitectureEditorDocumentV5,
   type RestoreArchitectureEditorStateError,
 } from "./architecture-editor-document";
 
@@ -107,6 +109,7 @@ function editorStateForSerialization(): ArchitectureEditorState {
       [componentId("api"), { x: 40, y: 80 }],
       [componentId("database"), { x: 340, y: 160 }],
     ]),
+    designContext: EMPTY_DESIGN_CONTEXT,
     nodeMeasurements: new Map([
       ["api", { width: 180, height: 64 }],
       ["database", { width: 200, height: 72 }],
@@ -207,6 +210,11 @@ function validV4Document(): PersistedArchitectureEditorDocumentV4 {
   };
 }
 
+function validV5Document(): PersistedArchitectureEditorDocumentV5 {
+  const previous = validV4Document();
+  return { ...previous, schemaVersion: 5, designContext: EMPTY_DESIGN_CONTEXT };
+}
+
 function restoreSuccessfully(value: unknown): ArchitectureEditorState {
   const result = restoreArchitectureEditorState(value);
 
@@ -243,12 +251,12 @@ function expectGraphMembers(
 }
 
 describe("toPersistedArchitectureEditorDocument", () => {
-  it("serializes graph structure, kinds, and positions as a plain V4 document", () => {
+  it("serializes graph structure, kinds, and positions as a plain V5 document", () => {
     const document = toPersistedArchitectureEditorDocument(
       editorStateForSerialization(),
     );
 
-    expect(document).toEqual(validV4Document());
+    expect(document).toEqual(validV5Document());
     expect(JSON.parse(JSON.stringify(document))).toEqual(document);
   });
 
@@ -267,16 +275,17 @@ describe("toPersistedArchitectureEditorDocument", () => {
     ]);
     expect(Object.keys(document)).toEqual([
       "schemaVersion",
+      "designContext",
       "graph",
       "nodePositions",
     ]);
   });
 
-  it("serializes a renamed component and connection kinds in V4", () => {
+  it("serializes a renamed component and connection kinds in V5", () => {
     const renamedState = renamedEditorStateForSerialization();
     const document = toPersistedArchitectureEditorDocument(renamedState);
 
-    expect(document.schemaVersion).toBe(4);
+    expect(document.schemaVersion).toBe(5);
     expect(document.graph.components).toContainEqual({
       id: "api",
       name: "Public API",
@@ -310,7 +319,9 @@ describe("toPersistedArchitectureEditorDocument", () => {
 
     (document.graph.components[0] as { name: string }).name = "Changed";
     (document.nodePositions[0] as { x: number }).x = 999;
+    (document.designContext as { title: string }).title = "Changed";
 
+    expect(sourceState.designContext.title).toBe("");
     expect(sourceState.graph.getComponents()).toEqual(sourceComponents);
     expect(sourceState.graph.getConnections()).toEqual(sourceConnections);
     expect(Array.from(sourceState.nodePositions.entries())).toEqual(
@@ -463,7 +474,7 @@ describe("restoreArchitectureEditorState", () => {
     },
   );
 
-  it("round trips every supported component kind through V4", () => {
+  it("round trips every supported component kind through V5", () => {
     let graph = ArchitectureGraph.empty();
     const nodePositions = new Map<
       ComponentId,
@@ -484,18 +495,19 @@ describe("restoreArchitectureEditorState", () => {
     const document = toPersistedArchitectureEditorDocument({
       graph,
       nodePositions,
+      designContext: EMPTY_DESIGN_CONTEXT,
     });
     const restoredState = restoreSuccessfully(
       JSON.parse(JSON.stringify(document)),
     );
 
-    expect(document.schemaVersion).toBe(4);
+    expect(document.schemaVersion).toBe(5);
     expect(restoredState.graph.getComponents()).toEqual(expectedComponents);
     expect(restoredState.nodePositions).toEqual(nodePositions);
     expect(restoredState.nodeMeasurements).toEqual(new Map());
   });
 
-  it("round trips all five connection kinds through V4", () => {
+  it("round trips all five connection kinds through V5", () => {
     let graph = ArchitectureGraph.empty();
     const source = component("source", "Source", "service");
     graph = addComponent(graph, source);
@@ -522,6 +534,7 @@ describe("restoreArchitectureEditorState", () => {
     const document = toPersistedArchitectureEditorDocument({
       graph,
       nodePositions,
+      designContext: EMPTY_DESIGN_CONTEXT,
     });
     const restoredState = restoreSuccessfully(
       JSON.parse(JSON.stringify(document)),
@@ -742,10 +755,10 @@ describe("restoreArchitectureEditorState", () => {
       type: "invalid-document",
     });
     expect(
-      restoreFailure({ ...validDocument(), schemaVersion: 5 }),
+      restoreFailure({ ...validDocument(), schemaVersion: 6 }),
     ).toEqual({
       type: "unsupported-schema-version",
-      schemaVersion: 5,
+      schemaVersion: 6,
     });
   });
 
@@ -1055,6 +1068,7 @@ describe("V4 boundary persistence", () => {
     const document = toPersistedArchitectureEditorDocument({
       graph: second.graph,
       nodePositions: positions,
+      designContext: EMPTY_DESIGN_CONTEXT,
     });
     expect(document.graph.boundaries).toEqual([
       { id: "a", name: "Tier", memberComponentIds: [] },
@@ -1072,9 +1086,10 @@ describe("V4 boundary persistence", () => {
     const document = toPersistedArchitectureEditorDocument({
       graph: result.graph,
       nodePositions: new Map(),
+      designContext: EMPTY_DESIGN_CONTEXT,
     });
     expect(document).toMatchObject({
-      schemaVersion: 4,
+      schemaVersion: 5,
       graph: { components: [], connections: [], boundaries: [
         { id: "empty", name: "Empty", memberComponentIds: [] },
       ] },

@@ -9,8 +9,8 @@ import type {
   ArchitectureFlowNode,
 } from "./react-flow-adapter";
 import {
-  AUTO_LAYOUT_FIT_VIEW_PADDING,
-  consumeAutoLayoutFitViewRequest,
+  FIT_VIEW_PADDING,
+  consumeFitViewRequest,
   requestComponentRenameFromNode,
   StaticDiagram,
   withArchitectureEdgePresentation,
@@ -73,7 +73,7 @@ describe("requestComponentRenameFromNode", () => {
         onNodeDragStart: vi.fn(),
         onNodeDragStop: vi.fn(),
         onNodesChange: vi.fn(),
-        autoLayoutFitRequestId: 0,
+        fitViewRequestId: 0,
         canvasRename: null,
         canvasNodeFocusRequest: null,
         onNodeRenameRequested: vi.fn(),
@@ -85,18 +85,18 @@ describe("requestComponentRenameFromNode", () => {
   });
 });
 
-describe("consumeAutoLayoutFitViewRequest", () => {
+describe("consumeFitViewRequest", () => {
   it("consumes each newer request once with immediate conservative fitting", () => {
     const fitView = vi.fn(() => Promise.resolve(true));
     const reactFlow = { fitView };
 
-    const firstRequest = consumeAutoLayoutFitViewRequest(1, 0, reactFlow);
-    const duplicateRequest = consumeAutoLayoutFitViewRequest(
+    const firstRequest = consumeFitViewRequest(1, 0, reactFlow);
+    const duplicateRequest = consumeFitViewRequest(
       1,
       firstRequest,
       reactFlow,
     );
-    const secondRequest = consumeAutoLayoutFitViewRequest(
+    const secondRequest = consumeFitViewRequest(
       2,
       duplicateRequest,
       reactFlow,
@@ -107,10 +107,10 @@ describe("consumeAutoLayoutFitViewRequest", () => {
     expect(secondRequest).toBe(2);
     expect(fitView).toHaveBeenCalledTimes(2);
     expect(fitView).toHaveBeenNthCalledWith(1, {
-      padding: AUTO_LAYOUT_FIT_VIEW_PADDING,
+      padding: FIT_VIEW_PADDING,
     });
     expect(fitView).toHaveBeenNthCalledWith(2, {
-      padding: AUTO_LAYOUT_FIT_VIEW_PADDING,
+      padding: FIT_VIEW_PADDING,
     });
   });
 });

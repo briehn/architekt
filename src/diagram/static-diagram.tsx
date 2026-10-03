@@ -64,31 +64,31 @@ export type CanvasNodeFocusRequest = Readonly<{
   requestId: number;
 }>;
 
-export const AUTO_LAYOUT_FIT_VIEW_PADDING = 0.15;
+export const FIT_VIEW_PADDING = 0.15;
 
-type AutoLayoutFitViewApi = Pick<ReactFlowInstance, "fitView">;
+type FitViewApi = Pick<ReactFlowInstance, "fitView">;
 
-export function consumeAutoLayoutFitViewRequest(
+export function consumeFitViewRequest(
   requestId: number,
   mostRecentRequestId: number,
-  reactFlow: AutoLayoutFitViewApi,
+  reactFlow: FitViewApi,
 ): number {
   if (requestId <= mostRecentRequestId) {
     return mostRecentRequestId;
   }
 
-  void reactFlow.fitView({ padding: AUTO_LAYOUT_FIT_VIEW_PADDING });
+  void reactFlow.fitView({ padding: FIT_VIEW_PADDING });
   return requestId;
 }
 
-function AutoLayoutFitViewRequest({
+function FitViewRequest({
   requestId,
 }: Readonly<{ requestId: number }>) {
   const reactFlow = useReactFlow();
   const mostRecentRequestId = useRef(0);
 
   useEffect(() => {
-    mostRecentRequestId.current = consumeAutoLayoutFitViewRequest(
+    mostRecentRequestId.current = consumeFitViewRequest(
       requestId,
       mostRecentRequestId.current,
       reactFlow,
@@ -126,7 +126,7 @@ type StaticDiagramProps = {
   canvasRename: CanvasRenamePresentation | null;
   activeRenameComponentId?: ComponentId | null;
   canvasNodeFocusRequest: CanvasNodeFocusRequest | null;
-  autoLayoutFitRequestId: number;
+  fitViewRequestId: number;
   pendingPointerConnectionSource?: PendingPointerConnectionSource | null;
   onPointerAnchorActivated?(componentId: ComponentId, side: DiagramAnchorSide): void;
   onPointerConnectionCancelled?(): void;
@@ -208,7 +208,7 @@ export function StaticDiagram({
   canvasRename,
   activeRenameComponentId = null,
   canvasNodeFocusRequest,
-  autoLayoutFitRequestId,
+  fitViewRequestId,
   pendingPointerConnectionSource = null,
   onPointerAnchorActivated,
   onPointerConnectionCancelled,
@@ -375,7 +375,7 @@ export function StaticDiagram({
         deleteKeyCode={["Delete", "Backspace"]}
         edgesReconnectable={false}
       >
-        <AutoLayoutFitViewRequest requestId={autoLayoutFitRequestId} />
+        <FitViewRequest requestId={fitViewRequestId} />
         <Background
           variant={BackgroundVariant.Dots}
           gap={20}

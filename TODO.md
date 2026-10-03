@@ -1,5 +1,42 @@
 # Architekt TODO
 
+## Current milestone: Design Brief + Decision Rationale
+
+**Status: In progress.** Slice 1 establishes canonical document context, V5 persistence, and history. The Design Brief UI is not built yet.
+
+### Slice 1: Design Context model, V5 persistence, and history foundation
+
+* [x] Add immutable, plain-text document-level DesignContext with typed validation and explicit whole-context replacement
+* [x] Preserve context across graph, layout, movement, boundary, and AI Apply operations; include committed edits in one-step Undo/Redo
+* [x] Persist and strictly restore V5 context; migrate V1–V4 to empty context without eager writes
+* [x] Treat context-only documents as canonical work, include context in autosave/page-hide checks, and clear it on full Reset
+* [x] Keep deterministic Analysis graph-only and cover validation, persistence, history, AI, movement, and recovery regressions
+
+### Slice 2: Design Brief interaction
+
+* [ ] Add a restrained Workbench brief surface with transient whole-brief draft and explicit Save/Cancel, using the Slice 1 validation and history operations; block Save during an active drag transaction
+* [ ] Verify editing, keyboard/accessibility, narrow layouts, unsaved-draft handling, and browser persistence/Undo acceptance
+
+## Completed checkpoint: Release readiness and portfolio packaging
+
+**Status: Complete.** Design Brief + Decision Rationale has now started with its canonical foundation.
+
+* [x] Add viewport-only Fit view for components and non-empty boundaries, including with the utility dock open on narrow screens
+* [x] Refresh the product-led README, three-minute demo, and prepared local fallback
+* [x] Capture real current Workbench, boundary, and AI review screenshots under `docs/screenshots/`
+* [x] Add GitHub Actions validation and five small production-browser smoke tests, including durable recovery Reset
+* [x] Flush pending local edits on navigation/page hiding and verify immediate refresh plus failed-write Retry
+* [x] Reconcile accessibility claims with the verification actually performed; screen-reader speech remains unverified
+* [x] Audit the editor coordination seam and public AI abuse exposure without broadening this pass into a refactor or account system
+
+### Approved next milestones
+
+1. Design Brief + Decision Rationale
+2. Portable Architecture Documents
+3. Grounded Architecture Review
+
+Public server-funded generation needs a trusted abuse/rate-control gate before anonymous deployment. This is a separate deployment decision, not part of the next feature milestone.
+
 ## Completed milestone: Schematic Workbench visual overhaul
 
 **Status: Complete and approved.** Phases 1–2.1 establish the compact editor shell and polished diagram drawing language. Empty boundaries remain canonical and listed in Structure; they have no canvas rectangle.
@@ -536,11 +573,10 @@ Arrange fresh architecture diagrams deterministically and let users explicitly r
 * Label collision avoidance and custom or orthogonal edge routing
 * Ports and grouped or nested layout
 * Worker execution and viewport persistence
-* AI generation, which must produce validated graph changes before layout
 
-## Future milestone candidates
+## Later considerations
 
 * Keep canvas kind presentation read-only unless a later product decision changes the established list-editing interaction
 * Consider richer component metadata, provider-specific technologies, or an inspector only when a concrete workflow requires them
 * Extend semantic connection analysis or validation only when supported by stronger metadata; current kinds still classify the graph without restricting topology
-* Treat future AI-generated architectures as untrusted proposals whose component and connection kinds must pass the same runtime validation and domain operations
+* Extend the existing validated AI proposal contract only when a concrete workflow requires new fields

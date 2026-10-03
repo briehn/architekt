@@ -40,7 +40,7 @@ describe("StaticDiagram connection mode", () => {
         onSelectedNodesDelete={onSelectedNodesDelete}
         onConnect={vi.fn()} onNodeDragStart={vi.fn()} onNodeDragStop={vi.fn()}
         onNodesChange={vi.fn()} onNodeRenameRequested={vi.fn()}
-        canvasRename={null} canvasNodeFocusRequest={null} autoLayoutFitRequestId={0}
+        canvasRename={null} canvasNodeFocusRequest={null} fitViewRequestId={0}
       />,
     );
     const props = renderedReactFlow.props!;
@@ -68,7 +68,7 @@ describe("StaticDiagram connection mode", () => {
         onConnect={vi.fn()} onNodeDragStart={vi.fn()} onNodeDragStop={vi.fn()}
         onNodesChange={vi.fn()} onNodeRenameRequested={vi.fn()}
         canvasRename={null} activeRenameComponentId={"a" as ComponentId}
-        canvasNodeFocusRequest={null} autoLayoutFitRequestId={0}
+        canvasNodeFocusRequest={null} fitViewRequestId={0}
       />,
     );
     expect(renderedReactFlow.props?.nodes).toMatchObject([
@@ -110,7 +110,7 @@ describe("StaticDiagram connection mode", () => {
         onNodesChange={vi.fn()}
         canvasRename={null}
         canvasNodeFocusRequest={null}
-        autoLayoutFitRequestId={0}
+        fitViewRequestId={0}
         onNodeRenameRequested={vi.fn()}
       />,
     );
@@ -173,7 +173,7 @@ describe("StaticDiagram connection mode", () => {
         onNodesChange={vi.fn()}
         canvasRename={null}
         canvasNodeFocusRequest={null}
-        autoLayoutFitRequestId={0}
+        fitViewRequestId={0}
         pendingPointerConnectionSource={null}
         onPointerAnchorActivated={onPointerAnchorActivated}
         onPointerConnectionCancelled={onPointerConnectionCancelled}
@@ -251,7 +251,7 @@ describe("StaticDiagram connection mode", () => {
         onNodesChange={vi.fn()}
         canvasRename={null}
         canvasNodeFocusRequest={null}
-        autoLayoutFitRequestId={0}
+        fitViewRequestId={0}
         pendingPointerConnectionSource={{
           componentId: "a" as ComponentId,
           side: "right",
@@ -307,7 +307,7 @@ describe("StaticDiagram connection mode", () => {
         onNodesChange={vi.fn()}
         canvasRename={null}
         canvasNodeFocusRequest={null}
-        autoLayoutFitRequestId={0}
+        fitViewRequestId={0}
         onNodeRenameRequested={vi.fn()}
       />,
     );

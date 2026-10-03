@@ -6,6 +6,7 @@ import { toPersistedArchitectureEditorDocument } from "../persistence/architectu
 import { applyArchitectureProposal } from "./apply-architecture-proposal";
 import { createArchitectureEditorHistory, redoArchitectureEditorHistory, undoArchitectureEditorHistory } from "./architecture-editor-history";
 import { createArchitectureEditorState, createFreshArchitectureEditorState } from "./architecture-editor-state";
+import { replaceDesignContextInEditorState } from "./design-context-editor-state";
 
 function ids() {
   let component = 0;
@@ -17,6 +18,27 @@ function ids() {
 }
 
 describe("atomic proposal Apply", () => {
+  it("replaces only structure and positions while preserving user-authored context", () => {
+    const base = createArchitectureEditorState(ArchitectureGraph.empty());
+    const edited = replaceDesignContextInEditorState(base, {
+      ...base.designContext,
+      title: "My brief",
+      assumptionsAndOpenQuestions: "User assumption, not an AI claim",
+    });
+    if (!edited.ok) throw new Error("Expected context edit");
+    const before = createArchitectureEditorHistory(edited.state);
+    const applied = applyArchitectureProposal(before, minimalProposal(), ids());
+    if (!applied.ok) throw new Error("Expected Apply");
+    expect(applied.history.past).toHaveLength(1);
+    expect(applied.history.present.designContext).toBe(edited.state.designContext);
+    const undone = undoArchitectureEditorHistory(applied.history);
+    expect(undone.present.designContext).toBe(edited.state.designContext);
+    expect(undone.present.graph).toBe(edited.state.graph);
+    expect(undone.present.nodePositions).toBe(edited.state.nodePositions);
+    expect(redoArchitectureEditorHistory(undone).present.designContext).toBe(edited.state.designContext);
+    expect(toPersistedArchitectureEditorDocument(applied.history.present).designContext.title).toBe("My brief");
+  });
+
   for (const initial of ["empty", "non-empty"] as const) {
     it(`replaces an ${initial} workspace in one undoable transition`, () => {
       const graph = initial === "empty" ? ArchitectureGraph.empty() :
@@ -41,9 +63,9 @@ describe("atomic proposal Apply", () => {
       expect(redone.present.graph).toBe(result.history.present.graph);
       expect(redone.present.nodePositions).toBe(result.history.present.nodePositions);
       const document = toPersistedArchitectureEditorDocument(result.history.present);
-      expect(document.schemaVersion).toBe(4);
-      expect(JSON.stringify(document)).not.toMatch(/prompt|summary|assumptions|proposal|old/);
-      expect(JSON.stringify(result.history)).not.toMatch(/prompt|summary|assumptions|proposal/);
+      expect(document.schemaVersion).toBe(5);
+      expect(JSON.stringify(document)).not.toMatch(/prompt|summary|proposal|old/);
+      expect(JSON.stringify(result.history)).not.toMatch(/prompt|summary|proposal/);
     });
   }
 
@@ -85,7 +107,7 @@ describe("proposal Apply over canonical boundaries", () => {
       expect(result.history.present.graph.getBoundaries()).toEqual([]);
       const document = toPersistedArchitectureEditorDocument(result.history.present);
       expect(document.graph.boundaries).toEqual([]);
-      expect(JSON.stringify(document)).not.toMatch(/prompt|summary|assumptions|proposal/);
+      expect(JSON.stringify(document)).not.toMatch(/prompt|summary|proposal/);
       const undone = undoArchitectureEditorHistory(result.history);
       expect(undone.present.graph).toBe(prior.graph);
       expect(undone.present.graph.getBoundaryById("old-boundary" as BoundaryId)?.memberComponentIds)

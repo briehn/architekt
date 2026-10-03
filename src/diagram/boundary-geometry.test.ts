@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { EMPTY_DESIGN_CONTEXT } from "../application/design-context";
 import { ArchitectureGraph } from "../domain/architecture-graph";
 import type { BoundaryId, ComponentId } from "../domain/identifiers";
 import { deriveBoundaryRectangle, deriveBoundaryRectangles } from "./boundary-geometry";
@@ -70,6 +71,7 @@ describe("derived boundary geometry", () => {
     const state = {
       graph,
       nodePositions: new Map([[a, { x: 0, y: 0 }], [b, { x: 250, y: 100 }]]),
+      designContext: EMPTY_DESIGN_CONTEXT,
       nodeMeasurements: new Map(),
     };
     const before = deriveBoundaryRectangles(graph, state.nodePositions, projectKnownNodeSizes(state))[0];

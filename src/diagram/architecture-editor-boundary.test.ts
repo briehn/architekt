@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { EMPTY_DESIGN_CONTEXT } from "../application/design-context";
 import { ArchitectureGraph } from "../domain/architecture-graph";
 import type { BoundaryId, ComponentId, ConnectionId } from "../domain/identifiers";
 import {
@@ -38,6 +39,7 @@ function initialState(): ArchitectureEditorState {
   return {
     graph: connection.graph,
     nodePositions: new Map([[a, { x: 10, y: 20 }], [b, { x: 100, y: 200 }]]),
+    designContext: EMPTY_DESIGN_CONTEXT,
     nodeMeasurements: new Map([[a, { width: 200, height: 80 }]]),
   };
 }

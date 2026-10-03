@@ -32,6 +32,7 @@ export function applyArchitectureProposal(
       history: recordArchitectureEditorState(history, {
         graph: translated.graph,
         nodePositions: layout.nodePositions,
+        designContext: history.present.designContext,
         nodeMeasurements: new Map(),
       }),
     };

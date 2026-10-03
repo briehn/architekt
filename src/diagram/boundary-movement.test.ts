@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { EMPTY_DESIGN_CONTEXT } from "../application/design-context";
 import { ArchitectureGraph } from "../domain/architecture-graph";
 import type { BoundaryId, ComponentId } from "../domain/identifiers";
 import {
@@ -36,6 +37,7 @@ function fixture(): ArchitectureEditorState {
       [a, { x: -20, y: 10 }], [b, { x: 200, y: 50 }],
       [c, { x: 500, y: 70 }], [d, { x: 700, y: 90 }],
     ]),
+    designContext: EMPTY_DESIGN_CONTEXT,
     nodeMeasurements: new Map(),
   };
 }

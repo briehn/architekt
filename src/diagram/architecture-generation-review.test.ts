@@ -5,6 +5,7 @@ import { ArchitectureGraph } from "../domain/architecture-graph";
 import type { BoundaryId } from "../domain/identifiers";
 import { createArchitectureEditorHistory } from "./architecture-editor-history";
 import { createArchitectureEditorState } from "./architecture-editor-state";
+import { replaceDesignContextInEditorState } from "./design-context-editor-state";
 import {
   ArchitectureGenerationReviewController,
   requestArchitectureGeneration,
@@ -104,7 +105,14 @@ describe("generation review preserves boundaries", () => {
       memberComponentIds: [],
     });
     if (!bounded.ok) throw new Error("Invalid boundary fixture");
-    const workspace = createArchitectureEditorHistory(createArchitectureEditorState(bounded.graph));
+    const withContext = replaceDesignContextInEditorState(createArchitectureEditorState(bounded.graph), {
+      title: "User brief",
+      requirementsAndConstraints: "A requirement",
+      assumptionsAndOpenQuestions: "An open question",
+      decisionsAndTradeoffs: "A tradeoff",
+    });
+    if (!withContext.ok) throw new Error("Invalid context fixture");
+    const workspace = createArchitectureEditorHistory(withContext.state);
     const pending = deferredRequest();
     const controller = new ArchitectureGenerationReviewController(() => {}, pending.request);
     controller.setPrompt("A system");
@@ -114,12 +122,14 @@ describe("generation review preserves boundaries", () => {
     await cancelled;
     expect(controller.getState().status).toBe("idle");
     expect(workspace.present.graph).toBe(bounded.graph);
+    expect(workspace.present.designContext).toBe(withContext.state.designContext);
 
     const failed = controller.generate();
     pending.resolve(1, generationFailure("generation-failed"));
     await failed;
     expect(controller.getState().status).toBe("error");
     expect(workspace.present.graph).toBe(bounded.graph);
+    expect(workspace.present.designContext).toBe(withContext.state.designContext);
 
     const generated = controller.generate();
     pending.resolve(2, minimalProposal());
@@ -127,6 +137,7 @@ describe("generation review preserves boundaries", () => {
     controller.discard();
     expect(controller.getState().status).toBe("idle");
     expect(workspace.present.graph).toBe(bounded.graph);
+    expect(workspace.present.designContext).toBe(withContext.state.designContext);
     expect(workspace.present.graph.getBoundaries()).toHaveLength(1);
     expect(workspace.past).toHaveLength(0);
   });

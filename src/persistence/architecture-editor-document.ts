@@ -1,4 +1,5 @@
 import type { ArchitectureBoundary } from "../domain/architecture-boundary";
+import { EMPTY_DESIGN_CONTEXT, validateDesignContext, type DesignContext } from "../application/design-context";
 import {
   isArchitectureComponentKind,
   type ArchitectureComponent,
@@ -18,7 +19,7 @@ import {
 import type { BoundaryId, ComponentId, ConnectionId } from "../domain/identifiers";
 import type { ArchitectureEditorState } from "../diagram/architecture-editor-state";
 
-export const ARCHITECTURE_EDITOR_DOCUMENT_SCHEMA_VERSION = 4;
+export const ARCHITECTURE_EDITOR_DOCUMENT_SCHEMA_VERSION = 5;
 
 type PersistedArchitectureConnectionV1V2 = Readonly<{
   id: string;
@@ -87,6 +88,13 @@ export type PersistedArchitectureEditorDocumentV4 = Readonly<{
     boundaries: readonly PersistedArchitectureBoundaryV4[];
   }>;
   nodePositions: PersistedArchitectureEditorDocumentV3["nodePositions"];
+}>;
+
+export type PersistedArchitectureEditorDocumentV5 = Readonly<{
+  schemaVersion: 5;
+  designContext: DesignContext;
+  graph: PersistedArchitectureEditorDocumentV4["graph"];
+  nodePositions: PersistedArchitectureEditorDocumentV4["nodePositions"];
 }>;
 
 export type RestoreArchitectureEditorStateError =
@@ -216,8 +224,12 @@ function invalidNodePositions(): RestoreArchitectureEditorStateResult {
 }
 
 export function toPersistedArchitectureEditorDocument(
-  state: Pick<ArchitectureEditorState, "graph" | "nodePositions">,
-): PersistedArchitectureEditorDocumentV4 {
+  state: Pick<ArchitectureEditorState, "graph" | "nodePositions" | "designContext">,
+): PersistedArchitectureEditorDocumentV5 {
+  const contextResult = validateDesignContext(state.designContext);
+  if (!contextResult.ok) {
+    throw new Error("Architecture editor state contains invalid design context.");
+  }
   const components = state.graph.getComponents();
   const connections = state.graph.getConnections();
   const boundaries = state.graph.getBoundaries();
@@ -256,6 +268,7 @@ export function toPersistedArchitectureEditorDocument(
 
   return {
     schemaVersion: ARCHITECTURE_EDITOR_DOCUMENT_SCHEMA_VERSION,
+    designContext: { ...contextResult.context },
     graph: {
       components: components.map((component) => ({
         id: component.id,
@@ -289,7 +302,8 @@ export function restoreArchitectureEditorState(
     value.schemaVersion !== 1 &&
     value.schemaVersion !== 2 &&
     value.schemaVersion !== 3 &&
-    value.schemaVersion !== 4
+    value.schemaVersion !== 4 &&
+    value.schemaVersion !== 5
   ) {
     return {
       ok: false,
@@ -308,6 +322,13 @@ export function restoreArchitectureEditorState(
     !value.nodePositions.every(isPersistedNodePosition)
   ) {
     return invalidDocument();
+  }
+
+  let designContext = EMPTY_DESIGN_CONTEXT;
+  if (value.schemaVersion === 5) {
+    const result = validateDesignContext(value.designContext);
+    if (!result.ok) return invalidDocument();
+    designContext = result.context;
   }
 
   let persistedComponents: readonly PersistedComponentV2[];
@@ -332,7 +353,7 @@ export function restoreArchitectureEditorState(
 
   let persistedConnections: readonly PersistedConnectionV3[];
 
-  if (value.schemaVersion === 3 || value.schemaVersion === 4) {
+  if (value.schemaVersion === 3 || value.schemaVersion === 4 || value.schemaVersion === 5) {
     if (!value.graph.connections.every(isPersistedConnectionV3)) {
       return invalidDocument();
     }
@@ -349,7 +370,7 @@ export function restoreArchitectureEditorState(
   }
 
   let persistedBoundaries: readonly PersistedBoundaryV4[] = [];
-  if (value.schemaVersion === 4) {
+  if (value.schemaVersion === 4 || value.schemaVersion === 5) {
     if (
       !Array.isArray(value.graph.boundaries) ||
       !value.graph.boundaries.every(isPersistedBoundaryV4)
@@ -459,6 +480,7 @@ export function restoreArchitectureEditorState(
     state: {
       graph,
       nodePositions,
+      designContext,
       nodeMeasurements: new Map(),
     },
   };

@@ -1,97 +1,77 @@
 # Architekt
 
-**A visual workspace for thinking through software systems.**
+**A visual workbench for thinking through software systems.** Describe a system to get an editable architecture draft, or build the diagram yourself. Architekt keeps components, directed relationships, boundaries, and layout as structured workspace data so you can inspect, revise, undo, and revisit a design.
 
-I started building Architekt because system design often gets split between two imperfect places: a whiteboard that is easy to change but hard to preserve, and documentation that is accurate but slow to keep current.
+System design often ends up split between an easy-to-change whiteboard and notes that explain the decisions. Architekt currently focuses on the visual editing loop; its document model now stores a plain-text design brief, with the editing interface planned for the next slice.
 
-Architekt is my attempt to bring those ideas into one focused workspace. The diagram stays visual and editable, while the system behind it remains structured enough to validate, save, undo, and eventually support carefully controlled AI-assisted changes.
+![Populated Architekt Schematic Workbench](docs/screenshots/workbench.png)
 
-## What works today
+## What you can do
 
-Architekt currently supports the core editing loop:
+- Create nine kinds of components and classify directed connections as request/response, asynchronous messaging, streaming, data access, or generic.
+- Connect nodes from four adaptive sides, including keyboard operation; reciprocal relationships keep distinct directions and labels.
+- Create named, one-level boundaries, explicitly manage membership, move grouped components, and run boundary-aware Auto-layout.
+- Use deterministic Analysis for topology observations and cautious relationship-review questions. It does not score a design.
+- Generate a typed AI proposal, review its summary and assumptions, then explicitly **Apply** or **Discard** it. Apply replaces the diagram in one Undo step.
+- Undo and redo meaningful edits; save the current graph, boundary membership, and positions locally across refreshes. **Fit view** changes only the viewport.
 
-- Create and delete architecture components
-- Classify components as clients, services, databases, caches, queues, gateways, storage, external services, or generic building blocks
-- Rename components inline
-- Move components around the canvas
-- Arrange the whole diagram left to right with an undoable Auto-layout action
-- Add and remove directional connections
-- Create connections from any side with shared pointer/keyboard anchors and geometry-aware attachment
-- Classify connections as request/response, async messaging, streaming, data-access, or intentionally generic relationships
-- Save the current graph and layout in the browser
-- Recover safely when saved data is invalid or unavailable
-- Undo and redo structural edits and completed node drags
-- Use standard history shortcuts such as `Ctrl/Cmd+Z`, `Ctrl/Cmd+Shift+Z`, and `Ctrl+Y`
-- Generate an AI architecture draft, review its assumptions and typed relationships, then explicitly apply it as one undoable, editable diagram replacement
-- Open a read-only Analysis disclosure for graph counts, structural observations, and evidence-backed relationship-review questions
-- Create named architecture boundaries with optional initial members; manage empty or populated groups in Structure, move grouped components together, and arrange groups with explicit Auto-layout
+The canvas is a view of the architecture. An immutable `ArchitectureGraph` owns components, connections, boundaries, and invariants; React Flow nodes and edges are derived from it. `ArchitectureEditorState` owns positions, document-level DesignContext, and transient renderer measurements, while bounded history stores only graph, positions, and context. The V5 local document restores through public domain operations and strictly validates saved data, including V1–V4 migrations. Analysis is deterministic, graph-only, and read-only. AI output passes runtime and domain validation before it can become a draft or an applied graph.
 
-The editor is intentionally small right now. I am building it one complete interaction at a time instead of filling the interface with controls before their behavior is properly defined.
+**Stack:** Next.js 16, React 19, TypeScript, React Flow, Dagre, Tailwind CSS 4, Vitest, and Playwright.
 
-## How it is built
+## Screenshots
 
-The central idea is that the canvas is a view of the architecture, not the architecture itself.
+| Boundary editing | AI proposal review |
+| --- | --- |
+| ![A named boundary around the request path](docs/screenshots/boundaries.png) | ![An AI-generated draft with explicit assumptions](docs/screenshots/ai-review.png) |
 
-```text
-User action
-    -> validated domain operation
-    -> architecture graph
-    -> React Flow adapter
-    -> rendered diagram
+These show the real application using a URL-shortener proposal. The proposal is an example for review, not a claim that the architecture is complete or correct.
+
+## Three-minute demo
+
+1. Enter a system requirement, such as a URL shortener with redirect traffic and click analytics, and select **Generate architecture**.
+2. Review the draft's assumptions, component kinds, and connection directions. Explain that the workspace is unchanged until **Apply to diagram**.
+3. Apply, open **Analysis**, and distinguish a graph observation from a performance or reliability claim.
+4. Change a relationship kind in **Structure**. Create a boundary around a related part of the system.
+5. Select **Auto-layout**, then **Undo** and **Redo** to show one-step canonical history. Use **Fit view** to reframe without moving components.
+6. Refresh to show that the graph, boundaries, and positions return; the AI prompt and review do not.
+
+**Fallback if generation is slow or unavailable:** before the demo, prepare the same URL-shortener workspace in the demo browser and let local autosave finish. Begin at steps 3–6. A useful prepared graph has a client, gateway, shortener service, URL database, cache, click-event queue, analytics service, and analytics database. It can be edited and analyzed without an API key. Architekt currently saves one local workspace per browser origin, so use that same browser for the fallback.
+
+## Run locally
+
+Use Node.js 22 or later:
+
+```bash
+npm ci
+npm run dev
 ```
 
-`ArchitectureGraph` owns the actual components, connections, boundaries, and rules. React Flow receives nodes and edges derived from that graph, while node positions are kept in a separate layout model.
+Open `http://localhost:3000`. The editor works without an OpenAI key. To enable generation for controlled local use, copy the variable names from `.env.example` into ignored `.env.local`:
 
-That separation gives the project a few useful properties:
+```text
+OPENAI_API_KEY=your-server-side-key
+ARCHITEKT_OPENAI_MODEL=gpt-6-luna
+```
 
-- Domain behavior can be tested without React or a browser.
-- Invalid connections are rejected before they reach the canvas.
-- Saved data is validated by rebuilding it through the same domain operations used by the editor.
-- Undo and redo can restore meaningful graph and layout snapshots without storing renderer-only details.
-- AI output is validated as a proposal, then translated into a domain graph only when the user applies it; it never manipulates the canvas directly.
-- Deterministic analysis reads the canonical graph and derives findings without changing the diagram, undo history, or saved workspace.
+`OPENAI_API_KEY` is server-only. `ARCHITEKT_OPENAI_MODEL` is optional; the default is `gpt-6-luna` with medium reasoning, retained after a [seven-prompt Luna/Sol evaluation](docs/evaluations/ai-generation-2026-10-01.md). Generation has request and output bounds, a 40-second deadline, zero automatic retries, no application prompt logging, and safe public error messages. Prompts and proposal metadata are transient. Cancellation protects the editor from stale results, though an already-started provider request may still incur usage.
 
-## Technical highlights
+Run validation with:
 
-- Immutable graph operations with explicit success and rejection results
-- A canonical component-type model carried through editing, undo/redo, persistence, and derived canvas presentation
-- Canonical connection semantics carried through immutable editing, undo/redo, versioned persistence, and accessible derived edge labels
-- Branded TypeScript identifiers for components, connections, and boundaries
-- Controlled React Flow rendering backed by application-owned state
-- A versioned persistence format with runtime validation
-- Debounced local autosave with clear loading, failure, and recovery states
-- Bounded undo/redo history with completed node drags grouped into single actions
-- Deterministic initial arrangement with manual Auto-layout recorded as one undo step
-- Adaptive visual anchors and a shared reciprocal path with independent directional arrows and labels, without adding renderer data to the saved graph
-- Server-only AI proposal generation with strict Structured Outputs, independent runtime/domain validation, bounded requests, and safe typed failures
-- Framework-independent topology analysis with stable findings for isolated components, disconnected regions, directed cycles, direct Client → Database links, and reciprocal Request/response links
-- Automated coverage for the domain, layout, rendering adapter, persistence, editor state, history, and keyboard shortcuts
+```bash
+npm test
+npx tsc --noEmit
+npm run lint -- --quiet
+npm run build
+npx playwright install chromium
+npm run test:e2e
+```
 
-## Stack
+The browser smoke suite covers the loaded editor, a canonical edit with Undo/Redo, Structure, Fit view, and an immediate refresh before the normal autosave debounce. CI runs the same checks on pushes and pull requests.
+On Windows, if Playwright's automatic server shutdown stalls, run `npm run start -- -p 3100` in a separate terminal before `npm run test:e2e`; the local suite reuses that server.
 
-- Next.js 16
-- React 19
-- TypeScript
-- React Flow
-- Tailwind CSS 4
-- Vitest
+## Intentional limits
 
-## Current direction
+Architekt has one browser-local workspace. It has no accounts, cloud sync, public sharing, or editable document import/export yet. The document can store requirements and rationale, but the brief editing UI is not built yet; the graph itself does not capture workload, protocols, deployment, or runtime measurements. Analysis reports only facts and review questions supported by the modeled graph; it cannot prove security, capacity, availability, or correctness. AI drafts need human review. A public deployment with server-funded generation needs abuse and rate controls before anonymous access. Keyboard, DOM semantics, and visible focus have been checked; actual screen-reader speech has not been verified.
 
-Architekt is under active development. Auto-Layout, adaptive multi-side connection anchors, AI Architecture Generation, and Deterministic Architecture Analysis are implemented and accepted. Generation produces a transient draft for review; explicit Apply replaces the diagram in one undo step. Analysis surfaces only facts and review questions supported by the current graph; it does not establish runtime behavior or design quality. Live evaluation of seven system-design prompts with Luna and Sol retained `gpt-6-luna` with medium reasoning. See the [evaluation and limitations](docs/evaluations/ai-generation-2026-10-01.md).
-
-## Local setup and optional generation
-
-Use Node.js 22 or later (required by the installed official OpenAI SDK), then run `npm ci` and `npm run dev`.
-
-For local, controlled-access generation, add `OPENAI_API_KEY` to your ignored `.env.local`. Use `.env.example` as a reference; preserve any existing local settings. Optionally set `ARCHITEKT_OPENAI_MODEL` to a compatible Responses/Structured Outputs model. The default is `gpt-6-luna`; configuration is server-only and never supplied by the browser. Without a key, the app still builds and the editor works; generation returns a safe 503 error.
-
-`POST /api/architecture/generate` accepts exactly `{ "prompt": "Describe your system" }`. Prompts must be nonblank and at most 5,000 UTF-16 code units before trimming; raw bodies are limited to 32 KiB. Success is the existing `ArchitectureProposal` object (`components`, `connections`, `summary`, `assumptions`). Failure is `{ "error": { "type": "...", "retryable": false, "message": "..." } }`; retryability depends on the failure. Responses use `Cache-Control: no-store`.
-
-Generation uses medium reasoning, a 40-second deadline, zero automatic retries, a 12,000-token output cap, and `store: false`. Prompts and proposals are not logged or persisted by the application. Review and Discard leave the workspace unchanged; Apply stores only the resulting graph and positions through ordinary autosave. Drafts can omit operational details or make mistakes and require human review. Authentication and distributed abuse/rate controls are required before anonymous public deployment; these local limits do not provide that protection. See [ARCHITECTURE.md](ARCHITECTURE.md) for boundary and error contracts.
-
-Screenshots and a live demo will be added when the editor's visual language is mature enough to represent the project well. For now, the repository reflects the working product and the engineering decisions behind it.
-
-## About this repository
-
-This is a personal portfolio project that I am designing and building as a complete product. The source is available to show my approach to product thinking, application architecture, interaction design, and testing. It is not intended to be a starter kit, tutorial project, or community-maintained template, and I am not currently accepting outside contributions.
+This is a personal portfolio project, built as a product rather than a starter template. The [architecture notes](ARCHITECTURE.md), [product intent](PRODUCT.md), and [work log](TODO.md) describe the decisions and current scope.

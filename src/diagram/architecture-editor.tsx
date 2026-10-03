@@ -4,11 +4,12 @@ import {
   type FormEvent,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
 } from "react";
 import type { Connection, NodeChange } from "@xyflow/react";
-import { ChartNoAxesCombined, LayoutGrid, ListTree, PanelsTopLeft, PanelRightClose, Redo2, Sparkles, Undo2, X } from "lucide-react";
+import { ChartNoAxesCombined, LayoutGrid, ListTree, Maximize2, PanelsTopLeft, PanelRightClose, Redo2, Sparkles, Undo2, X } from "lucide-react";
 
 import {
   ARCHITECTURE_COMPONENT_KINDS,
@@ -42,6 +43,7 @@ import {
   autoLayoutArchitectureEditorState,
   changeComponentKindInEditorState,
   changeConnectionKindInEditorState,
+  createEmptyArchitectureEditorState,
   createFreshArchitectureEditorState,
   type ArchitectureEditorState,
   renameComponentInEditorState,
@@ -114,6 +116,10 @@ import {
   type BoundaryMovementStart,
 } from "./boundary-movement";
 import type { DiagramPosition } from "./diagram-layout";
+import {
+  savePendingArchitectureEditorState,
+  type PersistedEditorStateBaseline,
+} from "./architecture-editor-save";
 
 function componentId(value: string): ComponentId {
   return value as ComponentId;
@@ -210,7 +216,7 @@ type EditableArchitectureEditorViewState = {
   readonly announcement?: string;
   readonly componentCreationRejection?: AddComponentRejection | null;
   readonly autoLayoutFailure?: boolean;
-  readonly autoLayoutFitRequestId?: number;
+  readonly fitViewRequestId?: number;
 };
 
 type ArchitectureEditorSaveFailure = Extract<
@@ -239,11 +245,6 @@ type ArchitectureEditorViewState =
   | (EditableArchitectureEditorViewState & {
       readonly status: "memory-only";
     });
-
-type PersistedEditorStateBaseline = Pick<
-  ArchitectureEditorState,
-  "graph" | "nodePositions"
->;
 
 type UtilityDockView = "structure" | "analysis" | "ai" | "boundary-create" | "boundary-details" | null;
 
@@ -599,6 +600,7 @@ function persistedEditorStateBaseline(
   return {
     graph: editorState.graph,
     nodePositions: editorState.nodePositions,
+    designContext: editorState.designContext,
   };
 }
 
@@ -786,7 +788,7 @@ export function ArchitectureEditor() {
     };
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     latestViewStateRef.current = viewState;
 
     if (viewState.status !== "loading") {
@@ -930,7 +932,9 @@ export function ArchitectureEditor() {
         const savedRevisionIsCurrent =
           currentViewState.history.present.graph === editorStateToSave.graph &&
           currentViewState.history.present.nodePositions ===
-            editorStateToSave.nodePositions;
+            editorStateToSave.nodePositions &&
+          currentViewState.history.present.designContext ===
+            editorStateToSave.designContext;
 
         if (!savedRevisionIsCurrent || currentViewState.saveFailure === null) {
           return currentViewState;
@@ -945,22 +949,73 @@ export function ArchitectureEditor() {
     [],
   );
 
+  const flushPendingSave = useCallback(() => {
+    const currentViewState = latestViewStateRef.current;
+    if (currentViewState.status !== "ready") return true;
+
+    const currentEditorState = currentViewState.history.present;
+    const result = savePendingArchitectureEditorState(
+      storageRef.current,
+      currentEditorState,
+      autosaveBaselineRef.current,
+    );
+    if (result.status === "saved") {
+      autosaveBaselineRef.current = persistedEditorStateBaseline(currentEditorState);
+    } else if (result.status === "failed") {
+      setViewState((state) => state.status === "ready"
+        ? { ...state, saveFailure: result.error }
+        : state);
+    }
+    return result.status !== "failed";
+  }, []);
+
+  useEffect(() => {
+    function handleBeforeUnload(event: BeforeUnloadEvent) {
+      if (!flushPendingSave()) {
+        event.preventDefault();
+        event.returnValue = "";
+      }
+    }
+
+    function handlePageHide() {
+      flushPendingSave();
+    }
+
+    function handleVisibilityChange() {
+      if (document.visibilityState === "hidden") flushPendingSave();
+    }
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    window.addEventListener("pagehide", handlePageHide);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      window.removeEventListener("pagehide", handlePageHide);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [flushPendingSave]);
+
   const autosaveGraph =
     viewState.status === "ready" ? viewState.history.present.graph : null;
   const autosaveNodePositions =
     viewState.status === "ready"
       ? viewState.history.present.nodePositions
       : null;
+  const autosaveDesignContext =
+    viewState.status === "ready"
+      ? viewState.history.present.designContext
+      : null;
 
   useEffect(() => {
-    if (autosaveGraph === null || autosaveNodePositions === null) {
+    if (autosaveGraph === null || autosaveNodePositions === null || autosaveDesignContext === null) {
       return;
     }
 
     const baseline = autosaveBaselineRef.current;
     if (
       baseline?.graph === autosaveGraph &&
-      baseline.nodePositions === autosaveNodePositions
+      baseline.nodePositions === autosaveNodePositions &&
+      baseline.designContext === autosaveDesignContext
     ) {
       return;
     }
@@ -972,8 +1027,10 @@ export function ArchitectureEditor() {
         latestEditorState === null ||
         latestEditorState.graph !== autosaveGraph ||
         latestEditorState.nodePositions !== autosaveNodePositions ||
+        latestEditorState.designContext !== autosaveDesignContext ||
         (latestBaseline?.graph === autosaveGraph &&
-          latestBaseline.nodePositions === autosaveNodePositions)
+          latestBaseline.nodePositions === autosaveNodePositions &&
+          latestBaseline.designContext === autosaveDesignContext)
       ) {
         return;
       }
@@ -984,7 +1041,7 @@ export function ArchitectureEditor() {
     return () => {
       window.clearTimeout(timeoutId);
     };
-  }, [autosaveGraph, autosaveNodePositions, persistEditorState]);
+  }, [autosaveGraph, autosaveNodePositions, autosaveDesignContext, persistEditorState]);
 
   if (viewState.status === "loading") {
     return (
@@ -1214,8 +1271,8 @@ export function ArchitectureEditor() {
             ...currentViewState,
             history: result.history,
             announcement: getAutoLayoutAnnouncement(result.changed),
-            autoLayoutFitRequestId: getNextAutoLayoutFitRequestId(
-              currentViewState.autoLayoutFitRequestId ?? 0,
+            fitViewRequestId: getNextAutoLayoutFitRequestId(
+              currentViewState.fitViewRequestId ?? 0,
               result.changed,
             ),
             autoLayoutFailure: false,
@@ -1246,7 +1303,7 @@ export function ArchitectureEditor() {
       connectionRejection: null,
       componentCreationRejection: null,
       autoLayoutFailure: false,
-      autoLayoutFitRequestId: (state.autoLayoutFitRequestId ?? 0) + 1,
+      fitViewRequestId: (state.fitViewRequestId ?? 0) + 1,
       announcement: "Generated diagram applied. Undo is available.",
     });
     setSelectedCanvasComponentIds(new Set());
@@ -1637,9 +1694,16 @@ export function ArchitectureEditor() {
       return;
     }
 
-    const freshHistory = createFreshExampleArchitectureEditorHistory();
+    const freshHistory = createArchitectureEditorHistory(
+      createEmptyArchitectureEditorState(),
+    );
     const editorState = freshHistory.present;
-    autosaveBaselineRef.current = persistedEditorStateBaseline(editorState);
+    const saveResult: SaveLocalArchitectureEditorStateResult = storage
+      ? saveLocalArchitectureEditorState(storage, editorState)
+      : { ok: false, error: { type: "storage-unavailable" } };
+    autosaveBaselineRef.current = saveResult.ok
+      ? persistedEditorStateBaseline(editorState)
+      : null;
     latestEditorStateRef.current = editorState;
     closeRename(null);
     setPendingPointerConnectionSource(null);
@@ -1649,7 +1713,7 @@ export function ArchitectureEditor() {
       status: "ready",
       history: freshHistory,
       connectionRejection: null,
-      saveFailure: null,
+      saveFailure: saveResult.ok ? null : saveResult.error,
     });
   }
 
@@ -1783,6 +1847,9 @@ export function ArchitectureEditor() {
             </button>
           </div>
           <AutoLayoutButton disabled={!autoLayoutIsAvailable} onAutoLayout={handleAutoLayout} />
+          <button aria-label="Fit view" className="workbench-command" disabled={components.length === 0} onClick={() => setViewState((state) => state.status === "loading" ? state : { ...state, fitViewRequestId: (state.fitViewRequestId ?? 0) + 1 })} type="button">
+            <Maximize2 aria-hidden="true" className="size-4" /><span>Fit view</span>
+          </button>
           <button aria-expanded={dockView === "structure"} aria-controls={dockView === "structure" ? "workbench-utility-dock" : undefined} aria-pressed={dockView === "structure"} className="workbench-command" onClick={() => openDock("structure")} ref={structureToggleRef} type="button">
             <ListTree aria-hidden="true" className="size-4" /><span>Structure</span>
           </button>
@@ -2173,7 +2240,7 @@ export function ArchitectureEditor() {
           canvasRename={canvasRename}
           activeRenameComponentId={activeRenameComponentId}
           nodes={nodes}
-          autoLayoutFitRequestId={viewState.autoLayoutFitRequestId ?? 0}
+          fitViewRequestId={viewState.fitViewRequestId ?? 0}
           edges={edges}
           onConnect={handleConnect}
           pendingPointerConnectionSource={pendingPointerConnectionSource}

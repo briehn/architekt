@@ -1,7 +1,7 @@
 import type { ArchitectureEditorState } from "./architecture-editor-state";
 
 export type ArchitectureEditorHistorySnapshot = Readonly<
-  Pick<ArchitectureEditorState, "graph" | "nodePositions">
+  Pick<ArchitectureEditorState, "graph" | "nodePositions" | "designContext">
 >;
 
 export type ArchitectureEditorHistory = Readonly<{
@@ -18,6 +18,7 @@ function toHistorySnapshot(
   return {
     graph: state.graph,
     nodePositions: state.nodePositions,
+    designContext: state.designContext,
   };
 }
 
@@ -27,7 +28,8 @@ function hasRecordableChange(
 ): boolean {
   return (
     currentState.graph !== nextState.graph ||
-    currentState.nodePositions !== nextState.nodePositions
+    currentState.nodePositions !== nextState.nodePositions ||
+    currentState.designContext !== nextState.designContext
   );
 }
 
@@ -65,6 +67,7 @@ function isCompleteNoOp(
   return (
     currentState.graph === nextState.graph &&
     currentState.nodePositions === nextState.nodePositions &&
+    currentState.designContext === nextState.designContext &&
     currentState.nodeMeasurements === nextState.nodeMeasurements
   );
 }
@@ -98,6 +101,7 @@ function restoreHistorySnapshot(
   return {
     graph: snapshot.graph,
     nodePositions: snapshot.nodePositions,
+    designContext: snapshot.designContext,
     nodeMeasurements,
   };
 }
@@ -160,7 +164,8 @@ export function commitArchitectureEditorHistoryTransaction(
   const transactionIsCurrent =
     transactionStart.past === currentHistory.past &&
     transactionStart.future === currentHistory.future &&
-    transactionStart.present.graph === currentHistory.present.graph;
+    transactionStart.present.graph === currentHistory.present.graph &&
+    transactionStart.present.designContext === currentHistory.present.designContext;
 
   if (
     !transactionIsCurrent ||
