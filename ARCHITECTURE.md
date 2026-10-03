@@ -173,6 +173,14 @@ Translation always uses the same parser before allocating IDs. A required applic
 
 Successful translation returns `{ graph, review }` alongside its success discriminator. Summary and assumptions belong only to the separate transient review metadata. Proposal text and refs are inert data, never code, HTML, or instructions to fetch URLs; future display should use ordinary escaped text. No layout is performed, and no renderer, editor state, history, or persistence format changes are involved. V5 stores canonical DesignContext, graph content including boundaries, and positions; proposal review remains transient.
 
+## Voice transcription boundary
+
+Voice-to-Architecture Slice 1 adds an independent transcription input seam in `src/application/architecture-transcription.ts`: bounded audio bytes plus normalized WebM or MP4 media type -> provider-independent transcription -> validated plain-text transcript. This is an input adapter for the existing generation prompt, not another proposal contract. The application service preserves up to 20,000 UTF-16 code units of transcript text without truncation; the existing 5,000-unit generation prompt limit remains a later validation step. Neither audio nor transcript is canonical graph, DesignContext, history, or V5 document data.
+
+`POST /api/architecture/transcribe` is a thin Node Route Handler around the server HTTP adapter. It accepts only raw binary WebM/Opus or MP4/AAC variants, enforces a 3 MiB actual-byte ceiling and a 15-second body-read deadline, checks a minimal container signature, and rejects cross-origin browser requests. A claimed MIME type or signature is not proof of decodable speech; the provider is authoritative. Success is `{ transcript }`; typed errors expose only fixed safe copy. Responses use `Cache-Control: no-store`.
+
+The first server-only adapter uses the installed OpenAI SDK's completed-file `gpt-transcribe` endpoint. It constructs a named upload in memory, requests English non-streaming output, disables SDK logging and automatic retries, and applies a 40-second deadline with external cancellation. The API key is read only server-side at request time. `ARCHITEKT_OPENAI_TRANSCRIPTION_MODEL` overrides only the transcription model; architecture generation retains its own model setting. No app audio storage, temp files, or audio/transcript logging are added. Provider-side processing and billing may already have begun when a request is canceled. The microphone and transcript UI belong to the next slice.
+
 ## Server architecture generation boundary
 
 The implemented Step 2 flow is: browser prompt -> `POST /api/architecture/generate` -> provider-independent generation service -> OpenAI adapter -> Responses API strict Structured Output -> proposal parser/domain validation -> validated `ArchitectureProposal`.

@@ -1,8 +1,24 @@
 # Architekt TODO
 
-## Current milestone: Portable Architecture Documents
+## Current milestone: Voice-to-Architecture
 
-**Status: In progress.** Slice 1 adds JSON export and strict, previewed full-document import. PNG and Markdown export remain for later approved slices.
+**Status: In progress.** Slice 1 establishes the bounded server transcription path. There is no microphone or transcript UI yet.
+
+### Slice 1: Transcription service and server endpoint
+
+* [x] Define provider-independent, validated transcription input/output and safe failure categories
+* [x] Add bounded WebM/Opus and MP4/AAC HTTP admission with minimal container checks
+* [x] Add server-only `gpt-transcribe` adapter with in-memory upload, timeout, cancellation, and zero retries
+* [x] Cover application, provider, route, and existing-generation regressions
+
+### Remaining approved slices
+
+* [ ] Slice 2: Browser recording, editable transcript, existing generation handoff, and Workbench UX
+* [ ] Slice 3: Real microphone/browser acceptance, quality evaluation, and milestone closeout
+
+## Paused milestone: Portable Architecture Documents
+
+**Status: Paused after Slice 1.** JSON export and strict, previewed full-document import are complete. PNG and Markdown export await a later approved slice.
 
 ### Slice 1: JSON export and safe import
 
