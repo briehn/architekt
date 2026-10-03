@@ -332,7 +332,22 @@ body {
   }
 
   .workbench-library.is-open {
-    display: block;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .workbench-library .boundary-create-entry {
+    order: 1;
+    margin-top: 0;
+    margin-bottom: 8px;
+    padding-top: 0;
+    padding-bottom: 8px;
+    border-top: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .workbench-library .workbench-component-picker {
+    order: 2;
   }
 }
 

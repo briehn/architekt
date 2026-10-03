@@ -1,8 +1,8 @@
 # Architekt TODO
 
-## Current milestone: Schematic Workbench visual overhaul
+## Completed milestone: Schematic Workbench visual overhaul
 
-**Status: Ready for product acceptance.** Phases 1–2.1 establish the compact editor shell and polished diagram drawing language. Empty boundaries remain canonical and listed in Structure; they have no canvas rectangle. The overall visual overhaul awaits product review and closeout.
+**Status: Complete and approved.** Phases 1–2.1 establish the compact editor shell and polished diagram drawing language. Empty boundaries remain canonical and listed in Structure; they have no canvas rectangle.
 
 ### Phase 1: Editor shell and visual foundations
 
@@ -27,13 +27,9 @@
 * [x] Reduce edge and arrowhead weight while preserving semantics and reciprocal rendering; simplify the creation library to one Components heading
 * [x] Complete focused regressions, full validation, and light/dark desktop/mobile browser acceptance
 
-### Remaining visual-overhaul closeout
+## Completed milestone: Generic Architecture Boundaries / Groups
 
-* [ ] Review the finished shell and drawing language as a single product experience before closing this milestone
-
-## Paused milestone: Generic Architecture Boundaries / Groups
-
-**Status: In progress; resume after the visual shell.** Slices 1-4 establish canonical membership, V4 persistence/history, derived canvas rendering with boundary movement, and boundary-aware explicit Auto-Layout. Membership UI and final acceptance remain.
+**Status: Complete.** Slices 1–5 establish canonical one-level membership, V4 persistence/history, derived canvas containment and group movement, boundary-aware explicit Auto-Layout, and accessible creation/membership management in the Schematic Workbench. Nested/overlapping membership, provider-specific semantics, AI-generated boundaries, boundary-aware Analysis, boundary-to-boundary canonical connections, automatic visual-containment membership, obstacle-aware routing, and collaborative grouping remain deferred.
 
 ### Slice 1: Boundary domain foundation
 
@@ -61,11 +57,11 @@
 * [x] Preserve exact ungrouped coordinates, canonical component-only positions, and one-step history
 * [x] Cover grouped topology, deterministic ordering, failure atomicity, scale, and browser behavior
 
-### Planned Slice 5: Membership UI and final acceptance
+### Slice 5: Membership UI and final acceptance
 
-* [ ] Add creation, rename, deletion, and explicit membership editing controls without geometry-based membership inference
-* [ ] Complete browser accessibility, responsive, theme, and interaction acceptance for those controls
-* [ ] Close the overall boundary milestone only after final validation
+* [x] Add creation, rename, deletion, and explicit membership editing controls without geometry-based membership inference
+* [x] Complete browser accessibility, responsive, theme, and interaction acceptance for those controls
+* [x] Close the overall boundary milestone after final validation
 
 ## Completed milestone: Deterministic Architecture Analysis
 

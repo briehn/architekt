@@ -24,6 +24,7 @@ Architekt currently supports the core editing loop:
 - Use standard history shortcuts such as `Ctrl/Cmd+Z`, `Ctrl/Cmd+Shift+Z`, and `Ctrl+Y`
 - Generate an AI architecture draft, review its assumptions and typed relationships, then explicitly apply it as one undoable, editable diagram replacement
 - Open a read-only Analysis disclosure for graph counts, structural observations, and evidence-backed relationship-review questions
+- Create named architecture boundaries with optional initial members; manage empty or populated groups in Structure, move grouped components together, and arrange groups with explicit Auto-layout
 
 The editor is intentionally small right now. I am building it one complete interaction at a time instead of filling the interface with controls before their behavior is properly defined.
 
@@ -39,7 +40,7 @@ User action
     -> rendered diagram
 ```
 
-`ArchitectureGraph` owns the actual components, connections, and rules. React Flow receives nodes and edges derived from that graph, while node positions are kept in a separate layout model.
+`ArchitectureGraph` owns the actual components, connections, boundaries, and rules. React Flow receives nodes and edges derived from that graph, while node positions are kept in a separate layout model.
 
 That separation gives the project a few useful properties:
 
@@ -55,7 +56,7 @@ That separation gives the project a few useful properties:
 - Immutable graph operations with explicit success and rejection results
 - A canonical component-type model carried through editing, undo/redo, persistence, and derived canvas presentation
 - Canonical connection semantics carried through immutable editing, undo/redo, versioned persistence, and accessible derived edge labels
-- Branded TypeScript identifiers for components and connections
+- Branded TypeScript identifiers for components, connections, and boundaries
 - Controlled React Flow rendering backed by application-owned state
 - A versioned persistence format with runtime validation
 - Debounced local autosave with clear loading, failure, and recovery states

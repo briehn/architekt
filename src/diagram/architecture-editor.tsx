@@ -8,7 +8,7 @@ import {
   useState,
 } from "react";
 import type { Connection, NodeChange } from "@xyflow/react";
-import { ChartNoAxesCombined, LayoutGrid, ListTree, PanelRightClose, Redo2, Sparkles, Undo2, X } from "lucide-react";
+import { ChartNoAxesCombined, LayoutGrid, ListTree, PanelsTopLeft, PanelRightClose, Redo2, Sparkles, Undo2, X } from "lucide-react";
 
 import {
   ARCHITECTURE_COMPONENT_KINDS,
@@ -50,6 +50,16 @@ import {
   removeBoundaryFromEditorState,
   projectKnownNodeSizes,
 } from "./architecture-editor-state";
+import { BoundaryCreationForm, BoundaryDetails, BoundaryMembershipSelect, getBoundaryDisplayName } from "./boundary-workbench";
+import {
+  canEditBoundaries,
+  getEligibleBoundaryCreationMembers,
+  recordBoundaryCreation,
+  recordBoundaryDeletion,
+  recordBoundaryMembershipChange,
+  recordBoundaryRename,
+  type BoundaryEditResult,
+} from "./boundary-workbench-actions";
 import {
   COMPONENT_CREATION_KIND_ORDER,
   recordGeneratedComponentCreation,
@@ -119,6 +129,10 @@ function createComponentId(): ComponentId {
 
 function createConnectionId(): ConnectionId {
   return crypto.randomUUID() as ConnectionId;
+}
+
+function createBoundaryId(): BoundaryId {
+  return crypto.randomUUID() as BoundaryId;
 }
 
 function getAddConnectionErrorMessage(
@@ -231,7 +245,7 @@ type PersistedEditorStateBaseline = Pick<
   "graph" | "nodePositions"
 >;
 
-type UtilityDockView = "structure" | "analysis" | "ai" | null;
+type UtilityDockView = "structure" | "analysis" | "ai" | "boundary-create" | "boundary-details" | null;
 
 export type RenameDraft = Readonly<{
   componentId: ComponentId;
@@ -313,7 +327,7 @@ export function ComponentTypePicker({
   onAddComponent,
 }: ComponentTypePickerProps) {
   return (
-    <div aria-label="Add component" className="flex flex-col gap-0.5" role="group">
+    <div aria-label="Add component" className="workbench-component-picker flex flex-col gap-0.5" role="group">
       {COMPONENT_CREATION_KIND_ORDER.map((kind) => {
         const presentation = getComponentKindPresentation(kind);
         const { Icon } = presentation;
@@ -614,6 +628,9 @@ export function ArchitectureEditor() {
     useState<ReadonlySet<ComponentId>>(() => new Set());
   const [selectedBoundaryId, setSelectedBoundaryId] = useState<BoundaryId | null>(null);
   const [dockView, setDockView] = useState<UtilityDockView>(null);
+  const [boundaryCreationPrefill, setBoundaryCreationPrefill] = useState<readonly ComponentId[]>([]);
+  const [boundaryCreationSession, setBoundaryCreationSession] = useState(0);
+  const [detailsBoundaryId, setDetailsBoundaryId] = useState<BoundaryId | null>(null);
   const [creationLibraryIsOpen, setCreationLibraryIsOpen] = useState(false);
   const [generationReview, setGenerationReview] = useState<ArchitectureGenerationReviewState>({ status: "idle", prompt: "" });
   const generationControllerRef = useRef<ArchitectureGenerationReviewController | null>(null);
@@ -621,6 +638,7 @@ export function ArchitectureEditor() {
   const structureToggleRef = useRef<HTMLButtonElement | null>(null);
   const analysisToggleRef = useRef<HTMLButtonElement | null>(null);
   const creationToggleRef = useRef<HTMLButtonElement | null>(null);
+  const boundaryCreateTriggerRef = useRef<HTMLButtonElement | null>(null);
   const dockCloseRef = useRef<HTMLButtonElement | null>(null);
   const creationCloseRef = useRef<HTMLButtonElement | null>(null);
   const storageRef = useRef<StorageLike | null>(null);
@@ -870,7 +888,11 @@ export function ArchitectureEditor() {
       } else if (dockView !== null && target.closest(".workbench-dock")) {
         event.preventDefault();
         setDockView(null);
-        (dockView === "ai" ? generationToggleRef : dockView === "analysis" ? analysisToggleRef : structureToggleRef).current?.focus();
+        if (dockView === "boundary-create") {
+          (window.matchMedia("(max-width: 1023px)").matches ? creationToggleRef : boundaryCreateTriggerRef).current?.focus();
+        } else {
+          (dockView === "ai" ? generationToggleRef : dockView === "analysis" ? analysisToggleRef : structureToggleRef).current?.focus();
+        }
       }
     }
 
@@ -1634,6 +1656,8 @@ export function ArchitectureEditor() {
   const components = editorState.graph.getComponents();
   const connections = editorState.graph.getConnections();
   const boundaries = editorState.graph.getBoundaries();
+  const boundaryEditDisabled = !canEditBoundaries(nodeDragIsActive, renameSession !== null, pendingPointerConnectionSource !== null);
+  const detailsBoundary = detailsBoundaryId === null ? undefined : editorState.graph.getBoundaryById(detailsBoundaryId);
   const pendingSourceName = pendingPointerConnectionSource === null
     ? null
     : components.find(
@@ -1684,10 +1708,51 @@ export function ArchitectureEditor() {
     window.requestAnimationFrame(() => dockCloseRef.current?.focus());
   }
 
+  function openBoundaryCreation() {
+    if (boundaryEditDisabled || boundaryDragRef.current !== null) return;
+    setBoundaryCreationPrefill(getEligibleBoundaryCreationMembers(editorState.graph, selectedCanvasComponentIds));
+    setBoundaryCreationSession((session) => session + 1);
+    setCreationLibraryIsOpen(false);
+    setDockView("boundary-create");
+    window.requestAnimationFrame(() => dockCloseRef.current?.focus());
+  }
+
+  function focusBoundaryCreationTrigger() {
+    if (window.matchMedia("(max-width: 1023px)").matches) creationToggleRef.current?.focus();
+    else boundaryCreateTriggerRef.current?.focus();
+  }
+
+  function openBoundaryDetails(boundaryId: BoundaryId) {
+    if (boundaryEditDisabled || boundaryDragRef.current !== null) return;
+    setDetailsBoundaryId(boundaryId);
+    handleBoundarySelected(boundaryId);
+    setDockView("boundary-details");
+    window.requestAnimationFrame(() => dockCloseRef.current?.focus());
+  }
+
+  function applyBoundaryEdit(result: BoundaryEditResult, announcement: string): BoundaryEditResult {
+    if (result.ok) {
+      const previousHistory = latestViewStateRef.current.status === "loading" ? null : latestViewStateRef.current.history;
+      setViewState((current) => current.status === "loading" || current.history !== previousHistory
+        ? current
+        : result.changed ? { ...current, history: result.history, announcement } : current);
+    }
+    return result;
+  }
+
+  function withCurrentBoundaryHistory(action: (history: ArchitectureEditorHistory) => BoundaryEditResult, announcement: string): BoundaryEditResult {
+    const current = latestViewStateRef.current;
+    if (current.status === "loading" || boundaryEditDisabled || boundaryDragRef.current !== null) {
+      return { ok: false, message: "Finish the current canvas action before editing boundaries." };
+    }
+    return applyBoundaryEdit(action(current.history), announcement);
+  }
+
   function closeDock() {
     const closingView = dockView;
     setDockView(null);
-    (closingView === "ai" ? generationToggleRef : closingView === "analysis" ? analysisToggleRef : structureToggleRef).current?.focus();
+    if (closingView === "boundary-create") focusBoundaryCreationTrigger();
+    else (closingView === "ai" ? generationToggleRef : closingView === "analysis" ? analysisToggleRef : structureToggleRef).current?.focus();
   }
 
   return (
@@ -1816,12 +1881,17 @@ export function ArchitectureEditor() {
               creationToggleRef.current?.focus();
             }
           }} />
+          <div className="boundary-create-entry mt-3 border-t border-border pt-2">
+            <button aria-label="Create boundary" className="flex min-h-10 w-full min-w-0 items-center gap-3 rounded-sm px-2.5 text-left text-sm text-text-primary hover:bg-chrome-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring disabled:opacity-50" disabled={boundaryEditDisabled} onClick={openBoundaryCreation} ref={boundaryCreateTriggerRef} type="button">
+              <PanelsTopLeft aria-hidden="true" className="size-4 shrink-0" /><span>Boundary</span>
+            </button>
+          </div>
         </aside>
 
         {dockView !== null ? (
-          <aside aria-label={`${dockView === "ai" ? "AI" : dockView === "analysis" ? "Analysis" : "Structure"} utility panel`} className="workbench-dock" id="workbench-utility-dock">
+          <aside aria-label={`${dockView === "ai" ? "AI" : dockView === "analysis" ? "Analysis" : dockView.startsWith("boundary-") ? "Boundary" : "Structure"} utility panel`} className="workbench-dock" id="workbench-utility-dock">
             <div className="workbench-pane-heading">
-              <h2>{dockView === "ai" ? "Generate architecture" : dockView === "analysis" ? "Analysis" : "Structure"}</h2>
+              <h2>{dockView === "ai" ? "Generate architecture" : dockView === "analysis" ? "Analysis" : dockView === "boundary-create" ? "Create boundary" : dockView === "boundary-details" ? "Boundary details" : "Structure"}</h2>
               <button aria-label="Close utility panel" className="workbench-pane-close" onClick={closeDock} ref={dockCloseRef} type="button"><PanelRightClose aria-hidden="true" className="size-4" /></button>
             </div>
             <div className="workbench-dock-content">
@@ -1837,6 +1907,26 @@ export function ArchitectureEditor() {
                 />
               ) : null}
               {dockView === "analysis" ? <ArchitectureAnalysisPanel graph={editorState.graph} /> : null}
+              {dockView === "boundary-create" ? <BoundaryCreationForm disabled={boundaryEditDisabled} graph={editorState.graph} initialMemberIds={boundaryCreationPrefill} key={boundaryCreationSession} onCancel={closeDock} onCreate={(name, memberIds) => {
+                const id = createBoundaryId();
+                const result = withCurrentBoundaryHistory(
+                  (currentHistory) => recordBoundaryCreation(currentHistory, { id, name, memberComponentIds: memberIds }),
+                  `Boundary ${name.trim()} created. Undo is available.`,
+                );
+                if (result.ok) {
+                  setDetailsBoundaryId(id);
+                  setSelectedBoundaryId(id);
+                  setSelectedCanvasComponentIds(new Set());
+                  setDockView("boundary-details");
+                  window.requestAnimationFrame(() => dockCloseRef.current?.focus());
+                }
+                return result;
+              }} /> : null}
+              {dockView === "boundary-details" ? detailsBoundary ? <BoundaryDetails boundary={detailsBoundary} disabled={boundaryEditDisabled} graph={editorState.graph} key={detailsBoundary.id} onBack={() => { setDockView("structure"); window.requestAnimationFrame(() => dockCloseRef.current?.focus()); }} onDelete={() => {
+                const result = withCurrentBoundaryHistory((currentHistory) => recordBoundaryDeletion(currentHistory, detailsBoundary.id), `Boundary ${detailsBoundary.name} deleted. Components and connections remain. Undo is available.`);
+                if (result.ok) { setSelectedBoundaryId(null); setDockView("structure"); window.requestAnimationFrame(() => dockCloseRef.current?.focus()); }
+                return result;
+              }} onRename={(name) => withCurrentBoundaryHistory((currentHistory) => recordBoundaryRename(currentHistory, detailsBoundary.id, name), `Boundary renamed to ${name.trim()}. Undo is available.`)} onAssign={(componentId) => withCurrentBoundaryHistory((currentHistory) => recordBoundaryMembershipChange(currentHistory, componentId, detailsBoundary.id), "Component added to boundary. Undo is available.")} onRemove={(componentId) => withCurrentBoundaryHistory((currentHistory) => recordBoundaryMembershipChange(currentHistory, componentId, null), "Component removed from boundary. Undo is available.")} /> : <div><p className="text-sm text-text-secondary">This boundary no longer exists.</p><button className="mt-2 text-sm text-accent-ink underline" onClick={() => setDockView("structure")} type="button">Back to Structure</button></div> : null}
               {dockView === "structure" ? (
         <div className="space-y-6">
           {boundaries.length > 0 ? (
@@ -1844,9 +1934,11 @@ export function ArchitectureEditor() {
               <h3 className="workbench-section-label">Boundaries</h3>
               <ul aria-label="Boundaries" className="mt-1 divide-y divide-border/60">
                 {boundaries.map((boundary) => (
-                  <li className="flex min-w-0 items-center justify-between gap-2 py-2 text-sm" key={boundary.id}>
-                    <span className="min-w-0 truncate text-text-primary" title={boundary.name}>{boundary.name}</span>
-                    <span className="shrink-0 text-xs text-text-secondary">{boundary.memberComponentIds.length} {boundary.memberComponentIds.length === 1 ? "member" : "members"}</span>
+                  <li className="min-w-0 py-1 text-sm" key={boundary.id}>
+                    <button aria-label={`Open boundary ${getBoundaryDisplayName(boundary, boundaries)} (${boundary.memberComponentIds.length} ${boundary.memberComponentIds.length === 1 ? "member" : "members"})`} aria-current={activeSelectedBoundaryId === boundary.id ? "true" : undefined} className="flex min-h-9 w-full min-w-0 items-center justify-between gap-2 rounded-sm px-1 text-left hover:bg-chrome-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring disabled:opacity-50" disabled={boundaryEditDisabled} onClick={() => openBoundaryDetails(boundary.id)} type="button">
+                      <span className="min-w-0 truncate text-text-primary" title={getBoundaryDisplayName(boundary, boundaries)}>{boundary.name}{boundaries.some((other) => other.id !== boundary.id && other.name === boundary.name) ? <span className="block truncate font-mono text-xs text-text-muted">{boundary.id}</span> : null}</span>
+                      <span className="shrink-0 text-xs text-text-secondary">{boundary.memberComponentIds.length} {boundary.memberComponentIds.length === 1 ? "member" : "members"}</span>
+                    </button>
                   </li>
                 ))}
               </ul>
@@ -1968,6 +2060,9 @@ export function ArchitectureEditor() {
                     >
                       Delete
                     </button>
+                    {boundaries.length > 0 ? <div className="flex min-w-0 basis-full items-center gap-2 px-1"><span className="shrink-0 text-xs text-text-secondary">Boundary</span><BoundaryMembershipSelect boundaries={boundaries} componentId={component.id} componentName={component.name} currentBoundaryId={editorState.graph.getBoundaryContainingComponent(component.id)?.id ?? null} disabled={boundaryEditDisabled} onChange={(boundaryId) => {
+                      withCurrentBoundaryHistory((currentHistory) => recordBoundaryMembershipChange(currentHistory, component.id, boundaryId), boundaryId === null ? `${component.name} removed from boundary. Undo is available.` : `${component.name} assigned to boundary. Undo is available.`);
+                    }} /></div> : null}
                   </li>
                 ))}
               </ul>
