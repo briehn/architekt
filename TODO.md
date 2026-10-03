@@ -1,6 +1,17 @@
 # Architekt TODO
 
-## Current milestone: Design Brief + Decision Rationale
+## Current milestone: Portable Architecture Documents
+
+**Status: In progress.** Slice 1 adds JSON export and strict, previewed full-document import. PNG and Markdown export remain for later approved slices.
+
+### Slice 1: JSON export and safe import
+
+* [x] Export the complete canonical V5 document as readable UTF-8 JSON with a safe title-based filename
+* [x] Read bounded user-selected files, validate through the V1–V5 codec, and preview before any edit
+* [x] Replace the entire document only on confirmation, with one-step Undo/Redo and ordinary autosave
+* [x] Verify dirty-draft, drag, accessibility, responsive, and production-browser behavior
+
+## Completed milestone: Design Brief + Decision Rationale
 
 **Status: Complete.** Slice 1 establishes canonical document context, V5 persistence, and history. Slice 2 adds the restrained Workbench editor and browser acceptance.
 
@@ -31,9 +42,8 @@
 
 ### Approved next milestones
 
-1. Design Brief + Decision Rationale
-2. Portable Architecture Documents
-3. Grounded Architecture Review
+1. Portable Architecture Documents (remaining slices)
+2. Grounded Architecture Review
 
 Public server-funded generation needs a trusted abuse/rate-control gate before anonymous deployment. This is a separate deployment decision, not part of the next feature milestone.
 

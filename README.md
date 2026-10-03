@@ -13,6 +13,7 @@ System design often ends up split between an easy-to-change whiteboard and notes
 - Create named, one-level boundaries, explicitly manage membership, move grouped components, and run boundary-aware Auto-layout.
 - Use deterministic Analysis for topology observations and cautious relationship-review questions. It does not score a design.
 - Open the Design Brief from the document title to record requirements, open questions, and the reasons and downsides behind choices. Save the whole brief as one Undo step.
+- Download the complete architecture and Design Brief as an editable JSON file, or preview and explicitly replace the current document from an Architekt file. Undo restores the previous document.
 - Generate a typed AI proposal, review its summary and assumptions, then explicitly **Apply** or **Discard** it. Apply replaces the diagram in one Undo step.
 - Undo and redo meaningful edits; save the current graph, boundary membership, and positions locally across refreshes. **Fit view** changes only the viewport.
 
@@ -73,6 +74,6 @@ On Windows, if Playwright's automatic server shutdown stalls, run `npm run start
 
 ## Intentional limits
 
-Architekt has one browser-local workspace. It has no accounts, cloud sync, public sharing, or editable document import/export yet. Design Brief content is user-authored context, not verified architecture fact; deterministic Analysis does not use it, and AI does not write it in v1. The graph itself does not capture workload, protocols, deployment, or runtime measurements. Analysis reports only facts and review questions supported by the modeled graph; it cannot prove security, capacity, availability, or correctness. AI drafts need human review. A public deployment with server-funded generation needs abuse and rate controls before anonymous access. Keyboard, DOM semantics, and visible focus have been checked; actual screen-reader speech has not been verified.
+Architekt has one browser-local workspace. It has no accounts, cloud sync, public sharing, or PNG/Markdown document export yet. Portable JSON import replaces the complete current document after validation and preview; it does not merge documents. Design Brief content is user-authored context, not verified architecture fact; deterministic Analysis does not use it, and AI does not write it in v1. The graph itself does not capture workload, protocols, deployment, or runtime measurements. Analysis reports only facts and review questions supported by the modeled graph; it cannot prove security, capacity, availability, or correctness. AI drafts need human review. A public deployment with server-funded generation needs abuse and rate controls before anonymous access. Keyboard, DOM semantics, and visible focus have been checked; actual screen-reader speech has not been verified.
 
 This is a personal portfolio project, built as a product rather than a starter template. The [architecture notes](ARCHITECTURE.md), [product intent](PRODUCT.md), and [work log](TODO.md) describe the decisions and current scope.

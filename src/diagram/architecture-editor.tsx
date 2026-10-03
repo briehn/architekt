@@ -110,6 +110,9 @@ import {
 import { applyArchitectureProposal } from "./apply-architecture-proposal";
 import { ArchitectureGenerationPanel } from "./architecture-generation-panel";
 import { ArchitectureAnalysisPanel } from "./architecture-analysis-panel";
+import { exportPortableArchitectureDocument } from "../persistence/portable-architecture-document";
+import { applyPortableDocument } from "./apply-portable-document";
+import { PortableDocumentImportPanel } from "./portable-document-import-panel";
 import { replaceDesignContextInEditorState } from "./design-context-editor-state";
 import { createDesignBriefSession, DesignBriefPanel, getDesignBriefTitle, isDesignBriefDirty, isDesignBriefStale, reconcileDesignBriefSession, updateDesignBriefField, type DesignBriefSession } from "./design-brief-workbench";
 import { toBoundaryFlowNodes } from "./boundary-renderer";
@@ -250,7 +253,7 @@ type ArchitectureEditorViewState =
       readonly status: "memory-only";
     });
 
-type UtilityDockView = "structure" | "analysis" | "ai" | "design-brief" | "boundary-create" | "boundary-details" | null;
+type UtilityDockView = "structure" | "analysis" | "ai" | "design-brief" | "document-import" | "boundary-create" | "boundary-details" | null;
 
 export type RenameDraft = Readonly<{
   componentId: ComponentId;
@@ -635,6 +638,7 @@ export function ArchitectureEditor() {
   const [selectedBoundaryId, setSelectedBoundaryId] = useState<BoundaryId | null>(null);
   const [dockView, setDockView] = useState<UtilityDockView>(null);
   const [designBriefSession, setDesignBriefSession] = useState<DesignBriefSession | null>(null);
+  const [portableActionError, setPortableActionError] = useState<string | null>(null);
   const [boundaryCreationPrefill, setBoundaryCreationPrefill] = useState<readonly ComponentId[]>([]);
   const [boundaryCreationSession, setBoundaryCreationSession] = useState(0);
   const [detailsBoundaryId, setDetailsBoundaryId] = useState<BoundaryId | null>(null);
@@ -906,7 +910,7 @@ export function ArchitectureEditor() {
         if (dockView === "boundary-create") {
           (window.matchMedia("(max-width: 1023px)").matches ? creationToggleRef : boundaryCreateTriggerRef).current?.focus();
         } else {
-          (dockView === "ai" ? generationToggleRef : dockView === "analysis" ? analysisToggleRef : dockView === "design-brief" ? designBriefToggleRef : structureToggleRef).current?.focus();
+          (dockView === "ai" ? generationToggleRef : dockView === "analysis" ? analysisToggleRef : dockView === "design-brief" || dockView === "document-import" ? designBriefToggleRef : structureToggleRef).current?.focus();
         }
       }
     }
@@ -1783,6 +1787,7 @@ export function ArchitectureEditor() {
   function openDock(view: Exclude<UtilityDockView, null>) {
     if (!confirmDiscardDesignBrief()) return;
     setCreationLibraryIsOpen(false);
+    setPortableActionError(null);
     if (dockView === view) {
       setDockView(null);
       setDesignBriefSession(null);
@@ -1843,7 +1848,46 @@ export function ArchitectureEditor() {
     setDockView(null);
     setDesignBriefSession(null);
     if (closingView === "boundary-create") focusBoundaryCreationTrigger();
-    else (closingView === "ai" ? generationToggleRef : closingView === "analysis" ? analysisToggleRef : closingView === "design-brief" ? designBriefToggleRef : structureToggleRef).current?.focus();
+    else (closingView === "ai" ? generationToggleRef : closingView === "analysis" ? analysisToggleRef : closingView === "design-brief" || closingView === "document-import" ? designBriefToggleRef : structureToggleRef).current?.focus();
+  }
+
+  function exportCurrentDocument() {
+    if (designBriefSession !== null && isDesignBriefDirty(designBriefSession)) return;
+    try {
+      const exported = exportPortableArchitectureDocument(editorState);
+      const url = URL.createObjectURL(new Blob([exported.json], { type: "application/json;charset=utf-8" }));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = exported.filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setPortableActionError(null);
+      setViewState((state) => state.status === "loading" ? state : { ...state, announcement: "Architekt JSON download started." });
+    } catch {
+      setPortableActionError("Could not export this document. Try again.");
+    }
+  }
+
+  function replaceFromPortableDocument(imported: ArchitectureEditorState) {
+    if (nodeDragIsActive || dragStartHistoryRef.current !== null || renameSession !== null || pendingPointerConnectionSource !== null) return;
+    const current = latestViewStateRef.current;
+    if (current.status === "loading" || current.status === "recovery-required") return;
+    const nextHistory = applyPortableDocument(current.history, imported);
+    setViewState((state) => state.status === "loading" || state.history !== current.history
+      ? state
+      : { ...state, history: nextHistory, connectionRejection: null, componentCreationRejection: null, autoLayoutFailure: false, fitViewRequestId: (state.fitViewRequestId ?? 0) + 1, announcement: "Document imported. Undo is available." });
+    closeRename(null, "preserve-current");
+    setSelectedCanvasComponentIds(new Set());
+    setSelectedBoundaryId(null);
+    setPendingPointerConnectionSource(null);
+    setCanvasNodeFocusRequest(null);
+    generationControllerRef.current?.cancel();
+    generationControllerRef.current?.discard();
+    setDockView(null);
+    setPortableActionError(null);
+    designBriefToggleRef.current?.focus();
   }
 
   function saveDesignBrief() {
@@ -2019,9 +2063,9 @@ export function ArchitectureEditor() {
         </aside>
 
         {dockView !== null ? (
-          <aside aria-label={`${dockView === "ai" ? "AI" : dockView === "analysis" ? "Analysis" : dockView === "design-brief" ? "Design Brief" : dockView.startsWith("boundary-") ? "Boundary" : "Structure"} utility panel`} className="workbench-dock" id="workbench-utility-dock">
+          <aside aria-label={`${dockView === "ai" ? "AI" : dockView === "analysis" ? "Analysis" : dockView === "design-brief" ? "Design Brief" : dockView === "document-import" ? "Import document" : dockView.startsWith("boundary-") ? "Boundary" : "Structure"} utility panel`} className="workbench-dock" id="workbench-utility-dock">
             <div className="workbench-pane-heading">
-              <h2>{dockView === "ai" ? "Generate architecture" : dockView === "analysis" ? "Analysis" : dockView === "design-brief" ? "Design Brief" : dockView === "boundary-create" ? "Create boundary" : dockView === "boundary-details" ? "Boundary details" : "Structure"}</h2>
+              <h2>{dockView === "ai" ? "Generate architecture" : dockView === "analysis" ? "Analysis" : dockView === "design-brief" ? "Design Brief" : dockView === "document-import" ? "Import document" : dockView === "boundary-create" ? "Create boundary" : dockView === "boundary-details" ? "Boundary details" : "Structure"}</h2>
               <button aria-label="Close utility panel" className="workbench-pane-close" onClick={closeDock} ref={dockCloseRef} type="button"><PanelRightClose aria-hidden="true" className="size-4" /></button>
             </div>
             <div className="workbench-dock-content">
@@ -2037,7 +2081,17 @@ export function ArchitectureEditor() {
                 />
               ) : null}
               {dockView === "analysis" ? <ArchitectureAnalysisPanel graph={editorState.graph} /> : null}
-              {dockView === "design-brief" && visibleDesignBriefSession !== null ? <DesignBriefPanel
+              {dockView === "design-brief" && visibleDesignBriefSession !== null ? <>
+                <div className="portable-document-actions">
+                  <p className="workbench-section-label">Document</p>
+                  <div className="flex flex-wrap gap-2">
+                    <button className="design-brief-secondary" disabled={isDesignBriefDirty(visibleDesignBriefSession)} onClick={exportCurrentDocument} type="button">Export JSON</button>
+                    <button className="design-brief-secondary" onClick={() => openDock("document-import")} type="button">Import JSON</button>
+                  </div>
+                  {isDesignBriefDirty(visibleDesignBriefSession) ? <p className="mt-2 text-xs text-text-secondary">Save or Cancel your draft before exporting.</p> : null}
+                  {portableActionError ? <p className="mt-2 text-xs text-danger" role="alert">{portableActionError}</p> : null}
+                </div>
+                <DesignBriefPanel
                 session={visibleDesignBriefSession}
                 canonical={editorState.designContext}
                 saveDisabled={nodeDragIsActive}
@@ -2046,6 +2100,12 @@ export function ArchitectureEditor() {
                 onCancel={cancelDesignBrief}
                 onLoadSaved={() => setDesignBriefSession(createDesignBriefSession(editorState.designContext))}
                 onKeepDraft={() => setDesignBriefSession((session) => session === null ? null : { ...session, baseline: editorState.designContext, error: null })}
+                />
+              </> : null}
+              {dockView === "document-import" ? <PortableDocumentImportPanel
+                replaceDisabledReason={viewState.status === "recovery-required" ? "Reset the invalid saved workspace before importing." : nodeDragIsActive || renameSession !== null || pendingPointerConnectionSource !== null ? "Finish the current canvas action before replacing the document." : null}
+                onCancel={closeDock}
+                onReplace={replaceFromPortableDocument}
               /> : null}
               {dockView === "boundary-create" ? <BoundaryCreationForm disabled={boundaryEditDisabled} graph={editorState.graph} initialMemberIds={boundaryCreationPrefill} key={boundaryCreationSession} onCancel={closeDock} onCreate={(name, memberIds) => {
                 const id = createBoundaryId();

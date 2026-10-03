@@ -134,6 +134,12 @@ function hasOwn(record: Record<string, unknown>, key: string): boolean {
   return Object.prototype.hasOwnProperty.call(record, key);
 }
 
+function hasExactKeys(value: unknown, keys: readonly string[]): boolean {
+  return isRecord(value) &&
+    Object.keys(value).length === keys.length &&
+    keys.every((key) => hasOwn(value, key));
+}
+
 function isPersistedComponentV1(
   value: unknown,
 ): value is PersistedComponentV1 {
@@ -321,6 +327,16 @@ export function restoreArchitectureEditorState(
     !Array.isArray(value.nodePositions) ||
     !value.nodePositions.every(isPersistedNodePosition)
   ) {
+    return invalidDocument();
+  }
+
+  if (value.schemaVersion === 5 && (
+    !hasExactKeys(value, ["schemaVersion", "designContext", "graph", "nodePositions"]) ||
+    !hasExactKeys(value.graph, ["components", "connections", "boundaries"]) ||
+    !value.graph.components.every((component) => hasExactKeys(component, ["id", "name", "kind"])) ||
+    !value.graph.connections.every((connection) => hasExactKeys(connection, ["id", "sourceComponentId", "targetComponentId", "kind"])) ||
+    !value.nodePositions.every((position) => hasExactKeys(position, ["componentId", "x", "y"]))
+  )) {
     return invalidDocument();
   }
 

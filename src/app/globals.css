@@ -403,6 +403,80 @@ textarea.design-brief-input {
   line-height: 1.5;
 }
 
+.portable-document-actions {
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.portable-document-actions .workbench-section-label {
+  margin: 0 0 8px;
+}
+
+.portable-document-import {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.portable-document-file {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.portable-document-file::file-selector-button {
+  margin-right: 10px;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--text-primary);
+  font: inherit;
+}
+
+.portable-document-file:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.portable-document-preview {
+  min-width: 0;
+  margin-top: 4px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.portable-document-details {
+  display: grid;
+  gap: 5px;
+  margin-top: 12px;
+  font-size: 12px;
+}
+
+.portable-document-details > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.portable-document-details dt {
+  color: var(--text-secondary);
+}
+
+.portable-document-details dd {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.design-brief-secondary:disabled {
+  color: var(--text-muted);
+  cursor: default;
+  opacity: 0.65;
+}
+
 .workbench-mobile-create,
 .workbench-mobile-close {
   display: none;
