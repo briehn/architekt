@@ -8,12 +8,20 @@ import type { ArchitectureGenerationReviewState } from "./architecture-generatio
 function render(review: ArchitectureGenerationReviewState, applyDisabled = false) {
   return renderToStaticMarkup(<ArchitectureGenerationPanel
     review={review}
+    voice={{ status: "idle" }}
+    voiceSupported={true}
+    voiceExitMessage={null}
     applyDisabled={applyDisabled}
     onPromptChange={() => {}}
     onGenerate={() => {}}
     onCancel={() => {}}
     onApply={() => {}}
     onDiscard={() => {}}
+    onSpeak={() => {}}
+    onVoiceStop={() => {}}
+    onVoiceCancel={() => {}}
+    onVoiceRetry={() => {}}
+    onVoiceDiscard={() => {}}
   />);
 }
 
@@ -22,7 +30,8 @@ describe("architecture generation panel", () => {
     const markup = render({ status: "idle", prompt: "" });
     expect(markup).toContain("Describe your system");
     expect(markup).toContain("Generate</button>");
-    expect(markup).toContain('maxLength="5000"');
+    expect(markup).toContain("Speak</button>");
+    expect(markup).not.toContain('maxLength="5000"');
   });
 
   it("shows loading with Cancel and a safe inline typed error", () => {

@@ -47,6 +47,20 @@ export interface ArchitectureTranscriptionProvider {
   transcribe(input: ArchitectureTranscriptionInput, signal: AbortSignal): Promise<ArchitectureTranscriptionProviderResult>;
 }
 
+export function isArchitectureTranscriptionFailureType(value: unknown): value is ArchitectureTranscriptionFailureType {
+  return typeof value === "string" && Object.hasOwn(failures, value);
+}
+
+export function validateArchitectureTranscript(output: unknown): ArchitectureTranscriptionResult {
+  if (typeof output !== "string" || output.length > ARCHITECTURE_TRANSCRIPTION_TEXT_LIMIT) {
+    return { ok: false, error: transcriptionFailure("invalid-transcription") };
+  }
+  const transcript = output.trim();
+  return transcript
+    ? { ok: true, transcript }
+    : { ok: false, error: transcriptionFailure("no-usable-transcript") };
+}
+
 export function normalizeArchitectureTranscriptionMediaType(value: string | null): ArchitectureTranscriptionMediaType | undefined {
   if (!value) return;
   const normalized = value.trim().toLowerCase();
@@ -80,11 +94,5 @@ export async function transcribeArchitectureAudio(
   const result = await provider.transcribe(input, signal);
   if (signal.aborted) return { ok: false, error: transcriptionFailure("transcription-canceled") };
   if (!result.ok) return { ok: false, error: transcriptionFailure(result.type) };
-  if (typeof result.output !== "string" || result.output.length > ARCHITECTURE_TRANSCRIPTION_TEXT_LIMIT) {
-    return { ok: false, error: transcriptionFailure("invalid-transcription") };
-  }
-  const transcript = result.output.trim();
-  return transcript
-    ? { ok: true, transcript }
-    : { ok: false, error: transcriptionFailure("no-usable-transcript") };
+  return validateArchitectureTranscript(result.output);
 }

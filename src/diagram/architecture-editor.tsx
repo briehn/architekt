@@ -109,6 +109,7 @@ import {
 } from "./architecture-generation-review";
 import { applyArchitectureProposal } from "./apply-architecture-proposal";
 import { ArchitectureGenerationPanel } from "./architecture-generation-panel";
+import { ArchitectureVoiceController, type ArchitectureVoiceState } from "./architecture-voice-controller";
 import { ArchitectureAnalysisPanel } from "./architecture-analysis-panel";
 import { exportPortableArchitectureDocument } from "../persistence/portable-architecture-document";
 import { applyPortableDocument } from "./apply-portable-document";
@@ -645,6 +646,10 @@ export function ArchitectureEditor() {
   const [creationLibraryIsOpen, setCreationLibraryIsOpen] = useState(false);
   const [generationReview, setGenerationReview] = useState<ArchitectureGenerationReviewState>({ status: "idle", prompt: "" });
   const generationControllerRef = useRef<ArchitectureGenerationReviewController | null>(null);
+  const [voiceState, setVoiceState] = useState<ArchitectureVoiceState>({ status: "idle" });
+  const [voiceSupported, setVoiceSupported] = useState(false);
+  const [voiceExitMessage, setVoiceExitMessage] = useState<string | null>(null);
+  const voiceControllerRef = useRef<ArchitectureVoiceController | null>(null);
   const generationToggleRef = useRef<HTMLButtonElement | null>(null);
   const designBriefToggleRef = useRef<HTMLButtonElement | null>(null);
   const structureToggleRef = useRef<HTMLButtonElement | null>(null);
@@ -676,6 +681,29 @@ export function ArchitectureEditor() {
       generationControllerRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    const controller = new ArchitectureVoiceController(setVoiceState, (transcript) => generationControllerRef.current?.setPrompt(transcript));
+    voiceControllerRef.current = controller;
+    setVoiceSupported(controller.supported());
+    return () => {
+      controller.dispose();
+      voiceControllerRef.current = null;
+    };
+  }, []);
+
+  const guardVoiceDockExit = useCallback(() => {
+    if (dockView !== "ai") return true;
+    const voice = voiceControllerRef.current?.getState();
+    if (voice?.status === "recording") {
+      setVoiceExitMessage("Stop or Cancel recording first.");
+      window.requestAnimationFrame(() => document.getElementById("voice-stop-recording")?.focus());
+      return false;
+    }
+    if (voice?.status === "requesting-permission") voiceControllerRef.current?.cancel();
+    setVoiceExitMessage(null);
+    return true;
+  }, [dockView]);
 
   const renameDraft = renameSession?.draft ?? null;
   const activeRenameComponentId = renameDraft?.componentId ?? null;
@@ -904,6 +932,7 @@ export function ArchitectureEditor() {
         creationToggleRef.current?.focus();
       } else if (dockView !== null && target.closest(".workbench-dock")) {
         event.preventDefault();
+        if (!guardVoiceDockExit()) return;
         if (!confirmDiscardDesignBrief()) return;
         setDockView(null);
         setDesignBriefSession(null);
@@ -917,7 +946,7 @@ export function ArchitectureEditor() {
 
     window.addEventListener("keydown", closeActiveSheetOnEscape);
     return () => window.removeEventListener("keydown", closeActiveSheetOnEscape);
-  }, [creationLibraryIsOpen, dockView, confirmDiscardDesignBrief]);
+  }, [creationLibraryIsOpen, dockView, confirmDiscardDesignBrief, guardVoiceDockExit]);
 
   const persistEditorState = useCallback(
     (editorStateToSave: ArchitectureEditorState) => {
@@ -999,7 +1028,10 @@ export function ArchitectureEditor() {
     }
 
     function handleVisibilityChange() {
-      if (document.visibilityState === "hidden") flushPendingSave();
+      if (document.visibilityState === "hidden") {
+        flushPendingSave();
+        voiceControllerRef.current?.onPageHidden();
+      }
     }
 
     window.addEventListener("beforeunload", handleBeforeUnload);
@@ -1687,7 +1719,7 @@ export function ArchitectureEditor() {
     }
 
     const shouldReset = window.confirm(
-      `Reset saved workspace? Saved data and recovery edits will be permanently deleted.${dockView === "design-brief" && designBriefSession !== null && isDesignBriefDirty(designBriefSession) ? " Your unsaved Design Brief draft will also be discarded." : ""}`,
+      `Reset saved workspace? Saved data and recovery edits will be permanently deleted.${dockView === "design-brief" && designBriefSession !== null && isDesignBriefDirty(designBriefSession) ? " Your unsaved Design Brief draft will also be discarded." : ""}${voiceState.status !== "idle" ? " Voice recording and transcript work will also be discarded." : ""}`,
     );
 
     if (!shouldReset) {
@@ -1730,6 +1762,10 @@ export function ArchitectureEditor() {
     setSelectedCanvasComponentIds(new Set());
     setSelectedBoundaryId(null);
     setDesignBriefSession(null);
+    voiceControllerRef.current?.reset();
+    generationControllerRef.current?.cancel();
+    generationControllerRef.current?.discard();
+    generationControllerRef.current?.setPrompt("");
     setDockView(null);
     setViewState({
       status: "ready",
@@ -1785,6 +1821,7 @@ export function ArchitectureEditor() {
       : null;
 
   function openDock(view: Exclude<UtilityDockView, null>) {
+    if (!guardVoiceDockExit()) return;
     if (!confirmDiscardDesignBrief()) return;
     setCreationLibraryIsOpen(false);
     setPortableActionError(null);
@@ -1800,6 +1837,7 @@ export function ArchitectureEditor() {
 
   function openBoundaryCreation() {
     if (boundaryEditDisabled || boundaryDragRef.current !== null) return;
+    if (!guardVoiceDockExit()) return;
     if (!confirmDiscardDesignBrief()) return;
     setDesignBriefSession(null);
     setBoundaryCreationPrefill(getEligibleBoundaryCreationMembers(editorState.graph, selectedCanvasComponentIds));
@@ -1816,6 +1854,7 @@ export function ArchitectureEditor() {
 
   function openBoundaryDetails(boundaryId: BoundaryId) {
     if (boundaryEditDisabled || boundaryDragRef.current !== null) return;
+    if (!guardVoiceDockExit()) return;
     if (!confirmDiscardDesignBrief()) return;
     setDesignBriefSession(null);
     setDetailsBoundaryId(boundaryId);
@@ -1843,6 +1882,7 @@ export function ArchitectureEditor() {
   }
 
   function closeDock() {
+    if (!guardVoiceDockExit()) return;
     if (!confirmDiscardDesignBrief()) return;
     const closingView = dockView;
     setDockView(null);
@@ -1885,6 +1925,8 @@ export function ArchitectureEditor() {
     setCanvasNodeFocusRequest(null);
     generationControllerRef.current?.cancel();
     generationControllerRef.current?.discard();
+    voiceControllerRef.current?.reset();
+    generationControllerRef.current?.setPrompt("");
     setDockView(null);
     setPortableActionError(null);
     designBriefToggleRef.current?.focus();
@@ -1933,6 +1975,7 @@ export function ArchitectureEditor() {
             aria-expanded={creationLibraryIsOpen}
             className="workbench-command workbench-mobile-create"
             onClick={() => {
+              if (!guardVoiceDockExit()) return;
               if (!confirmDiscardDesignBrief()) return;
               setDockView(null);
               setDesignBriefSession(null);
@@ -2040,6 +2083,9 @@ export function ArchitectureEditor() {
             ? "Architecture draft ready. Review it before applying."
             : ""}
         </p>
+        <p aria-live="polite" className="sr-only" role="status">
+          {dockView !== "ai" && voiceState.status === "transcript-ready" ? "Transcript ready. Open Generate architecture to review it." : ""}
+        </p>
       </div>
 
       <div className="workbench-body">
@@ -2072,12 +2118,23 @@ export function ArchitectureEditor() {
               {dockView === "ai" ? (
                 <ArchitectureGenerationPanel
                   review={generationReview}
+                  voice={voiceState}
+                  voiceSupported={voiceSupported}
+                  voiceExitMessage={voiceExitMessage}
                   applyDisabled={renameSession !== null || nodeDragIsActive}
                   onPromptChange={(prompt) => generationControllerRef.current?.setPrompt(prompt)}
-                  onGenerate={() => { void generationControllerRef.current?.generate(); }}
+                  onGenerate={() => { voiceControllerRef.current?.markGenerated(); void generationControllerRef.current?.generate(); }}
                   onCancel={() => { generationControllerRef.current?.cancel(); generationToggleRef.current?.focus(); }}
                   onApply={handleApplyArchitectureProposal}
                   onDiscard={() => { generationControllerRef.current?.discard(); generationToggleRef.current?.focus(); }}
+                  onSpeak={() => {
+                    if (generationReview.prompt.length > 0 && !window.confirm("Replace the current description with a new recording? Your text will remain until transcription succeeds.")) return;
+                    void voiceControllerRef.current?.start();
+                  }}
+                  onVoiceStop={() => { setVoiceExitMessage(null); void voiceControllerRef.current?.stop(); }}
+                  onVoiceCancel={() => { setVoiceExitMessage(null); voiceControllerRef.current?.cancel(); }}
+                  onVoiceRetry={() => { void voiceControllerRef.current?.retry(); }}
+                  onVoiceDiscard={() => { voiceControllerRef.current?.discard(); }}
                 />
               ) : null}
               {dockView === "analysis" ? <ArchitectureAnalysisPanel graph={editorState.graph} /> : null}
@@ -2103,6 +2160,7 @@ export function ArchitectureEditor() {
                 />
               </> : null}
               {dockView === "document-import" ? <PortableDocumentImportPanel
+                hasVoiceWork={voiceState.status !== "idle"}
                 replaceDisabledReason={viewState.status === "recovery-required" ? "Reset the invalid saved workspace before importing." : nodeDragIsActive || renameSession !== null || pendingPointerConnectionSource !== null ? "Finish the current canvas action before replacing the document." : null}
                 onCancel={closeDock}
                 onReplace={replaceFromPortableDocument}

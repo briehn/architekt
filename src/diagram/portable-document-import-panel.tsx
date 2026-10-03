@@ -16,6 +16,7 @@ type ImportState =
 
 type PortableDocumentImportPanelProps = Readonly<{
   replaceDisabledReason: string | null;
+  hasVoiceWork: boolean;
   onCancel(): void;
   onReplace(state: ArchitectureEditorState): void;
 }>;
@@ -29,7 +30,7 @@ function importErrorMessage(error: "file-too-large" | "invalid-json" | "unsuppor
   }
 }
 
-export function PortableDocumentImportPanel({ replaceDisabledReason, onCancel, onReplace }: PortableDocumentImportPanelProps) {
+export function PortableDocumentImportPanel({ replaceDisabledReason, hasVoiceWork, onCancel, onReplace }: PortableDocumentImportPanelProps) {
   const [importState, setImportState] = useState<ImportState>({ status: "idle" });
   const requestVersion = useRef(0);
   useEffect(() => () => { requestVersion.current += 1; }, []);
@@ -80,6 +81,7 @@ export function PortableDocumentImportPanel({ replaceDisabledReason, onCancel, o
           </dl>
           {importState.preview.sourceVersion < 5 ? <p className="mt-2 text-xs text-text-secondary">Version {importState.preview.sourceVersion} will be migrated to the current document format.</p> : null}
           <p className="mt-3 text-xs leading-5 text-text-secondary">Replace the current architecture document, including its Design Brief, diagram, boundaries, and positions. You can Undo this replacement.</p>
+          {hasVoiceWork ? <p className="mt-2 text-xs text-text-secondary">Replacing also discards your current voice recording or transient transcript.</p> : null}
           {replaceDisabledReason ? <p className="mt-2 text-xs text-text-secondary" role="status">{replaceDisabledReason}</p> : null}
           <div className="design-brief-actions mt-3">
             <button className="design-brief-primary" disabled={replaceDisabledReason !== null} onClick={() => onReplace(importState.state)} type="button">Replace document</button>

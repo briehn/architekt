@@ -2,7 +2,7 @@
 
 ## Current milestone: Voice-to-Architecture
 
-**Status: In progress.** Slice 1 establishes the bounded server transcription path. There is no microphone or transcript UI yet.
+**Status: In progress.** Slices 1–2 provide bounded transcription and a browser recording workflow through the existing AI proposal review. Real microphone/provider acceptance and quality evaluation remain Slice 3.
 
 ### Slice 1: Transcription service and server endpoint
 
@@ -13,7 +13,7 @@
 
 ### Remaining approved slices
 
-* [ ] Slice 2: Browser recording, editable transcript, existing generation handoff, and Workbench UX
+* [x] Slice 2: Browser recording, editable transcript, existing generation handoff, and Workbench UX, verified with synthetic media and mocked provider responses
 * [ ] Slice 3: Real microphone/browser acceptance, quality evaluation, and milestone closeout
 
 ## Paused milestone: Portable Architecture Documents

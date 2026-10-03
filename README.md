@@ -14,7 +14,7 @@ System design often ends up split between an easy-to-change whiteboard and notes
 - Use deterministic Analysis for topology observations and cautious relationship-review questions. It does not score a design.
 - Open the Design Brief from the document title to record requirements, open questions, and the reasons and downsides behind choices. Save the whole brief as one Undo step.
 - Download the complete architecture and Design Brief as an editable JSON file, or preview and explicitly replace the current document from an Architekt file. Undo restores the previous document.
-- Generate a typed AI proposal, review its summary and assumptions, then explicitly **Apply** or **Discard** it. Apply replaces the diagram in one Undo step.
+- Type a system description or use **Speak** in Generate architecture. Review and edit the transcript, explicitly generate an AI proposal, then **Apply** or **Discard** it. Apply replaces the diagram in one Undo step.
 - Undo and redo meaningful edits; save the current graph, boundary membership, and positions locally across refreshes. **Fit view** changes only the viewport.
 
 The canvas is a view of the architecture. An immutable `ArchitectureGraph` owns components, connections, boundaries, and invariants; React Flow nodes and edges are derived from it. `ArchitectureEditorState` owns positions, document-level DesignContext, and transient renderer measurements, while bounded history stores only graph, positions, and context. The V5 local document restores through public domain operations and strictly validates saved data, including V1–V4 migrations. Analysis is deterministic, graph-only, and read-only. AI output passes runtime and domain validation before it can become a draft or an applied graph.
@@ -57,6 +57,8 @@ ARCHITEKT_OPENAI_MODEL=gpt-6-luna
 ```
 
 `OPENAI_API_KEY` is server-only. `ARCHITEKT_OPENAI_MODEL` is optional; the default is `gpt-6-luna` with medium reasoning, retained after a [seven-prompt Luna/Sol evaluation](docs/evaluations/ai-generation-2026-10-01.md). Generation has request and output bounds, a 40-second deadline, zero automatic retries, no application prompt logging, and safe public error messages. Prompts and proposal metadata are transient. Cancellation protects the editor from stale results, though an already-started provider request may still incur usage.
+
+Voice input uses the same server-side key through the separate `gpt-transcribe` endpoint. The browser records up to two minutes and sends the clip only after Stop. Audio stays in memory for the current operation or an explicit retry; the editable transcript remains in session memory until refresh and is never saved or exported. Desktop English is the initial target. Synthetic-browser acceptance is complete; real microphone and paid-provider quality evaluation are still pending.
 
 Run validation with:
 
