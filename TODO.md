@@ -1,8 +1,8 @@
 # Architekt TODO
 
-## Current milestone: Voice-to-Architecture
+## Completed milestone: Voice-to-Architecture v1
 
-**Status: In progress.** Slices 1–2 provide bounded transcription and a browser recording workflow through the existing AI proposal review. Real microphone/provider acceptance and quality evaluation remain Slice 3.
+**Status: Complete.** English voice input is verified on Windows desktop with a physical microphone in Google Chrome, Microsoft Edge, and Brave, with the user reviewing/editing transcription before it enters the existing architecture-proposal flow. The UI was also verified around 390px. Mobile microphone behavior, Safari, Firefox, macOS, multilingual transcription, and actual screen-reader speech remain unverified.
 
 ### Slice 1: Transcription service and server endpoint
 
@@ -11,10 +11,10 @@
 * [x] Add server-only `gpt-transcribe` adapter with in-memory upload, timeout, cancellation, and zero retries
 * [x] Cover application, provider, route, and existing-generation regressions
 
-### Remaining approved slices
+### Completed slices
 
 * [x] Slice 2: Browser recording, editable transcript, existing generation handoff, and Workbench UX, verified with synthetic media and mocked provider responses
-* [ ] Slice 3: Real microphone/browser acceptance, quality evaluation, and milestone closeout
+* [x] Slice 3: Real microphone/browser acceptance, quality evaluation, and milestone closeout; see `docs/evaluations/voice-to-architecture-2026-10-03.md`
 
 ## Paused milestone: Portable Architecture Documents
 
