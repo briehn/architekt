@@ -114,6 +114,8 @@ import { ArchitectureAnalysisPanel } from "./architecture-analysis-panel";
 import { exportPortableArchitectureDocument } from "../persistence/portable-architecture-document";
 import { exportArchitectureMarkdown } from "../application/architecture-markdown-export";
 import { downloadArchitectureFile } from "./download-architecture-file";
+import { captureDiagramPng, PngCaptureError } from "./capture-diagram-png";
+import { portableExportFilename } from "../application/portable-export-filename";
 import { applyPortableDocument } from "./apply-portable-document";
 import { PortableDocumentImportPanel } from "./portable-document-import-panel";
 import { replaceDesignContextInEditorState } from "./design-context-editor-state";
@@ -642,6 +644,12 @@ export function ArchitectureEditor() {
   const [dockView, setDockView] = useState<UtilityDockView>(null);
   const [designBriefSession, setDesignBriefSession] = useState<DesignBriefSession | null>(null);
   const [portableActionError, setPortableActionError] = useState<string | null>(null);
+  const [pngPreparing, setPngPreparing] = useState(false);
+  const pngExportInFlightRef = useRef(false);
+  const pngExportAbortRef = useRef<AbortController | null>(null);
+  const pngExportButtonRef = useRef<HTMLButtonElement | null>(null);
+  const pngRestoreFocusRef = useRef(false);
+  const diagramCaptureRootRef = useRef<HTMLDivElement | null>(null);
   const [boundaryCreationPrefill, setBoundaryCreationPrefill] = useState<readonly ComponentId[]>([]);
   const [boundaryCreationSession, setBoundaryCreationSession] = useState(0);
   const [detailsBoundaryId, setDetailsBoundaryId] = useState<BoundaryId | null>(null);
@@ -674,6 +682,17 @@ export function ArchitectureEditor() {
     new Map<ComponentId, HTMLButtonElement>(),
   );
   const nameControlToFocusRef = useRef<ComponentId | null>(null);
+
+  useEffect(() => () => {
+    pngExportAbortRef.current?.abort();
+  }, []);
+
+  useEffect(() => {
+    if (pngPreparing || !pngRestoreFocusRef.current) return;
+    pngRestoreFocusRef.current = false;
+    const button = pngExportButtonRef.current;
+    if (document.activeElement === document.body && button?.isConnected && !button.disabled) button.focus();
+  }, [pngPreparing]);
 
   useEffect(() => {
     const controller = new ArchitectureGenerationReviewController(setGenerationReview);
@@ -1916,6 +1935,56 @@ export function ArchitectureEditor() {
     }
   }
 
+  async function exportCurrentDiagramPng() {
+    if (pngExportInFlightRef.current || designBriefSession !== null && isDesignBriefDirty(designBriefSession) ||
+      nodeDragIsActive || dragStartHistoryRef.current !== null || boundaryDragRef.current !== null || renameSession !== null) return;
+    const current = latestViewStateRef.current;
+    const root = diagramCaptureRootRef.current;
+    if (current.status === "loading" || !root || current.history.present.graph.getComponents().length === 0) return;
+    const graph = current.history.present.graph;
+    const positions = current.history.present.nodePositions;
+    const filename = portableExportFilename(current.history.present.designContext.title, "png");
+    const restoreFocus = document.activeElement === pngExportButtonRef.current;
+    pngRestoreFocusRef.current = restoreFocus;
+    const controller = new AbortController();
+    pngExportAbortRef.current = controller;
+    pngExportInFlightRef.current = true;
+    setPngPreparing(true);
+    setPortableActionError(null);
+    try {
+      const result = await captureDiagramPng({
+        diagramRoot: root,
+        graph,
+        signal: controller.signal,
+        isCurrent: () => {
+          const latest = latestViewStateRef.current;
+          return latest.status !== "loading" && latest.history.present.graph === graph && latest.history.present.nodePositions === positions;
+        },
+      });
+      if (controller.signal.aborted) return;
+      downloadArchitectureFile(result.blob, filename);
+      setViewState((state) => state.status === "loading" ? state : {
+        ...state,
+        announcement: result.reduced
+          ? "PNG download started. Resolution was reduced to include the complete diagram."
+          : "PNG download started.",
+      });
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      setPortableActionError(error instanceof PngCaptureError && error.reason === "changed"
+        ? "The diagram changed while preparing the PNG. Export again."
+        : error instanceof PngCaptureError && error.reason === "not-ready"
+          ? "The diagram is still rendering. Try exporting again."
+          : error instanceof PngCaptureError && error.reason === "too-large"
+            ? "This diagram is too large to render as a PNG. Move distant components closer and try again."
+            : "Could not export PNG. Try again.");
+    } finally {
+      if (pngExportAbortRef.current === controller) pngExportAbortRef.current = null;
+      pngExportInFlightRef.current = false;
+      if (!controller.signal.aborted) setPngPreparing(false);
+    }
+  }
+
   function replaceFromPortableDocument(imported: ArchitectureEditorState) {
     if (nodeDragIsActive || dragStartHistoryRef.current !== null || renameSession !== null || pendingPointerConnectionSource !== null) return;
     const current = latestViewStateRef.current;
@@ -2150,9 +2219,12 @@ export function ArchitectureEditor() {
                   <div className="flex flex-wrap gap-2">
                     <button className="design-brief-secondary" disabled={isDesignBriefDirty(visibleDesignBriefSession) || nodeDragIsActive || renameSession !== null} onClick={() => exportCurrentDocument("json")} type="button">Export JSON</button>
                     <button className="design-brief-secondary" disabled={isDesignBriefDirty(visibleDesignBriefSession) || nodeDragIsActive || renameSession !== null} onClick={() => exportCurrentDocument("markdown")} type="button">Export Markdown</button>
+                    <button className="design-brief-secondary" disabled={isDesignBriefDirty(visibleDesignBriefSession) || nodeDragIsActive || renameSession !== null || editorState.graph.getComponents().length === 0 || pngPreparing} onClick={() => { void exportCurrentDiagramPng(); }} ref={pngExportButtonRef} type="button">{pngPreparing ? "Preparing PNG…" : "Export PNG"}</button>
                     <button className="design-brief-secondary" onClick={() => openDock("document-import")} type="button">Import JSON</button>
                   </div>
                   {isDesignBriefDirty(visibleDesignBriefSession) ? <p className="mt-2 text-xs text-text-secondary">Save or Cancel your draft before exporting.</p> : null}
+                  {editorState.graph.getComponents().length === 0 ? <p className="mt-2 text-xs text-text-secondary">Add a component to export a diagram.</p> : null}
+                  {pngPreparing ? <p className="mt-2 text-xs text-text-secondary" role="status">Preparing PNG…</p> : null}
                   {portableActionError ? <p className="mt-2 text-xs text-danger" role="alert">{portableActionError}</p> : null}
                 </div>
                 <DesignBriefPanel
@@ -2415,7 +2487,7 @@ export function ArchitectureEditor() {
           </aside>
         ) : null}
 
-      <div className="workbench-canvas">
+      <div className="workbench-canvas" ref={diagramCaptureRootRef}>
         <StaticDiagram
           selectedComponentIds={selectedCanvasComponentIds}
           selectedBoundaryId={activeSelectedBoundaryId}

@@ -18,7 +18,7 @@
 
 ## Current milestone: Portable Architecture Documents
 
-**Status: In progress after Slice 2A.** JSON export and strict, previewed full-document import are complete. Deterministic Markdown export is complete; PNG export and final browser acceptance remain.
+**Status: In progress after Slice 2B.** JSON export and strict, previewed full-document import, deterministic Markdown export, and complete-diagram PNG export are implemented. Final cross-format and cross-browser acceptance remains in Slice 2C.
 
 ### Slice 1: JSON export and safe import
 
@@ -35,7 +35,7 @@
 
 ### Remaining approved slices
 
-* [ ] Slice 2B: Complete-diagram PNG export
+* [x] Slice 2B: Complete-diagram, stable-light PNG export with bounded local rasterization
 * [ ] Slice 2C: Cross-format browser acceptance and milestone closeout
 
 ## Completed milestone: Design Brief + Decision Rationale
