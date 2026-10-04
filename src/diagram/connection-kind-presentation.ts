@@ -1,4 +1,5 @@
 import type { ArchitectureConnectionKind } from "../domain/architecture-connection";
+import { getConnectionKindLabel } from "../application/architecture-kind-labels";
 
 export type ConnectionKindPresentation = Readonly<{
   accessibleLabel: string;
@@ -6,18 +7,18 @@ export type ConnectionKindPresentation = Readonly<{
 }>;
 
 const connectionKindPresentationByKind = {
-  generic: { accessibleLabel: "Generic", visibleLabel: null },
+  generic: { accessibleLabel: getConnectionKindLabel("generic"), visibleLabel: null },
   "request-response": {
-    accessibleLabel: "Request/response",
+    accessibleLabel: getConnectionKindLabel("request-response"),
     visibleLabel: "Request/response",
   },
   "async-messaging": {
-    accessibleLabel: "Async messaging",
+    accessibleLabel: getConnectionKindLabel("async-messaging"),
     visibleLabel: "Async messaging",
   },
-  streaming: { accessibleLabel: "Streaming", visibleLabel: "Streaming" },
+  streaming: { accessibleLabel: getConnectionKindLabel("streaming"), visibleLabel: "Streaming" },
   "data-access": {
-    accessibleLabel: "Data access",
+    accessibleLabel: getConnectionKindLabel("data-access"),
     visibleLabel: "Data access",
   },
 } satisfies Record<ArchitectureConnectionKind, ConnectionKindPresentation>;

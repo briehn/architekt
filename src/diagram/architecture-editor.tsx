@@ -112,6 +112,8 @@ import { ArchitectureGenerationPanel } from "./architecture-generation-panel";
 import { ArchitectureVoiceController, type ArchitectureVoiceState } from "./architecture-voice-controller";
 import { ArchitectureAnalysisPanel } from "./architecture-analysis-panel";
 import { exportPortableArchitectureDocument } from "../persistence/portable-architecture-document";
+import { exportArchitectureMarkdown } from "../application/architecture-markdown-export";
+import { downloadArchitectureFile } from "./download-architecture-file";
 import { applyPortableDocument } from "./apply-portable-document";
 import { PortableDocumentImportPanel } from "./portable-document-import-panel";
 import { replaceDesignContextInEditorState } from "./design-context-editor-state";
@@ -1891,22 +1893,26 @@ export function ArchitectureEditor() {
     else (closingView === "ai" ? generationToggleRef : closingView === "analysis" ? analysisToggleRef : closingView === "design-brief" || closingView === "document-import" ? designBriefToggleRef : structureToggleRef).current?.focus();
   }
 
-  function exportCurrentDocument() {
+  function exportCurrentDocument(format: "json" | "markdown") {
     if (designBriefSession !== null && isDesignBriefDirty(designBriefSession)) return;
+    if (nodeDragIsActive || dragStartHistoryRef.current !== null || boundaryDragRef.current !== null || renameSession !== null) return;
     try {
-      const exported = exportPortableArchitectureDocument(editorState);
-      const url = URL.createObjectURL(new Blob([exported.json], { type: "application/json;charset=utf-8" }));
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = exported.filename;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      const canonical = latestViewStateRef.current;
+      if (canonical.status === "loading") return;
+      if (format === "json") {
+        const exported = exportPortableArchitectureDocument(canonical.history.present);
+        downloadArchitectureFile(new Blob([exported.json], { type: "application/json;charset=utf-8" }), exported.filename);
+      } else {
+        const exported = exportArchitectureMarkdown({
+          graph: canonical.history.present.graph,
+          designContext: canonical.history.present.designContext,
+        });
+        downloadArchitectureFile(new Blob([exported.markdown], { type: "text/markdown;charset=utf-8" }), exported.filename);
+      }
       setPortableActionError(null);
-      setViewState((state) => state.status === "loading" ? state : { ...state, announcement: "Architekt JSON download started." });
+      setViewState((state) => state.status === "loading" ? state : { ...state, announcement: `Architekt ${format === "json" ? "JSON" : "Markdown"} download started.` });
     } catch {
-      setPortableActionError("Could not export this document. Try again.");
+      setPortableActionError(`Could not export ${format === "json" ? "JSON" : "Markdown"}. Try again.`);
     }
   }
 
@@ -2142,7 +2148,8 @@ export function ArchitectureEditor() {
                 <div className="portable-document-actions">
                   <p className="workbench-section-label">Document</p>
                   <div className="flex flex-wrap gap-2">
-                    <button className="design-brief-secondary" disabled={isDesignBriefDirty(visibleDesignBriefSession)} onClick={exportCurrentDocument} type="button">Export JSON</button>
+                    <button className="design-brief-secondary" disabled={isDesignBriefDirty(visibleDesignBriefSession) || nodeDragIsActive || renameSession !== null} onClick={() => exportCurrentDocument("json")} type="button">Export JSON</button>
+                    <button className="design-brief-secondary" disabled={isDesignBriefDirty(visibleDesignBriefSession) || nodeDragIsActive || renameSession !== null} onClick={() => exportCurrentDocument("markdown")} type="button">Export Markdown</button>
                     <button className="design-brief-secondary" onClick={() => openDock("document-import")} type="button">Import JSON</button>
                   </div>
                   {isDesignBriefDirty(visibleDesignBriefSession) ? <p className="mt-2 text-xs text-text-secondary">Save or Cancel your draft before exporting.</p> : null}

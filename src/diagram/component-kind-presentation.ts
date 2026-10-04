@@ -11,6 +11,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+import { getComponentKindLabel } from "../application/architecture-kind-labels";
 import type { ArchitectureComponentKind } from "../domain/architecture-component";
 
 export type ComponentKindPresentation = Readonly<{
@@ -20,16 +21,16 @@ export type ComponentKindPresentation = Readonly<{
 }>;
 
 const componentKindPresentationByKind = {
-  generic: { label: "Generic", generatedName: "Generic", Icon: Box },
-  client: { label: "Client", generatedName: "Client", Icon: Monitor },
-  service: { label: "Service", generatedName: "Service", Icon: Server },
-  database: { label: "Database", generatedName: "Database", Icon: Database },
-  cache: { label: "Cache", generatedName: "Cache", Icon: MemoryStick },
-  queue: { label: "Queue", generatedName: "Queue", Icon: ListOrdered },
-  gateway: { label: "Gateway", generatedName: "Gateway", Icon: Network },
-  storage: { label: "Storage", generatedName: "Storage", Icon: HardDrive },
+  generic: { label: getComponentKindLabel("generic"), generatedName: "Generic", Icon: Box },
+  client: { label: getComponentKindLabel("client"), generatedName: "Client", Icon: Monitor },
+  service: { label: getComponentKindLabel("service"), generatedName: "Service", Icon: Server },
+  database: { label: getComponentKindLabel("database"), generatedName: "Database", Icon: Database },
+  cache: { label: getComponentKindLabel("cache"), generatedName: "Cache", Icon: MemoryStick },
+  queue: { label: getComponentKindLabel("queue"), generatedName: "Queue", Icon: ListOrdered },
+  gateway: { label: getComponentKindLabel("gateway"), generatedName: "Gateway", Icon: Network },
+  storage: { label: getComponentKindLabel("storage"), generatedName: "Storage", Icon: HardDrive },
   "external-service": {
-    label: "External service",
+    label: getComponentKindLabel("external-service"),
     generatedName: "External Service",
     Icon: ExternalLink,
   },

@@ -16,9 +16,9 @@
 * [x] Slice 2: Browser recording, editable transcript, existing generation handoff, and Workbench UX, verified with synthetic media and mocked provider responses
 * [x] Slice 3: Real microphone/browser acceptance, quality evaluation, and milestone closeout; see `docs/evaluations/voice-to-architecture-2026-10-03.md`
 
-## Paused milestone: Portable Architecture Documents
+## Current milestone: Portable Architecture Documents
 
-**Status: Paused after Slice 1.** JSON export and strict, previewed full-document import are complete. PNG and Markdown export await a later approved slice.
+**Status: In progress after Slice 2A.** JSON export and strict, previewed full-document import are complete. Deterministic Markdown export is complete; PNG export and final browser acceptance remain.
 
 ### Slice 1: JSON export and safe import
 
@@ -26,6 +26,17 @@
 * [x] Read bounded user-selected files, validate through the V1–V5 codec, and preview before any edit
 * [x] Replace the entire document only on confirmation, with one-step Undo/Redo and ordinary autosave
 * [x] Verify dirty-draft, drag, accessibility, responsive, and production-browser behavior
+
+### Slice 2A: Markdown export and shared utilities
+
+* [x] Export deterministic, escaped Markdown from committed ArchitectureGraph and DesignContext only
+* [x] Share safe title-based filenames and browser Blob download cleanup with JSON export
+* [x] Verify duplicate names, stable ordering, empty documents, dirty drafts, and browser downloads
+
+### Remaining approved slices
+
+* [ ] Slice 2B: Complete-diagram PNG export
+* [ ] Slice 2C: Cross-format browser acceptance and milestone closeout
 
 ## Completed milestone: Design Brief + Decision Rationale
 

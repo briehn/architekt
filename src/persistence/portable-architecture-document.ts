@@ -1,4 +1,5 @@
 import { hasDesignContextContent } from "../application/design-context";
+import { portableExportFilename } from "../application/portable-export-filename";
 import type { ArchitectureEditorState } from "../diagram/architecture-editor-state";
 import { restoreArchitectureEditorState, toPersistedArchitectureEditorDocument } from "./architecture-editor-document";
 
@@ -19,15 +20,7 @@ export type ParsePortableArchitectureDocumentResult =
   | { ok: false; error: "file-too-large" | "invalid-json" | "unsupported-version" | "invalid-document" };
 
 export function portableArchitectureFilename(title: string): string {
-  const slug = Array.from(title.normalize("NFKD")
-    .replace(/\p{M}/gu, "")
-    .toLocaleLowerCase("en-US")
-    .replace(/[^\p{L}\p{N}]+/gu, "-"))
-    .slice(0, 60)
-    .join("")
-    .replace(/^-+|-+$/g, "");
-  const safeName = slug === "" ? "architecture" : /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i.test(slug) ? `architecture-${slug}` : slug;
-  return `${safeName}.architekt.json`;
+  return portableExportFilename(title, "json");
 }
 
 export function exportPortableArchitectureDocument(

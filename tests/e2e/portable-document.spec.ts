@@ -176,3 +176,116 @@ test("dark narrow preview fits the existing sheet and guarded drag cannot replac
   await page.getByRole("button", { name: "Cancel import" }).click();
   await expect(page.getByRole("button", { name: "Open Design Brief: Source A" })).toBeVisible();
 });
+
+test("downloads readable Markdown from committed state without editing the workspace", async ({ page }) => {
+  await openSource(page);
+  const beforeStorage = await page.evaluate(() => localStorage.getItem("architekt:architecture-editor"));
+  const beforeViewport = await page.locator(".react-flow__viewport").getAttribute("style");
+  await page.evaluate(() => {
+    const original = URL.createObjectURL.bind(URL);
+    URL.createObjectURL = (blob) => {
+      document.documentElement.dataset.downloadMime = blob instanceof Blob ? blob.type : "";
+      return original(blob);
+    };
+  });
+  await page.getByRole("button", { name: "Open Design Brief: Source A" }).click();
+  const markdownButton = page.getByRole("button", { name: "Export Markdown" });
+  await markdownButton.focus();
+  const firstDownloadPromise = page.waitForEvent("download");
+  await markdownButton.press("Enter");
+  const firstDownload = await firstDownloadPromise;
+  expect(firstDownload.suggestedFilename()).toBe("source-a.md");
+  const firstPath = await firstDownload.path();
+  expect(firstPath).toBeTruthy();
+  const markdown = await readFile(firstPath!, "utf8");
+  expect(markdown).toContain("# Source A\n\n## Overview");
+  expect(markdown).toContain("- Components: 2\n- Connections: 1\n- Boundaries: 1");
+  expect(markdown).toContain("## Requirements and constraints\n\nKeep orders durable");
+  expect(markdown).toContain("### Core\n\n- API");
+  expect(markdown).toContain("- API → Database — Data access");
+  expect(markdown).not.toMatch(/nodePositions|history|viewport|selection|prompt|proposal|findings|voice/);
+  expect(await page.locator("html").getAttribute("data-download-mime")).toBe("text/markdown;charset=utf-8");
+  await expect(page.getByRole("status").filter({ hasText: "Markdown download started" })).toBeVisible();
+  await expect(markdownButton).toBeFocused();
+  const secondDownloadPromise = page.waitForEvent("download");
+  await markdownButton.click();
+  const secondDownload = await secondDownloadPromise;
+  expect(secondDownload.suggestedFilename()).toBe("source-a.md");
+  expect(await readFile((await secondDownload.path())!, "utf8")).toBe(markdown);
+  expect(await page.evaluate(() => localStorage.getItem("architekt:architecture-editor"))).toBe(beforeStorage);
+  expect(await page.locator(".react-flow__viewport").getAttribute("style")).toBe(beforeViewport);
+  await expect(page.getByRole("button", { name: "Undo" })).toBeDisabled();
+});
+
+test("Markdown export waits for a clean brief and an idle diagram", async ({ page }) => {
+  await openSource(page);
+  await page.getByRole("button", { name: "Open Design Brief: Source A" }).click();
+  await page.getByRole("textbox", { name: "Title" }).fill("Unsaved draft");
+  await expect(page.getByRole("button", { name: "Export Markdown" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Export JSON" })).toBeDisabled();
+  await page.getByRole("button", { name: "Cancel" }).click();
+  await expect(page.getByRole("button", { name: "Export Markdown" })).toBeEnabled();
+  const header = await page.locator(".architekt-boundary__header").boundingBox();
+  expect(header).toBeTruthy();
+  if (!header) return;
+  await page.mouse.move(header.x + 20, header.y + 12);
+  await page.mouse.down();
+  await page.mouse.move(header.x + 40, header.y + 22, { steps: 5 });
+  await expect(page.getByRole("button", { name: "Export Markdown" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Export JSON" })).toBeDisabled();
+  await page.mouse.up();
+  await expect(page.getByRole("button", { name: "Export Markdown" })).toBeEnabled();
+});
+
+test("Markdown download failure reports an error and revokes its URL", async ({ page }) => {
+  await openSource(page);
+  const beforeStorage = await page.evaluate(() => localStorage.getItem("architekt:architecture-editor"));
+  await page.getByRole("button", { name: "Open Design Brief: Source A" }).click();
+  await page.evaluate(() => {
+    const create = URL.createObjectURL.bind(URL);
+    const revoke = URL.revokeObjectURL.bind(URL);
+    URL.createObjectURL = (blob) => {
+      const url = create(blob);
+      document.documentElement.dataset.createdUrl = url;
+      return url;
+    };
+    URL.revokeObjectURL = (url) => {
+      document.documentElement.dataset.revokedUrl = url;
+      revoke(url);
+    };
+    HTMLAnchorElement.prototype.click = function () { throw new Error("download blocked"); };
+  });
+  await page.getByRole("button", { name: "Export Markdown" }).click();
+  await expect(page.getByRole("complementary", { name: "Design Brief utility panel" }).getByRole("alert")).toContainText("Could not export Markdown. Try again.");
+  expect(await page.locator("html").getAttribute("data-created-url")).toBeTruthy();
+  expect(await page.locator("html").getAttribute("data-revoked-url")).toBe(await page.locator("html").getAttribute("data-created-url"));
+  await expect(page.locator("body > a[download]")).toHaveCount(0);
+  expect(await page.evaluate(() => localStorage.getItem("architekt:architecture-editor"))).toBe(beforeStorage);
+});
+
+test("Markdown actions fit the dark narrow sheet and context-only documents export", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.emulateMedia({ colorScheme: "dark" });
+  const contextOnly = { ...source, graph: { components: [], connections: [], boundaries: [] }, nodePositions: [] };
+  await page.addInitScript((document) => {
+    if (window.localStorage.getItem("architekt:architecture-editor") === null) window.localStorage.setItem("architekt:architecture-editor", JSON.stringify(document));
+  }, contextOnly);
+  await page.goto("/");
+  await page.getByRole("button", { name: "Open Design Brief: Source A" }).click();
+  const button = page.getByRole("button", { name: "Export Markdown" });
+  await expect(button).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  const canvas = await page.locator(".workbench-canvas").boundingBox();
+  const dock = await page.getByRole("complementary", { name: "Design Brief utility panel" }).boundingBox();
+  expect(canvas && dock).toBeTruthy();
+  if (!canvas || !dock) return;
+  expect(dock.y).toBeGreaterThan(canvas.y + canvas.height / 2);
+  const downloadPromise = page.waitForEvent("download");
+  await button.click();
+  const download = await downloadPromise;
+  const markdown = await readFile((await download.path())!, "utf8");
+  expect(markdown).toContain("Keep orders durable");
+  expect(markdown).toContain("## Components\n\nNone modeled.");
+  expect(markdown).toContain("## Boundaries\n\nNone modeled.");
+  await expect(page.getByRole("button", { name: "Undo" })).toBeDisabled();
+});
