@@ -1,5 +1,13 @@
 # Architekt TODO
 
+## Current milestone: Grounded Architecture Review v1
+
+**Status: In progress.** Slice 1 establishes the pure application contract only; review is not yet available in the Workbench.
+
+* [x] Slice 1: versioned review snapshot, deterministic facts, exact Design Brief excerpts, alias-only evidence catalog, strict provider-result validation, injected service, and cancellation
+* [ ] Slice 2: server endpoint and provider adapter with bounded requests and safe failure mapping
+* [ ] Slice 3: transient Workbench review interaction and browser acceptance
+
 ## Completed milestone: Voice-to-Architecture v1
 
 **Status: Complete.** English voice input is verified on Windows desktop with a physical microphone in Google Chrome, Microsoft Edge, and Brave, with the user reviewing/editing transcription before it enters the existing architecture-proposal flow. The UI was also verified around 390px. Mobile microphone behavior, Safari, Firefox, macOS, multilingual transcription, and actual screen-reader speech remain unverified.
@@ -16,9 +24,9 @@
 * [x] Slice 2: Browser recording, editable transcript, existing generation handoff, and Workbench UX, verified with synthetic media and mocked provider responses
 * [x] Slice 3: Real microphone/browser acceptance, quality evaluation, and milestone closeout; see `docs/evaluations/voice-to-architecture-2026-10-03.md`
 
-## Current milestone: Portable Architecture Documents
+## Completed milestone: Portable Architecture Documents
 
-**Status: In progress after Slice 2B.** JSON export and strict, previewed full-document import, deterministic Markdown export, and complete-diagram PNG export are implemented. Final cross-format and cross-browser acceptance remains in Slice 2C.
+**Status: Complete.** JSON export and strict, previewed full-document import, deterministic Markdown export, and complete-diagram PNG export passed cross-format acceptance with actual downloads in installed Windows Chrome, Edge, and Brave. The dated [acceptance record](docs/evaluations/portable-documents-2026-10-04.md) includes the 100-component/200-connection export and explicit unverified platforms.
 
 ### Slice 1: JSON export and safe import
 
@@ -33,10 +41,10 @@
 * [x] Share safe title-based filenames and browser Blob download cleanup with JSON export
 * [x] Verify duplicate names, stable ordering, empty documents, dirty drafts, and browser downloads
 
-### Remaining approved slices
+### Completed slices
 
 * [x] Slice 2B: Complete-diagram, stable-light PNG export with bounded local rasterization
-* [ ] Slice 2C: Cross-format browser acceptance and milestone closeout
+* [x] Slice 2C: Cross-format browser acceptance and milestone closeout
 
 ## Completed milestone: Design Brief + Decision Rationale
 
@@ -69,8 +77,7 @@
 
 ### Approved next milestones
 
-1. Portable Architecture Documents (remaining slices)
-2. Grounded Architecture Review
+1. Grounded Architecture Review
 
 Public server-funded generation needs a trusted abuse/rate-control gate before anonymous deployment. This is a separate deployment decision, not part of the next feature milestone.
 
