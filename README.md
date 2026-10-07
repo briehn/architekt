@@ -29,6 +29,10 @@ The canvas is a view of the architecture. An immutable `ArchitectureGraph` owns 
 
 These show the real application using a URL-shortener proposal. The proposal is an example for review, not a claim that the architecture is complete or correct.
 
+![Portable PNG exported from Architekt showing a URL shortener with two boundaries and directed relationships](docs/screenshots/portable-diagram.png)
+
+This PNG was exported from the Workbench itself. Portable Documents also provides a canonical V5 JSON round trip and a deterministic, human-readable Markdown export. Actual downloads were checked in Windows Chrome, Edge, and Brave; see the [acceptance record](docs/evaluations/portable-documents-2026-10-04.md).
+
 ## Three-minute demo
 
 1. Enter a system requirement, such as a URL shortener with redirect traffic and click analytics, and select **Generate architecture**.

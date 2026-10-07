@@ -76,7 +76,10 @@ export type RawArchitectureReview = Readonly<{
 }>;
 
 export type ArchitectureReviewFailure = Readonly<{
-  type: "empty-architecture" | "review-limit-exceeded" | "invalid-context" | "invalid-provider-result" | "provider-unavailable" | "review-canceled";
+  type: "invalid-request" | "invalid-request-origin" | "empty-architecture" | "review-limit-exceeded" |
+    "invalid-context" | "configuration-unavailable" | "review-timeout" | "review-canceled" |
+    "review-rate-limited" | "provider-unavailable" | "provider-refused" | "provider-incomplete" |
+    "invalid-provider-result" | "review-failed";
   message: string;
   detail?: string;
 }>;
@@ -87,7 +90,9 @@ export type ArchitectureReviewResult =
 
 export type ArchitectureReviewProviderResult =
   | Readonly<{ ok: true; output: unknown }>
-  | Readonly<{ ok: false; type: "provider-unavailable" | "review-canceled" }>;
+  | Readonly<{ ok: false; type: "configuration-unavailable" | "review-timeout" | "review-canceled" |
+    "review-rate-limited" | "provider-unavailable" | "provider-refused" | "provider-incomplete" |
+    "invalid-provider-result" | "review-failed" }>;
 
 export interface ArchitectureReviewProvider {
   review(catalog: ReviewEvidenceCatalog, signal: AbortSignal): Promise<ArchitectureReviewProviderResult>;
@@ -99,11 +104,19 @@ export const REVIEW_CONTEXT_FIELDS: readonly DesignContextField[] = Object.freez
 
 export function reviewFailure(type: ArchitectureReviewFailure["type"], detail?: string): ArchitectureReviewFailure {
   const messages: Record<ArchitectureReviewFailure["type"], string> = {
+    "invalid-request": "This review request is invalid.",
+    "invalid-request-origin": "This review request is not allowed.",
     "empty-architecture": "Add at least one component to review this architecture.",
     "review-limit-exceeded": "This architecture exceeds a review limit.",
     "invalid-context": "The committed Design Brief could not be reviewed.",
+    "configuration-unavailable": "Review is not configured. Contact the application owner.",
+    "review-timeout": "Review took too long. Please try again.",
+    "review-rate-limited": "Review is busy. Please try again later.",
     "invalid-provider-result": "The review response could not be used. Please try again.",
     "provider-unavailable": "Review is temporarily unavailable. Please try again later.",
+    "provider-refused": "The review could not be provided for this architecture.",
+    "provider-incomplete": "The review was incomplete. Please try again.",
+    "review-failed": "Review failed. Please try again later.",
     "review-canceled": "Review was canceled.",
   };
   return { type, message: messages[type], ...(detail === undefined ? {} : { detail }) };

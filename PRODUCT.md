@@ -18,7 +18,9 @@ Architekt is a system-design workspace for constructing and understanding softwa
 
 Architekt treats an architecture diagram as a real domain graph rather than merely a drag-and-drop canvas. Validated AI proposals and deterministic analysis already use that foundation. The Workbench also lets users edit a document-level Design Brief for requirements, assumptions, open questions, and decision rationale. Portable JSON documents support local export and full-document import. Deterministic Markdown and complete-diagram PNG exports support written and visual sharing; grounded review remains separate work.
 
-Grounded Architecture Review is being built as advisory, transient assistance. Its pure foundation admits documents with at least one component, formats graph and Analysis facts deterministically, and quotes only exact committed Design Brief excerpts as stated context. A future provider may select those evidence sources and contribute conditional tradeoffs and focused questions; it cannot author modeled facts. No review result changes the architecture, and no review UI or provider request is delivered by Slice 1.
+Grounded Architecture Review is being built as advisory, transient assistance. Its foundation admits documents with at least one component, formats graph and Analysis facts deterministically, and quotes only exact committed Design Brief excerpts as stated context. The bounded `/api/architecture/review` server route now reconstructs the canonical graph and Analysis before an OpenAI provider selects evidence and contributes conditional tradeoffs and focused questions; the provider cannot author modeled facts. Review sends the modeled architecture and saved Design Brief to OpenAI, does not change the architecture, and is not yet available in the Workbench. Luna with medium reasoning is provisional until live evaluation.
+
+The later Workbench action should disclose: “Sends the modeled architecture and saved Design Brief to OpenAI for an advisory review.” This describes the transmitted content without promising provider retention behavior beyond the request's `store:false` setting.
 
 ## Operating Context
 

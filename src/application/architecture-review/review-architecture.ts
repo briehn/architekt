@@ -1,8 +1,8 @@
 import type { DesignContext } from "../design-context";
 import { ArchitectureGraph } from "../../domain/architecture-graph";
 import { reviewFailure } from "./architecture-review";
-import type { ArchitectureReviewProvider, ArchitectureReviewProviderResult, ArchitectureReviewResult } from "./architecture-review";
-import { buildReviewEvidenceCatalog } from "./review-evidence";
+import type { ArchitectureReviewProvider, ArchitectureReviewProviderResult, ArchitectureReviewResult, ArchitectureReviewSnapshot } from "./architecture-review";
+import { buildReviewEvidenceCatalog, type ReviewEvidenceIndex } from "./review-evidence";
 import { prepareArchitectureReviewSnapshot } from "./review-snapshot";
 import { validateArchitectureReviewResult } from "./validate-review";
 
@@ -17,6 +17,16 @@ export async function reviewArchitecture(
   const prepared = prepareArchitectureReviewSnapshot(graph, context);
   if (!prepared.ok) return prepared;
   const index = buildReviewEvidenceCatalog(prepared.snapshot);
+  return reviewPreparedArchitecture(prepared.snapshot, index, provider, signal);
+}
+
+/** Server callers prepare admission before constructing a paid provider. */
+export async function reviewPreparedArchitecture(
+  snapshot: ArchitectureReviewSnapshot,
+  index: ReviewEvidenceIndex,
+  provider: ArchitectureReviewProvider,
+  signal: AbortSignal,
+): Promise<ArchitectureReviewResult> {
   if (signal.aborted) return { ok: false, error: reviewFailure("review-canceled") };
   let response: ArchitectureReviewProviderResult;
   try {
@@ -27,7 +37,7 @@ export async function reviewArchitecture(
   }
   if (signal.aborted) return { ok: false, error: reviewFailure("review-canceled") };
   if (!response.ok) return { ok: false, error: reviewFailure(response.type) };
-  const validated = validateArchitectureReviewResult(response.output, index, prepared.snapshot);
+  const validated = validateArchitectureReviewResult(response.output, index, snapshot);
   if (!validated.ok) return validated;
-  return { ok: true, review: validated.review, snapshot: prepared.snapshot };
+  return { ok: true, review: validated.review, snapshot };
 }

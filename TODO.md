@@ -2,11 +2,12 @@
 
 ## Current milestone: Grounded Architecture Review v1
 
-**Status: In progress.** Slice 1 establishes the pure application contract only; review is not yet available in the Workbench.
+**Status: In progress.** Slices 1–2 establish the pure application contract and bounded server endpoint; review is not yet available in the Workbench. Live quality evaluation is pending.
 
 * [x] Slice 1: versioned review snapshot, deterministic facts, exact Design Brief excerpts, alias-only evidence catalog, strict provider-result validation, injected service, and cancellation
-* [ ] Slice 2: server endpoint and provider adapter with bounded requests and safe failure mapping
+* [x] Slice 2: server endpoint and provider adapter with bounded requests, authoritative Analysis, safe failure mapping, and [frozen ten-case evaluation inputs](docs/evaluations/grounded-review-v1-fixtures.json) with [rubric](docs/evaluations/grounded-review-v1-rubric.md)
 * [ ] Slice 3: transient Workbench review interaction and browser acceptance
+* [ ] Slice 4: live quality evaluation using the frozen ten-case set and milestone closeout
 
 ## Completed milestone: Voice-to-Architecture v1
 

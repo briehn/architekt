@@ -1,0 +1,122 @@
+[
+  {
+    "caseId": "01-client-api-database",
+    "request": {
+      "version": 1,
+      "graph": {
+        "components": [{ "id": "client", "name": "Browser", "kind": "client" }, { "id": "api", "name": "API", "kind": "service" }, { "id": "db", "name": "Orders DB", "kind": "database" }],
+        "connections": [{ "id": "request", "sourceComponentId": "client", "targetComponentId": "api", "kind": "request-response" }, { "id": "read", "sourceComponentId": "api", "targetComponentId": "db", "kind": "data-access" }],
+        "boundaries": []
+      },
+      "designContext": { "title": "Order lookup", "requirementsAndConstraints": "Customers can look up orders.", "assumptionsAndOpenQuestions": "Peak request volume is unknown.", "decisionsAndTradeoffs": "Start with one API and one database." }
+    }
+  },
+  {
+    "caseId": "02-url-shortener-cache",
+    "request": {
+      "version": 1,
+      "graph": {
+        "components": [{ "id": "client", "name": "Client", "kind": "client" }, { "id": "api", "name": "Redirect API", "kind": "service" }, { "id": "cache", "name": "Mapping Cache", "kind": "cache" }, { "id": "db", "name": "Link DB", "kind": "database" }],
+        "connections": [{ "id": "call", "sourceComponentId": "client", "targetComponentId": "api", "kind": "request-response" }, { "id": "lookup-cache", "sourceComponentId": "api", "targetComponentId": "cache", "kind": "data-access" }, { "id": "lookup-db", "sourceComponentId": "api", "targetComponentId": "db", "kind": "data-access" }],
+        "boundaries": []
+      },
+      "designContext": { "title": "URL shortener", "requirementsAndConstraints": "Redirect popular short links quickly.", "assumptionsAndOpenQuestions": "Traffic mix and cache hit rate are unknown.", "decisionsAndTradeoffs": "A cache may improve repeated lookups but adds invalidation work." }
+    }
+  },
+  {
+    "caseId": "03-queue-worker-boundary",
+    "request": {
+      "version": 1,
+      "graph": {
+        "components": [{ "id": "api", "name": "Upload API", "kind": "service" }, { "id": "queue", "name": "Job Queue", "kind": "queue" }, { "id": "worker", "name": "Image Worker", "kind": "service" }, { "id": "storage", "name": "Object Storage", "kind": "storage" }],
+        "connections": [{ "id": "enqueue", "sourceComponentId": "api", "targetComponentId": "queue", "kind": "async-messaging" }, { "id": "consume", "sourceComponentId": "queue", "targetComponentId": "worker", "kind": "async-messaging" }, { "id": "write", "sourceComponentId": "worker", "targetComponentId": "storage", "kind": "data-access" }],
+        "boundaries": [{ "id": "processing", "name": "Processing", "memberComponentIds": ["queue", "worker"] }]
+      },
+      "designContext": { "title": "Async image processing", "requirementsAndConstraints": "The API returns before image conversion finishes.", "assumptionsAndOpenQuestions": "Retry and failure policy is undecided.", "decisionsAndTradeoffs": "Use a queue to decouple upload acceptance from conversion." }
+    }
+  },
+  {
+    "caseId": "04-disconnected-duplicate-names",
+    "request": {
+      "version": 1,
+      "graph": {
+        "components": [{ "id": "worker-a", "name": "Worker", "kind": "service" }, { "id": "db-a", "name": "Primary DB", "kind": "database" }, { "id": "worker-b", "name": "Worker", "kind": "service" }, { "id": "db-b", "name": "Archive DB", "kind": "database" }],
+        "connections": [{ "id": "write-a", "sourceComponentId": "worker-a", "targetComponentId": "db-a", "kind": "data-access" }, { "id": "write-b", "sourceComponentId": "worker-b", "targetComponentId": "db-b", "kind": "data-access" }],
+        "boundaries": []
+      },
+      "designContext": { "title": "Two pipelines", "requirementsAndConstraints": "Process primary and archive records.", "assumptionsAndOpenQuestions": "Whether the pipelines exchange data is unresolved.", "decisionsAndTradeoffs": "" }
+    }
+  },
+  {
+    "caseId": "05-directed-cycle",
+    "request": {
+      "version": 1,
+      "graph": {
+        "components": [{ "id": "a", "name": "Service A", "kind": "service" }, { "id": "b", "name": "Service B", "kind": "service" }, { "id": "c", "name": "Service C", "kind": "service" }],
+        "connections": [{ "id": "ab", "sourceComponentId": "a", "targetComponentId": "b", "kind": "async-messaging" }, { "id": "bc", "sourceComponentId": "b", "targetComponentId": "c", "kind": "async-messaging" }, { "id": "ca", "sourceComponentId": "c", "targetComponentId": "a", "kind": "async-messaging" }],
+        "boundaries": []
+      },
+      "designContext": { "title": "Event loop", "requirementsAndConstraints": "Events circulate among three services.", "assumptionsAndOpenQuestions": "Whether cyclic delivery is intentional is open.", "decisionsAndTradeoffs": "" }
+    }
+  },
+  {
+    "caseId": "06-direct-client-database",
+    "request": {
+      "version": 1,
+      "graph": {
+        "components": [{ "id": "client", "name": "Desktop Client", "kind": "client" }, { "id": "db", "name": "Local DB", "kind": "database" }],
+        "connections": [{ "id": "access", "sourceComponentId": "client", "targetComponentId": "db", "kind": "data-access" }],
+        "boundaries": []
+      },
+      "designContext": { "title": "Local desktop tool", "requirementsAndConstraints": "Works without a network connection.", "assumptionsAndOpenQuestions": "The storage and access-control model needs clarification.", "decisionsAndTradeoffs": "" }
+    }
+  },
+  {
+    "caseId": "07-detailed-constraints",
+    "request": {
+      "version": 1,
+      "graph": {
+        "components": [{ "id": "client", "name": "Client", "kind": "client" }, { "id": "api", "name": "Checkout API", "kind": "service" }, { "id": "db", "name": "Order DB", "kind": "database" }, { "id": "queue", "name": "Fulfillment Queue", "kind": "queue" }],
+        "connections": [{ "id": "request", "sourceComponentId": "client", "targetComponentId": "api", "kind": "request-response" }, { "id": "order-write", "sourceComponentId": "api", "targetComponentId": "db", "kind": "data-access" }, { "id": "fulfill", "sourceComponentId": "api", "targetComponentId": "queue", "kind": "async-messaging" }],
+        "boundaries": []
+      },
+      "designContext": { "title": "Checkout", "requirementsAndConstraints": "Prevent duplicate paid orders. The confirmation page must not wait for fulfillment. Keep customer payment details out of the order database.", "assumptionsAndOpenQuestions": "The payment provider and idempotency key source are not selected.", "decisionsAndTradeoffs": "Send fulfillment work asynchronously to keep confirmation independent of downstream processing." }
+    }
+  },
+  {
+    "caseId": "08-context-complicates-structure",
+    "request": {
+      "version": 1,
+      "graph": {
+        "components": [{ "id": "client", "name": "Client", "kind": "client" }, { "id": "db", "name": "Database", "kind": "database" }, { "id": "audit", "name": "Audit Service", "kind": "service" }],
+        "connections": [{ "id": "direct", "sourceComponentId": "client", "targetComponentId": "db", "kind": "data-access" }, { "id": "audit-read", "sourceComponentId": "audit", "targetComponentId": "db", "kind": "data-access" }],
+        "boundaries": []
+      },
+      "designContext": { "title": "Internal inventory tool", "requirementsAndConstraints": "Only managed internal clients are planned. Offline access is a requirement.", "assumptionsAndOpenQuestions": "The meaning of direct access and its authorization boundary are not defined.", "decisionsAndTradeoffs": "A direct data path was sketched to explore offline operation, not approved as a deployment design." }
+    }
+  },
+  {
+    "caseId": "09-reciprocal-request-response",
+    "request": {
+      "version": 1,
+      "graph": {
+        "components": [{ "id": "service-a", "name": "Catalog Service", "kind": "service" }, { "id": "service-b", "name": "Pricing Service", "kind": "service" }],
+        "connections": [{ "id": "a-to-b", "sourceComponentId": "service-a", "targetComponentId": "service-b", "kind": "request-response" }, { "id": "b-to-a", "sourceComponentId": "service-b", "targetComponentId": "service-a", "kind": "request-response" }],
+        "boundaries": []
+      },
+      "designContext": { "title": "Catalog and pricing", "requirementsAndConstraints": "Both services initiate queries to the other.", "assumptionsAndOpenQuestions": "The request paths and failure behavior need clarification.", "decisionsAndTradeoffs": "" }
+    }
+  },
+  {
+    "caseId": "10-missing-nonfunctional-empty-boundary",
+    "request": {
+      "version": 1,
+      "graph": {
+        "components": [{ "id": "client", "name": "Web Client", "kind": "client" }, { "id": "api", "name": "API", "kind": "service" }, { "id": "db", "name": "Database", "kind": "database" }],
+        "connections": [{ "id": "call", "sourceComponentId": "client", "targetComponentId": "api", "kind": "request-response" }, { "id": "store", "sourceComponentId": "api", "targetComponentId": "db", "kind": "data-access" }],
+        "boundaries": [{ "id": "future", "name": "Future grouping", "memberComponentIds": [] }]
+      },
+      "designContext": { "title": "Small CRUD app", "requirementsAndConstraints": "Create, read, update, and delete records.", "assumptionsAndOpenQuestions": "", "decisionsAndTradeoffs": "" }
+    }
+  }
+]
