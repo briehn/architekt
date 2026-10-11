@@ -12,12 +12,13 @@ System design often ends up split between an easy-to-change whiteboard and notes
 - Connect nodes from four adaptive sides, including keyboard operation; reciprocal relationships keep distinct directions and labels.
 - Create named, one-level boundaries, explicitly manage membership, move grouped components, and run boundary-aware Auto-layout.
 - Use deterministic Analysis for topology observations and cautious relationship-review questions. It does not score a design.
+- Open Grounded Review for an explicit, paid, advisory review of the modeled architecture and saved Design Brief. It shows deterministic modeled facts, exact brief excerpts, conditional tradeoffs, questions, and captured evidence. Relevant edits mark the transient result stale; Review never changes or saves the diagram.
 - Open the Design Brief from the document title to record requirements, open questions, and the reasons and downsides behind choices. Save the whole brief as one Undo step.
 - Download the complete architecture and Design Brief as a portable JSON file or a readable Markdown document. With a component on the canvas, export the complete diagram as a clean PNG independent of the current viewport. Preview and explicitly replace the current document from an Architekt JSON file; Undo restores the previous document.
 - Type a system description or use **Speak** in Generate architecture. Review and edit the transcript, explicitly generate an AI proposal, then **Apply** or **Discard** it. Apply replaces the diagram in one Undo step.
 - Undo and redo meaningful edits; save the current graph, boundary membership, and positions locally across refreshes. **Fit view** changes only the viewport.
 
-The canvas is a view of the architecture. An immutable `ArchitectureGraph` owns components, connections, boundaries, and invariants; React Flow nodes and edges are derived from it. `ArchitectureEditorState` owns positions, document-level DesignContext, and transient renderer measurements, while bounded history stores only graph, positions, and context. The V5 local document restores through public domain operations and strictly validates saved data, including V1–V4 migrations. Analysis is deterministic, graph-only, and read-only. AI output passes runtime and domain validation before it can become a draft or an applied graph.
+The canvas is a view of the architecture. An immutable `ArchitectureGraph` owns components, connections, boundaries, and invariants; React Flow nodes and edges are derived from it. `ArchitectureEditorState` owns positions, document-level DesignContext, and transient renderer measurements, while bounded history stores only graph, positions, and context. The V5 local document restores through public domain operations and strictly validates saved data, including V1–V4 migrations. Analysis is deterministic, graph-only, and read-only. Grounded Review is a separate transient, evidence-backed workflow; it is not persisted or exported. AI output passes runtime and domain validation before it can become a draft or an applied graph.
 
 **Stack:** Next.js 16, React 19, TypeScript, React Flow, Dagre, Tailwind CSS 4, Vitest, and Playwright.
 
@@ -62,6 +63,8 @@ ARCHITEKT_OPENAI_MODEL=gpt-6-luna
 
 `OPENAI_API_KEY` is server-only. `ARCHITEKT_OPENAI_MODEL` is optional; the default is `gpt-6-luna` with medium reasoning, retained after a [seven-prompt Luna/Sol evaluation](docs/evaluations/ai-generation-2026-10-01.md). Generation has request and output bounds, a 40-second deadline, zero automatic retries, no application prompt logging, and safe public error messages. Prompts and proposal metadata are transient. Cancellation protects the editor from stale results, though an already-started provider request may still incur usage.
 
+Grounded Review also uses the server-side key through its separate bounded endpoint. Its gpt-6-luna medium default is provisional pending the Slice 4 live quality evaluation; no paid Review evaluation has run yet. The Workbench sends a paid request only when you activate Review architecture.
+
 Voice input uses the same server-side key through the separate `gpt-transcribe` endpoint. The browser records up to two minutes and sends the clip only after Stop. Audio stays in memory for the current operation or an explicit retry; the editable transcript remains in session memory until refresh and is never saved or exported. The verified v1 target is English on Windows desktop with a physical microphone in Google Chrome, Microsoft Edge, and Brave; the interface was checked around 390px. Voice and typed prompts share the existing Generate → proposal review → Apply path. Mobile microphone behavior, Safari, Firefox, macOS, multilingual transcription, and actual screen-reader speech remain unverified. See the dated Voice evaluation for the fixed-set quality findings.
 
 Run validation with:
@@ -75,7 +78,7 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-The browser smoke suite covers the loaded editor, a canonical edit with Undo/Redo, Structure, Fit view, and an immediate refresh before the normal autosave debounce. CI runs the same checks on pushes and pull requests.
+The browser smoke suite covers the loaded editor, a canonical edit with Undo/Redo, Structure, Fit view, an immediate refresh before the normal autosave debounce, and mocked Grounded Review interactions. CI runs the same checks on pushes and pull requests.
 On Windows, if Playwright's automatic server shutdown stalls, run `npm run start -- -p 3100` in a separate terminal before `npm run test:e2e`; the local suite reuses that server.
 
 ## Intentional limits

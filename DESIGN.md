@@ -133,9 +133,9 @@ Use Inter for product UI and reserve monospace for identifiers, protocols, capac
 
 ## Layout
 
-Use a 4px base unit and an 8px rhythm for most product spacing. The command bar is compact and the canvas fills the remaining viewport height; it is not inside a padded dashboard card. At widths of at least 1024px, a narrow labeled creation library sits left of the canvas and an optional 320px utility dock sits right. The dock scrolls independently and never reduces canvas height. Structure holds component, connection, and boundary listings; boundary creation/details, Analysis, and AI use the same dock one at a time. Opening, closing, and switching views are transient UI state.
+Use a 4px base unit and an 8px rhythm for most product spacing. The command bar is compact and the canvas fills the remaining viewport height; it is not inside a padded dashboard card. At widths of at least 1024px, a narrow labeled creation library sits left of the canvas and an optional 320px utility dock sits right. The dock scrolls independently and never reduces canvas height. Structure holds component, connection, and boundary listings; boundary creation/details, Analysis, Review, and AI use the same dock one at a time. Opening, closing, and switching views are transient UI state.
 
-Below 1024px, the creation library and utility dock become dismissible lower sheets capped below half the workspace height. The command bar wraps into compact labeled rows, retains direct access to Generate, Add, Auto-layout, Structure, Analysis, and the document title, and leaves the upper canvas visible. Undo/Redo may use accessible icon buttons at these widths. Sheet contents scroll independently; focus moves to the close control on opening and returns to the trigger on closing. Boundary creation appears first in the mobile Add sheet so it is visible without scrolling through component kinds.
+Below 1024px, the creation library and utility dock become dismissible lower sheets capped below half the workspace height. The command bar wraps into compact labeled rows, retains direct access to Generate, Add, Auto-layout, Structure, Analysis, Review, and the document title, and leaves the upper canvas visible. Undo/Redo may use accessible icon buttons at these widths. Sheet contents scroll independently; focus moves to the close control on opening and returns to the trigger on closing. Boundary creation appears first in the mobile Add sheet so it is visible without scrolling through component kinds.
 
 ## Design Brief interaction
 
@@ -164,6 +164,12 @@ Fit view is a separate command-bar action. It frames components and non-empty bo
 Changed explicit layouts fit the current canvas immediately with conservative padding and no animation. Horizontal rank and node spacing leave useful room for semantic edge labels and handles; labels remain neutral presentation, not inputs to layout or custom edge routing.
 
 With non-empty boundaries, Auto-layout arranges members inside each boundary first, then spaces the resulting boundary rectangles alongside ungrouped components. Empty boundaries are ignored. The action still moves only components; the visible containers rederive around them and fit within the ordinary canvas view, including narrow viewports where the zoom floor permits a full fit. Undo restores all prior component positions in one step. No additional layout controls or boundary positioning fields appear.
+
+## Grounded Review interaction
+
+Review is a separate utility-dock destination beside local Analysis. Opening the dock makes no paid request; the explicit Review architecture button sits beside a short OpenAI disclosure. The action is unavailable without a component or while an incompatible canvas edit is active. A dirty Design Brief draft stays in the Brief view with a Save-or-Cancel explanation, so unsaved text is never silently omitted from a paid review.
+
+The dock uses quiet section headings for modeled facts, exact Design Brief excerpts, conditional possible tradeoffs, and questions. Native Evidence disclosures show details from the captured reviewed snapshot, even after a later rename or deletion. A stale review remains visible with explicit text and Review again; failed or canceled reruns preserve the previous result. Closing or switching the dock retains the transient result and does not steal focus when an in-flight review finishes. Refresh clears it. The desktop dock and narrow lower sheet keep the diagram primary in light and dark themes.
 
 ## AI proposal review
 

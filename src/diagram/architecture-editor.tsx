@@ -5,11 +5,12 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
 import type { Connection, NodeChange } from "@xyflow/react";
-import { ChartNoAxesCombined, FileText, LayoutGrid, ListTree, Maximize2, PanelsTopLeft, PanelRightClose, Redo2, Sparkles, Undo2, X } from "lucide-react";
+import { ChartNoAxesCombined, ClipboardList, FileText, LayoutGrid, ListTree, Maximize2, PanelsTopLeft, PanelRightClose, Redo2, Sparkles, Undo2, X } from "lucide-react";
 
 import { areDesignContextsEqual } from "../application/design-context";
 
@@ -111,6 +112,9 @@ import { applyArchitectureProposal } from "./apply-architecture-proposal";
 import { ArchitectureGenerationPanel } from "./architecture-generation-panel";
 import { ArchitectureVoiceController, type ArchitectureVoiceState } from "./architecture-voice-controller";
 import { ArchitectureAnalysisPanel } from "./architecture-analysis-panel";
+import { ArchitectureReviewController, type ArchitectureReviewViewState } from "./architecture-review-controller";
+import { ArchitectureReviewPanel } from "./architecture-review-panel";
+import { getArchitectureReviewSnapshotKey, prepareArchitectureReviewSnapshot } from "../application/architecture-review/review-snapshot";
 import { exportPortableArchitectureDocument } from "../persistence/portable-architecture-document";
 import { exportArchitectureMarkdown } from "../application/architecture-markdown-export";
 import { downloadArchitectureFile } from "./download-architecture-file";
@@ -258,7 +262,7 @@ type ArchitectureEditorViewState =
       readonly status: "memory-only";
     });
 
-type UtilityDockView = "structure" | "analysis" | "ai" | "design-brief" | "document-import" | "boundary-create" | "boundary-details" | null;
+type UtilityDockView = "structure" | "analysis" | "review" | "ai" | "design-brief" | "document-import" | "boundary-create" | "boundary-details" | null;
 
 export type RenameDraft = Readonly<{
   componentId: ComponentId;
@@ -655,6 +659,9 @@ export function ArchitectureEditor() {
   const [detailsBoundaryId, setDetailsBoundaryId] = useState<BoundaryId | null>(null);
   const [creationLibraryIsOpen, setCreationLibraryIsOpen] = useState(false);
   const [generationReview, setGenerationReview] = useState<ArchitectureGenerationReviewState>({ status: "idle", prompt: "" });
+  const [architectureReview, setArchitectureReview] = useState<ArchitectureReviewViewState>({ status: "idle", completed: null });
+  const [reviewBriefBlockMessage, setReviewBriefBlockMessage] = useState(false);
+  const reviewControllerRef = useRef<ArchitectureReviewController | null>(null);
   const generationControllerRef = useRef<ArchitectureGenerationReviewController | null>(null);
   const [voiceState, setVoiceState] = useState<ArchitectureVoiceState>({ status: "idle" });
   const [voiceSupported, setVoiceSupported] = useState(false);
@@ -664,6 +671,7 @@ export function ArchitectureEditor() {
   const designBriefToggleRef = useRef<HTMLButtonElement | null>(null);
   const structureToggleRef = useRef<HTMLButtonElement | null>(null);
   const analysisToggleRef = useRef<HTMLButtonElement | null>(null);
+  const reviewToggleRef = useRef<HTMLButtonElement | null>(null);
   const creationToggleRef = useRef<HTMLButtonElement | null>(null);
   const boundaryCreateTriggerRef = useRef<HTMLButtonElement | null>(null);
   const dockCloseRef = useRef<HTMLButtonElement | null>(null);
@@ -701,6 +709,17 @@ export function ArchitectureEditor() {
       controller.dispose();
       generationControllerRef.current = null;
     };
+  }, []);
+
+  useEffect(() => {
+    const controller = new ArchitectureReviewController(setArchitectureReview, () => {
+      const latest = latestEditorStateRef.current;
+      if (!latest) return null;
+      const prepared = prepareArchitectureReviewSnapshot(latest.graph, latest.designContext);
+      return prepared.ok ? getArchitectureReviewSnapshotKey(prepared.snapshot) : null;
+    });
+    reviewControllerRef.current = controller;
+    return () => { controller.dispose(); reviewControllerRef.current = null; };
   }, []);
 
   useEffect(() => {
@@ -960,7 +979,7 @@ export function ArchitectureEditor() {
         if (dockView === "boundary-create") {
           (window.matchMedia("(max-width: 1023px)").matches ? creationToggleRef : boundaryCreateTriggerRef).current?.focus();
         } else {
-          (dockView === "ai" ? generationToggleRef : dockView === "analysis" ? analysisToggleRef : dockView === "design-brief" || dockView === "document-import" ? designBriefToggleRef : structureToggleRef).current?.focus();
+          (dockView === "ai" ? generationToggleRef : dockView === "review" ? reviewToggleRef : dockView === "analysis" ? analysisToggleRef : dockView === "design-brief" || dockView === "document-import" ? designBriefToggleRef : structureToggleRef).current?.focus();
         }
       }
     }
@@ -1075,6 +1094,15 @@ export function ArchitectureEditor() {
     viewState.status === "ready"
       ? viewState.history.present.designContext
       : null;
+
+  const reviewGraph = viewState.status === "loading" ? null : viewState.history.present.graph;
+  const reviewContext = viewState.status === "loading" ? null : viewState.history.present.designContext;
+  const reviewSnapshotResult = useMemo(() => {
+    if (reviewGraph === null || reviewContext === null) return null;
+    return prepareArchitectureReviewSnapshot(reviewGraph, reviewContext);
+  }, [reviewGraph, reviewContext]);
+  const reviewCurrentKey = reviewSnapshotResult?.ok ? getArchitectureReviewSnapshotKey(reviewSnapshotResult.snapshot) : null;
+  useLayoutEffect(() => { reviewControllerRef.current?.onCanonicalChange(reviewCurrentKey); }, [reviewCurrentKey]);
 
   useEffect(() => {
     if (autosaveGraph === null || autosaveNodePositions === null || autosaveDesignContext === null) {
@@ -1370,6 +1398,7 @@ export function ArchitectureEditor() {
       generationControllerRef.current?.applyFailed();
       return;
     }
+    reviewControllerRef.current?.cancel();
     setViewState((state) => state.status === "loading" ? state : {
       ...state,
       history: result.history,
@@ -1778,6 +1807,7 @@ export function ArchitectureEditor() {
       ? persistedEditorStateBaseline(editorState)
       : null;
     latestEditorStateRef.current = editorState;
+    reviewControllerRef.current?.clearForDocumentReplacement();
     closeRename(null);
     setPendingPointerConnectionSource(null);
     setSelectedCanvasComponentIds(new Set());
@@ -1843,7 +1873,13 @@ export function ArchitectureEditor() {
 
   function openDock(view: Exclude<UtilityDockView, null>) {
     if (!guardVoiceDockExit()) return;
+    if (view === "review" && dockView === "design-brief" && designBriefSession !== null && isDesignBriefDirty(designBriefSession)) {
+      setReviewBriefBlockMessage(true);
+      window.requestAnimationFrame(() => document.querySelector<HTMLButtonElement>(".design-brief-form button[type=submit]")?.focus());
+      return;
+    }
     if (!confirmDiscardDesignBrief()) return;
+    setReviewBriefBlockMessage(false);
     setCreationLibraryIsOpen(false);
     setPortableActionError(null);
     if (dockView === view) {
@@ -1909,7 +1945,7 @@ export function ArchitectureEditor() {
     setDockView(null);
     setDesignBriefSession(null);
     if (closingView === "boundary-create") focusBoundaryCreationTrigger();
-    else (closingView === "ai" ? generationToggleRef : closingView === "analysis" ? analysisToggleRef : closingView === "design-brief" || closingView === "document-import" ? designBriefToggleRef : structureToggleRef).current?.focus();
+    else (closingView === "ai" ? generationToggleRef : closingView === "review" ? reviewToggleRef : closingView === "analysis" ? analysisToggleRef : closingView === "design-brief" || closingView === "document-import" ? designBriefToggleRef : structureToggleRef).current?.focus();
   }
 
   function exportCurrentDocument(format: "json" | "markdown") {
@@ -1990,6 +2026,7 @@ export function ArchitectureEditor() {
     const current = latestViewStateRef.current;
     if (current.status === "loading" || current.status === "recovery-required") return;
     const nextHistory = applyPortableDocument(current.history, imported);
+    reviewControllerRef.current?.clearForDocumentReplacement();
     setViewState((state) => state.status === "loading" || state.history !== current.history
       ? state
       : { ...state, history: nextHistory, connectionRejection: null, componentCreationRejection: null, autoLayoutFailure: false, fitViewRequestId: (state.fitViewRequestId ?? 0) + 1, announcement: "Document imported. Undo is available." });
@@ -2031,11 +2068,25 @@ export function ArchitectureEditor() {
       ? state
       : { ...state, history: nextHistory, announcement: changed ? "Design Brief saved. Undo is available." : "Design Brief is already up to date." });
     setDesignBriefSession(createDesignBriefSession(result.state.designContext));
+    setReviewBriefBlockMessage(false);
   }
 
   function cancelDesignBrief() {
     setDesignBriefSession(createDesignBriefSession(editorState.designContext));
+    setReviewBriefBlockMessage(false);
     setViewState((state) => state.status === "loading" ? state : { ...state, announcement: "Unsaved Design Brief changes discarded." });
+  }
+
+  function startArchitectureReview() {
+    const current = latestViewStateRef.current;
+    if (current.status === "loading" || nodeDragIsActive || dragStartHistoryRef.current !== null || boundaryDragRef.current !== null || renameSession !== null) return;
+    if (designBriefSession !== null && isDesignBriefDirty(designBriefSession)) {
+      setDockView("design-brief");
+      setReviewBriefBlockMessage(true);
+      window.requestAnimationFrame(() => document.querySelector<HTMLButtonElement>(".design-brief-form button[type=submit]")?.focus());
+      return;
+    }
+    void reviewControllerRef.current?.start(current.history.present.graph, current.history.present.designContext);
   }
 
   return (
@@ -2080,6 +2131,9 @@ export function ArchitectureEditor() {
           </button>
           <button aria-expanded={dockView === "analysis"} aria-controls={dockView === "analysis" ? "workbench-utility-dock" : undefined} aria-pressed={dockView === "analysis"} className="workbench-command" onClick={() => openDock("analysis")} ref={analysisToggleRef} type="button">
             <ChartNoAxesCombined aria-hidden="true" className="size-4" /><span>Analysis</span>
+          </button>
+          <button aria-expanded={dockView === "review"} aria-controls={dockView === "review" ? "workbench-utility-dock" : undefined} aria-pressed={dockView === "review"} className="workbench-command" onClick={() => openDock("review")} ref={reviewToggleRef} type="button">
+            <ClipboardList aria-hidden="true" className="size-4" /><span>Review</span>
           </button>
           <button aria-expanded={dockView === "ai"} aria-controls={dockView === "ai" ? "workbench-utility-dock" : undefined} aria-pressed={dockView === "ai"} className="workbench-command workbench-command--generate" onClick={() => openDock("ai")} ref={generationToggleRef} type="button">
             <Sparkles aria-hidden="true" className="size-4" /><span>Generate architecture</span>
@@ -2161,6 +2215,9 @@ export function ArchitectureEditor() {
         <p aria-live="polite" className="sr-only" role="status">
           {dockView !== "ai" && voiceState.status === "transcript-ready" ? "Transcript ready. Open Generate architecture to review it." : ""}
         </p>
+        <p aria-live="polite" className="sr-only" role="status">
+          {dockView !== "review" && architectureReview.status === "ready" ? "Grounded review ready. Open Review to inspect it." : dockView !== "review" && architectureReview.status === "error" ? "Grounded review could not be completed. Open Review for details." : ""}
+        </p>
       </div>
 
       <div className="workbench-body">
@@ -2184,9 +2241,9 @@ export function ArchitectureEditor() {
         </aside>
 
         {dockView !== null ? (
-          <aside aria-label={`${dockView === "ai" ? "AI" : dockView === "analysis" ? "Analysis" : dockView === "design-brief" ? "Design Brief" : dockView === "document-import" ? "Import document" : dockView.startsWith("boundary-") ? "Boundary" : "Structure"} utility panel`} className="workbench-dock" id="workbench-utility-dock">
+          <aside aria-label={`${dockView === "ai" ? "AI" : dockView === "review" ? "Review" : dockView === "analysis" ? "Analysis" : dockView === "design-brief" ? "Design Brief" : dockView === "document-import" ? "Import document" : dockView.startsWith("boundary-") ? "Boundary" : "Structure"} utility panel`} className="workbench-dock" id="workbench-utility-dock">
             <div className="workbench-pane-heading">
-              <h2>{dockView === "ai" ? "Generate architecture" : dockView === "analysis" ? "Analysis" : dockView === "design-brief" ? "Design Brief" : dockView === "document-import" ? "Import document" : dockView === "boundary-create" ? "Create boundary" : dockView === "boundary-details" ? "Boundary details" : "Structure"}</h2>
+              <h2>{dockView === "ai" ? "Generate architecture" : dockView === "review" ? "Grounded review" : dockView === "analysis" ? "Analysis" : dockView === "design-brief" ? "Design Brief" : dockView === "document-import" ? "Import document" : dockView === "boundary-create" ? "Create boundary" : dockView === "boundary-details" ? "Boundary details" : "Structure"}</h2>
               <button aria-label="Close utility panel" className="workbench-pane-close" onClick={closeDock} ref={dockCloseRef} type="button"><PanelRightClose aria-hidden="true" className="size-4" /></button>
             </div>
             <div className="workbench-dock-content">
@@ -2213,7 +2270,18 @@ export function ArchitectureEditor() {
                 />
               ) : null}
               {dockView === "analysis" ? <ArchitectureAnalysisPanel graph={editorState.graph} /> : null}
+              {dockView === "review" ? <ArchitectureReviewPanel
+                state={architectureReview}
+                currentKey={reviewCurrentKey}
+                unavailableReason={reviewSnapshotResult !== null && !reviewSnapshotResult.ok ? reviewSnapshotResult.error.type === "review-limit-exceeded" ? `${reviewSnapshotResult.error.message} ${reviewSnapshotResult.error.detail ?? ""}` : reviewSnapshotResult.error.message : null}
+                editBlocked={nodeDragIsActive || renameSession !== null}
+                dirtyBriefBlocked={designBriefSession !== null && isDesignBriefDirty(designBriefSession)}
+                onReview={startArchitectureReview}
+                onCancel={() => { reviewControllerRef.current?.cancel(); reviewToggleRef.current?.focus(); }}
+                onDiscard={() => { reviewControllerRef.current?.discard(); reviewToggleRef.current?.focus(); }}
+              /> : null}
               {dockView === "design-brief" && visibleDesignBriefSession !== null ? <>
+                {reviewBriefBlockMessage ? <p className="mb-3 border-l-2 border-accent pl-3 text-xs text-text-primary" role="status">Save or Cancel your Design Brief draft before reviewing. The unsaved draft will not be sent.</p> : null}
                 <div className="portable-document-actions">
                   <p className="workbench-section-label">Document</p>
                   <div className="flex flex-wrap gap-2">

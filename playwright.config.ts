@@ -10,7 +10,8 @@ export default defineConfig({
   use: {
     ...devices["Desktop Chrome"],
     baseURL,
-    channel: process.platform === "win32" ? "msedge" : undefined,
+    channel: process.env.ARCHITEKT_TEST_BROWSER_CHANNEL ?? (process.platform === "win32" ? "msedge" : undefined),
+    launchOptions: process.env.ARCHITEKT_TEST_BROWSER_EXECUTABLE ? { executablePath: process.env.ARCHITEKT_TEST_BROWSER_EXECUTABLE } : undefined,
   },
   webServer: {
     command: "node node_modules/next/dist/bin/next start -p 3100",
