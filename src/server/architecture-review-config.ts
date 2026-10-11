@@ -1,6 +1,6 @@
 import "server-only";
 
-export const ARCHITECTURE_REVIEW_DEFAULT_MODEL = "gpt-6-luna";
+export const ARCHITECTURE_REVIEW_DEFAULT_MODEL = "gpt-6-sol";
 export const ARCHITECTURE_REVIEW_REASONING_EFFORT = "medium";
 export const ARCHITECTURE_REVIEW_MAX_OUTPUT_TOKENS = 8_000;
 export const ARCHITECTURE_REVIEW_PROVIDER_TIMEOUT_MS = 60_000;

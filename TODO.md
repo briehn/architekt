@@ -1,13 +1,13 @@
 # Architekt TODO
 
-## Current milestone: Grounded Architecture Review v1
+## Completed milestone: Grounded Architecture Review v1
 
-**Status: In progress.** Slices 1–3 establish the pure contract, bounded endpoint, and transient Workbench Review interaction. Live quality evaluation and milestone closeout remain Slice 4.
+**Status: Complete.** The [dated live evaluation](docs/evaluations/grounded-review-2026-10-11.md) compares ten frozen cases on Luna and Sol medium, records targeted repeats and bounds checks, and verifies the real-provider Workbench flow in Windows Chrome and Edge plus Brave smoke. Sol medium is the selected Review default. Review stays advisory and transient; controlled access and rate/budget controls remain required before anonymous public paid use.
 
 * [x] Slice 1: versioned review snapshot, deterministic facts, exact Design Brief excerpts, alias-only evidence catalog, strict provider-result validation, injected service, and cancellation
 * [x] Slice 2: server endpoint and provider adapter with bounded requests, authoritative Analysis, safe failure mapping, and [frozen ten-case evaluation inputs](docs/evaluations/grounded-review-v1-fixtures.json) with [rubric](docs/evaluations/grounded-review-v1-rubric.md)
 * [x] Slice 3: transient Workbench review interaction and mocked-response browser acceptance in installed Windows Edge, Chrome, and Brave
-* [ ] Slice 4: live quality evaluation using the frozen ten-case set and milestone closeout
+* [x] Slice 4: live quality evaluation using the frozen ten-case set and milestone closeout
 
 ## Completed milestone: Voice-to-Architecture v1
 

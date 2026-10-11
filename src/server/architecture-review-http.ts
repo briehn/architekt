@@ -43,8 +43,13 @@ export function boundedReviewSuccessResponse(review: ArchitectureReview): Respon
 function sameOrigin(request: Request): boolean {
   const origin = request.headers.get("origin");
   if (origin) {
-    try { if (new URL(origin).origin !== new URL(request.url).origin) return false; }
-    catch { return false; }
+    try {
+      const requestUrl = new URL(request.url);
+      // Next can normalize request.url to localhost while retaining the browser Host.
+      const host = request.headers.get("host");
+      const expectedOrigin = host ? new URL(`${requestUrl.protocol}//${host}`).origin : requestUrl.origin;
+      if (new URL(origin).origin !== expectedOrigin) return false;
+    } catch { return false; }
   }
   const site = request.headers.get("sec-fetch-site");
   return site === null || site === "same-origin" || site === "none";

@@ -40,13 +40,13 @@ function setup(result = response()) {
 afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs(); });
 
 describe("OpenAI grounded review adapter", () => {
-  it("uses an independent provisional Luna-medium configuration", () => {
+  it("uses an independent selected Sol-medium configuration", () => {
     vi.stubEnv("OPENAI_API_KEY", " test-only-placeholder ");
     vi.stubEnv("ARCHITEKT_OPENAI_MODEL", "generation-only");
     vi.stubEnv("ARCHITEKT_OPENAI_TRANSCRIPTION_MODEL", "transcription-only");
     vi.stubEnv("ARCHITEKT_OPENAI_REVIEW_MODEL", "");
     expect(loadArchitectureReviewConfig()).toEqual({ apiKey: "test-only-placeholder", model: ARCHITECTURE_REVIEW_DEFAULT_MODEL });
-    expect(ARCHITECTURE_REVIEW_DEFAULT_MODEL).toBe("gpt-6-luna");
+    expect(ARCHITECTURE_REVIEW_DEFAULT_MODEL).toBe("gpt-6-sol");
     vi.stubEnv("ARCHITEKT_OPENAI_REVIEW_MODEL", " review-override ");
     expect(loadArchitectureReviewConfig()?.model).toBe("review-override");
     vi.stubEnv("OPENAI_API_KEY", " ");

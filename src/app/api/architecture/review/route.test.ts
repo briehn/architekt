@@ -60,7 +60,22 @@ describe("POST /api/architecture/review", () => {
     const catalog = review.mock.calls[0][0];
     expect(catalog.entries.some((entry: { category: string; details?: { ruleId?: string } }) => entry.category === "analysis-finding" && entry.details?.ruleId === "client-database-connection")).toBe(true);
     expect(catalog.entries.some((entry: { category: string; alias: string }) => entry.category === "boundary" && entry.alias === "B2")).toBe(true);
-    expect(factory).toHaveBeenCalledExactlyOnceWith({ apiKey: "test-only-placeholder", model: "gpt-6-luna" });
+    expect(factory).toHaveBeenCalledExactlyOnceWith({ apiKey: "test-only-placeholder", model: "gpt-6-sol" });
+  });
+
+  it("accepts the browser Origin when Next normalizes the request URL to localhost", async () => {
+    const review = configure();
+    const normalized = new Request("http://localhost:3100/api/architecture/review", {
+      method: "POST", body: JSON.stringify(document()),
+      headers: { "content-type": "application/json", host: "127.0.0.1:3100", origin: "http://127.0.0.1:3100", "sec-fetch-site": "same-origin" },
+    });
+    expect((await POST(normalized)).status).toBe(200);
+    const crossOrigin = new Request("http://localhost:3100/api/architecture/review", {
+      method: "POST", body: JSON.stringify(document()),
+      headers: { "content-type": "application/json", host: "127.0.0.1:3100", origin: "https://other.example", "sec-fetch-site": "same-origin" },
+    });
+    expect((await POST(crossOrigin)).status).toBe(403);
+    expect(review).toHaveBeenCalledOnce();
   });
 
   it("never accepts client Analysis, catalog, positions, or other editor state", async () => {
