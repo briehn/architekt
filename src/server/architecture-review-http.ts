@@ -8,6 +8,9 @@ import { ARCHITECTURE_REVIEW_BODY_LIMIT_BYTES, ARCHITECTURE_REVIEW_BODY_TIMEOUT_
   ARCHITECTURE_REVIEW_EXPANDED_INPUT_LIMIT_BYTES, ARCHITECTURE_REVIEW_RESPONSE_LIMIT_BYTES } from "./architecture-review-config";
 import { parseArchitectureReviewRequest } from "./architecture-review-request";
 import { architectureReviewInstructions, architectureReviewSchema } from "./architecture-review-schema";
+import { admitPaidAi, allowedPaidAiOrigin, declaredBodySize, earlyPaidAiAccess, paidAiJsonContentType,
+  parseBoundedJson, readBoundedBody, withPaidAiReservation } from "./paid-ai/request";
+import { loadPaidAiRuntime, type PaidAiRuntime } from "./paid-ai/runtime";
 
 type FailureType = ArchitectureReviewFailure["type"];
 const statusByFailure = {
@@ -40,86 +43,34 @@ export function boundedReviewSuccessResponse(review: ArchitectureReview): Respon
   return new Response(text, { status: 200, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } });
 }
 
-function sameOrigin(request: Request): boolean {
-  const origin = request.headers.get("origin");
-  if (origin) {
-    try {
-      const requestUrl = new URL(request.url);
-      // Next can normalize request.url to localhost while retaining the browser Host.
-      const host = request.headers.get("host");
-      const expectedOrigin = host ? new URL(`${requestUrl.protocol}//${host}`).origin : requestUrl.origin;
-      if (new URL(origin).origin !== expectedOrigin) return false;
-    } catch { return false; }
-  }
-  const site = request.headers.get("sec-fetch-site");
-  return site === null || site === "same-origin" || site === "none";
-}
-
 type BodyResult = { ok: true; input: unknown } | { ok: false; type: "invalid-request" | "review-limit-exceeded" | "review-timeout" | "review-canceled" };
 
 async function readReviewBody(request: Request): Promise<BodyResult> {
-  const declared = request.headers.get("content-length");
-  if (declared !== null && !/^\d+$/.test(declared)) {
-    void request.body?.cancel().catch(() => {});
-    return { ok: false, type: "invalid-request" };
-  }
-  if (declared !== null && Number(declared) > ARCHITECTURE_REVIEW_BODY_LIMIT_BYTES) {
-    void request.body?.cancel().catch(() => {});
-    return { ok: false, type: "review-limit-exceeded" };
-  }
-  if (!request.body) return { ok: false, type: "invalid-request" };
-  if (request.signal.aborted) return { ok: false, type: "review-canceled" };
-  const reader = request.body.getReader();
-  const decoder = new TextDecoder("utf-8", { fatal: true });
-  let timedOut = false;
-  let interrupted = false;
-  let bytes = 0;
-  let text = "";
-  let readFailed = false;
-  const stop = new AbortController();
-  const onAbort = () => stop.abort();
-  request.signal.addEventListener("abort", onAbort, { once: true });
-  const timer = setTimeout(() => { timedOut = true; stop.abort(); }, ARCHITECTURE_REVIEW_BODY_TIMEOUT_MS);
-  const aborted = new Promise<never>((_resolve, reject) => {
-    stop.signal.addEventListener("abort", () => reject(new Error("Body read interrupted")), { once: true });
-  });
-  try {
-    while (true) {
-      const { done, value } = await Promise.race([reader.read(), aborted]);
-      if (done) break;
-      bytes += value.byteLength;
-      if (bytes > ARCHITECTURE_REVIEW_BODY_LIMIT_BYTES) {
-        readFailed = true;
-        return { ok: false, type: "review-limit-exceeded" };
-      }
-      text += decoder.decode(value, { stream: true });
-    }
-    text += decoder.decode();
-    if (text.length === 0) return { ok: false, type: "invalid-request" };
-    return { ok: true, input: JSON.parse(text) as unknown };
-  } catch {
-    interrupted = true;
-    return { ok: false, type: request.signal.aborted ? "review-canceled" : timedOut ? "review-timeout" : "invalid-request" };
-  } finally {
-    clearTimeout(timer);
-    request.signal.removeEventListener("abort", onAbort);
-    if (readFailed || interrupted || stop.signal.aborted) void reader.cancel().catch(() => {});
-    reader.releaseLock();
-  }
+  const result = await readBoundedBody(request, ARCHITECTURE_REVIEW_BODY_LIMIT_BYTES, ARCHITECTURE_REVIEW_BODY_TIMEOUT_MS);
+  if (!result.ok) return { ok: false, type: result.reason === "too-large" ? "review-limit-exceeded" :
+    result.reason === "timeout" ? "review-timeout" : result.reason === "canceled" ? "review-canceled" : "invalid-request" };
+  try { return { ok: true, input: parseBoundedJson(result.bytes) }; }
+  catch { return { ok: false, type: "invalid-request" }; }
 }
 
 export async function handleArchitectureReviewPost(
   request: Request,
   createProvider: () => ArchitectureReviewProvider | undefined,
+  runtime: PaidAiRuntime | undefined = loadPaidAiRuntime(),
+  allowedOrigins = process.env.ARCHITEKT_PAID_AI_ALLOWED_ORIGINS,
 ): Promise<Response> {
-  if (!sameOrigin(request)) {
+  if (!allowedPaidAiOrigin(request, allowedOrigins)) {
     void request.body?.cancel().catch(() => {});
     return errorResponse("invalid-request-origin");
   }
-  if (!/^application\/json(?:\s*;\s*charset=utf-8)?$/i.test(request.headers.get("content-type") ?? "")) {
+  if (!paidAiJsonContentType(request.headers.get("content-type"))) {
     void request.body?.cancel().catch(() => {});
     return errorResponse("invalid-request");
   }
+  const declared = declaredBodySize(request, ARCHITECTURE_REVIEW_BODY_LIMIT_BYTES);
+  if (declared !== "valid") { void request.body?.cancel().catch(() => {}); return errorResponse(declared === "too-large" ? "review-limit-exceeded" : "invalid-request"); }
+  const early = await earlyPaidAiAccess(request, runtime);
+  if (early) return early;
   const body = await readReviewBody(request);
   if (!body.ok) return errorResponse(body.type);
   const parsed = parseArchitectureReviewRequest(body.input);
@@ -132,25 +83,19 @@ export async function handleArchitectureReviewPost(
     instructions: architectureReviewInstructions, schema: architectureReviewSchema(index.catalog) });
   if (Buffer.byteLength(expanded, "utf8") > ARCHITECTURE_REVIEW_EXPANDED_INPUT_LIMIT_BYTES) return errorResponse("review-limit-exceeded", "expanded review input");
   if (request.signal.aborted) return errorResponse("review-canceled");
+  if (!runtime) return errorResponse("configuration-unavailable");
+  const admission = await admitPaidAi(request, runtime, "review");
+  if (admission instanceof Response) return admission;
   try {
-    const provider = createProvider();
-    if (!provider) return errorResponse("configuration-unavailable");
-    let onAbort: (() => void) | undefined;
-    const interrupted = new Promise<never>((_resolve, reject) => {
-      onAbort = () => reject(new Error("Request canceled"));
-      if (request.signal.aborted) onAbort();
-      else request.signal.addEventListener("abort", onAbort, { once: true });
+    const outcome = await withPaidAiReservation(request, runtime, admission, async () => {
+      if (request.signal.aborted) return { canceled: true as const };
+      const provider = createProvider();
+      return provider ? { result: await reviewPreparedArchitecture(prepared.snapshot, index, provider, request.signal) } : { unavailable: true as const };
     });
-    try {
-      const result = await Promise.race([
-        reviewPreparedArchitecture(prepared.snapshot, index, provider, request.signal), interrupted,
-      ]);
-      if (request.signal.aborted) return errorResponse("review-canceled");
-      if (!result.ok) return errorResponse(result.error.type, result.error.detail);
-      return boundedReviewSuccessResponse(result.review);
-    } finally {
-      if (onAbort) request.signal.removeEventListener("abort", onAbort);
-    }
+    if (outcome.canceled || request.signal.aborted || "canceled" in outcome.value) return errorResponse("review-canceled");
+    if ("unavailable" in outcome.value) return errorResponse("configuration-unavailable");
+    const result = outcome.value.result;
+    return result.ok ? boundedReviewSuccessResponse(result.review) : errorResponse(result.error.type, result.error.detail);
   } catch {
     return errorResponse(request.signal.aborted ? "review-canceled" : "review-failed");
   }

@@ -1,5 +1,14 @@
 # Architekt TODO
 
+## Current milestone: Public Demo Release Hardening
+
+**Status: Slices 1–3 complete; public deployment still pending.** Transitive vulnerabilities and conditional Review wording are patched. Generate, Transcribe, and Review now require trusted access and shared Redis admission before provider construction. Production-browser mocked-admission acceptance passed in Edge, Chrome, and Brave. Public server-funded AI remains blocked until Slice 4 verifies actual deployed Vercel, Redis, and HTTPS behavior.
+
+* [x] Slice 1: transitive remediation, Review conditional wording, and current-state documentation cleanup
+* [x] Slice 2: one-time invites, short-lived HttpOnly sessions, atomic Redis admission/reservations, operator controls, access endpoints, and fail-closed tests
+* [x] Slice 3: integrate shared admission and reservation lifecycle into Generate, Transcribe, and Review; harden origin/body/cancellation handling; add Workbench access UX and mocked production-browser acceptance
+* [ ] Slice 4: deploy with exact HTTPS origins and isolated managed Redis, then verify real external access, quota, kill switch, provider calls, and operational recovery
+
 ## Completed milestone: Grounded Architecture Review v1
 
 **Status: Complete.** The [dated live evaluation](docs/evaluations/grounded-review-2026-10-11.md) compares ten frozen cases on Luna and Sol medium, records targeted repeats and bounds checks, and verifies the real-provider Workbench flow in Windows Chrome and Edge plus Brave smoke. Sol medium is the selected Review default. Review stays advisory and transient; controlled access and rate/budget controls remain required before anonymous public paid use.
@@ -66,7 +75,7 @@
 
 ## Completed checkpoint: Release readiness and portfolio packaging
 
-**Status: Complete.** Design Brief + Decision Rationale has now started with its canonical foundation.
+**Status: Complete.** At this checkpoint, Design Brief + Decision Rationale had started with its canonical foundation.
 
 * [x] Add viewport-only Fit view for components and non-empty boundaries, including with the utility dock open on narrow screens
 * [x] Refresh the product-led README, three-minute demo, and prepared local fallback
@@ -75,12 +84,6 @@
 * [x] Flush pending local edits on navigation/page hiding and verify immediate refresh plus failed-write Retry
 * [x] Reconcile accessibility claims with the verification actually performed; screen-reader speech remains unverified
 * [x] Audit the editor coordination seam and public AI abuse exposure without broadening this pass into a refactor or account system
-
-### Approved next milestones
-
-1. Grounded Architecture Review
-
-Public server-funded generation needs a trusted abuse/rate-control gate before anonymous deployment. This is a separate deployment decision, not part of the next feature milestone.
 
 ## Completed milestone: Schematic Workbench visual overhaul
 

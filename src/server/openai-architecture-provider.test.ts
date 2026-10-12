@@ -59,6 +59,21 @@ describe("OpenAI architecture provider", () => {
     } finally { vi.useRealTimers(); }
   });
 
+  it("propagates a caller abort through the provider signal without waiting for its deadline", async () => {
+    const { create, provider } = setup();
+    const caller = new AbortController();
+    let providerSignal: AbortSignal | undefined;
+    create.mockImplementation((_request, { signal }) => {
+      providerSignal = signal;
+      return new Promise((_resolve, reject) => signal.addEventListener("abort", () => reject(new OpenAI.APIUserAbortError()), { once: true }));
+    });
+    const pending = provider.generate({ prompt: "System" }, caller.signal);
+    caller.abort();
+    expect(await pending).toMatchObject({ ok: false });
+    expect(providerSignal?.aborted).toBe(true);
+    expect(create).toHaveBeenCalledTimes(1);
+  });
+
   it("passes successful SDK output through the service parser", async () => {
     const valid = setup(response({ output: [message(JSON.stringify({ ...minimalProposal(), summary: "  Trimmed  " }))] }));
     expect(await generateArchitecture({ prompt: "System" }, valid.provider)).toMatchObject({ ok: true, proposal: { summary: "Trimmed" } });

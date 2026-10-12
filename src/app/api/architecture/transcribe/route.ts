@@ -3,6 +3,7 @@ import { handleArchitectureTranscriptionPost } from "../../../../server/architec
 import { createOpenAIArchitectureTranscriptionProvider } from "../../../../server/openai-architecture-transcription-provider";
 
 export const runtime = "nodejs";
+export const maxDuration = 90;
 
 export async function POST(request: Request): Promise<Response> {
   return handleArchitectureTranscriptionPost(request, () => {

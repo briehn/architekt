@@ -11,6 +11,8 @@ import {
   type ArchitectureTranscriptionProvider,
 } from "../application/architecture-transcription";
 import { ARCHITECTURE_TRANSCRIPTION_BODY_TIMEOUT_MS } from "./architecture-transcription-config";
+import { admitPaidAi, allowedPaidAiOrigin, declaredBodySize, earlyPaidAiAccess, readBoundedBody, withPaidAiReservation } from "./paid-ai/request";
+import { loadPaidAiRuntime, type PaidAiRuntime } from "./paid-ai/runtime";
 
 const statusByFailure = {
   "invalid-audio": 400,
@@ -33,78 +35,22 @@ function errorResponse(type: ArchitectureTranscriptionFailureType): Response {
   });
 }
 
-function sameOrigin(request: Request): boolean {
-  const origin = request.headers.get("origin");
-  if (origin) {
-    try {
-      if (new URL(origin).origin !== new URL(request.url).origin) return false;
-    } catch {
-      return false;
-    }
-  }
-  const fetchSite = request.headers.get("sec-fetch-site");
-  return fetchSite === null || fetchSite === "same-origin" || fetchSite === "none";
-}
-
 type BodyResult = { ok: true; audio: Uint8Array } | { ok: false; type: ArchitectureTranscriptionFailureType };
 
 async function readAudioBody(request: Request): Promise<BodyResult> {
-  const declaredLength = request.headers.get("content-length");
-  if (declaredLength !== null && !/^\d+$/.test(declaredLength)) {
-    void request.body?.cancel().catch(() => {});
-    return { ok: false, type: "invalid-audio" };
-  }
-  if (declaredLength !== null && Number(declaredLength) > ARCHITECTURE_TRANSCRIPTION_AUDIO_LIMIT_BYTES) {
-    void request.body?.cancel().catch(() => {});
-    return { ok: false, type: "audio-too-large" };
-  }
-  if (!request.body) return { ok: false, type: "invalid-audio" };
-  if (request.signal.aborted) return { ok: false, type: "transcription-canceled" };
-
-  const reader = request.body.getReader();
-  const deadline = new AbortController();
-  let timedOut = false;
-  const timer = setTimeout(() => { timedOut = true; deadline.abort(); }, ARCHITECTURE_TRANSCRIPTION_BODY_TIMEOUT_MS);
-  const onRequestAbort = () => deadline.abort();
-  request.signal.addEventListener("abort", onRequestAbort, { once: true });
-  const aborted = new Promise<never>((_resolve, reject) => {
-    deadline.signal.addEventListener("abort", () => reject(new Error("Audio read interrupted")), { once: true });
-  });
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-  try {
-    if (request.signal.aborted) return { ok: false, type: "transcription-canceled" };
-    while (true) {
-      const { done, value } = await Promise.race([reader.read(), aborted]);
-      if (done) break;
-      total += value.byteLength;
-      if (total > ARCHITECTURE_TRANSCRIPTION_AUDIO_LIMIT_BYTES) {
-        return { ok: false, type: "audio-too-large" };
-      }
-      chunks.push(value);
-    }
-    if (total === 0) return { ok: false, type: "invalid-audio" };
-    const audio = new Uint8Array(total);
-    let offset = 0;
-    for (const chunk of chunks) { audio.set(chunk, offset); offset += chunk.byteLength; }
-    return { ok: true, audio };
-  } catch {
-    return { ok: false, type: request.signal.aborted ? "transcription-canceled" : timedOut ? "transcription-timeout" : "invalid-audio" };
-  } finally {
-    clearTimeout(timer);
-    request.signal.removeEventListener("abort", onRequestAbort);
-    if (total > ARCHITECTURE_TRANSCRIPTION_AUDIO_LIMIT_BYTES || deadline.signal.aborted) {
-      void reader.cancel().catch(() => {});
-    }
-    reader.releaseLock();
-  }
+  const result = await readBoundedBody(request, ARCHITECTURE_TRANSCRIPTION_AUDIO_LIMIT_BYTES, ARCHITECTURE_TRANSCRIPTION_BODY_TIMEOUT_MS);
+  if (!result.ok) return { ok: false, type: result.reason === "too-large" ? "audio-too-large" :
+    result.reason === "canceled" ? "transcription-canceled" : result.reason === "timeout" ? "transcription-timeout" : "invalid-audio" };
+  return result.bytes.length ? { ok: true, audio: result.bytes } : { ok: false, type: "invalid-audio" };
 }
 
 export async function handleArchitectureTranscriptionPost(
   request: Request,
   createProvider: () => ArchitectureTranscriptionProvider | undefined,
+  runtime: PaidAiRuntime | undefined = loadPaidAiRuntime(),
+  allowedOrigins = process.env.ARCHITEKT_PAID_AI_ALLOWED_ORIGINS,
 ): Promise<Response> {
-  if (!sameOrigin(request)) {
+  if (!allowedPaidAiOrigin(request, allowedOrigins)) {
     void request.body?.cancel().catch(() => {});
     return errorResponse("invalid-request-origin");
   }
@@ -113,22 +59,28 @@ export async function handleArchitectureTranscriptionPost(
     void request.body?.cancel().catch(() => {});
     return errorResponse("unsupported-audio");
   }
+  const declared = declaredBodySize(request, ARCHITECTURE_TRANSCRIPTION_AUDIO_LIMIT_BYTES);
+  if (declared !== "valid") { void request.body?.cancel().catch(() => {}); return errorResponse(declared === "too-large" ? "audio-too-large" : "invalid-audio"); }
+  const early = await earlyPaidAiAccess(request, runtime);
+  if (early) return early;
   const body = await readAudioBody(request);
   if (!body.ok) return errorResponse(body.type);
   const input: ArchitectureTranscriptionInput = { audio: body.audio, mediaType };
   if (!resemblesArchitectureAudioContainer(input)) return errorResponse("invalid-audio");
   if (request.signal.aborted) return errorResponse("transcription-canceled");
+  if (!runtime) return errorResponse("configuration-unavailable");
+  const admission = await admitPaidAi(request, runtime, "transcription");
+  if (admission instanceof Response) return admission;
   try {
-    const provider = createProvider();
-    if (!provider) return errorResponse("configuration-unavailable");
-    const interrupted = new Promise<never>((_resolve, reject) => {
-      if (request.signal.aborted) reject(new Error("Request canceled"));
-      else request.signal.addEventListener("abort", () => reject(new Error("Request canceled")), { once: true });
+    const outcome = await withPaidAiReservation(request, runtime, admission, async () => {
+      if (request.signal.aborted) return { canceled: true as const };
+      const provider = createProvider();
+      return provider ? { result: await transcribeArchitectureAudio(input, provider, request.signal) } : { unavailable: true as const };
     });
-    const result = await Promise.race([transcribeArchitectureAudio(input, provider, request.signal), interrupted]);
-    if (request.signal.aborted) return errorResponse("transcription-canceled");
-    if (!result.ok) return errorResponse(result.error.type);
-    return Response.json({ transcript: result.transcript }, { headers: { "Cache-Control": "no-store" } });
+    if (outcome.canceled || request.signal.aborted || "canceled" in outcome.value) return errorResponse("transcription-canceled");
+    if ("unavailable" in outcome.value) return errorResponse("configuration-unavailable");
+    const result = outcome.value.result;
+    return result.ok ? Response.json({ transcript: result.transcript }, { headers: { "Cache-Control": "no-store" } }) : errorResponse(result.error.type);
   } catch {
     return errorResponse(request.signal.aborted ? "transcription-canceled" : "transcription-failed");
   }

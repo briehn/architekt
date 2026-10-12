@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run src",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "paid-ai:operator": "node --experimental-strip-types scripts/paid-ai-operator.ts"
   },
   "dependencies": {
     "@dagrejs/dagre": "^3.1.1",

@@ -2,6 +2,7 @@ import { REVIEW_LIMITS, reviewFailure, type ArchitectureReview, type Architectur
 import { getArchitectureReviewSnapshotKey, prepareArchitectureReviewSnapshot } from "../application/architecture-review/review-snapshot";
 import type { DesignContext } from "../application/design-context";
 import type { ArchitectureGraph } from "../domain/architecture-graph";
+import { reportPaidAiDenial } from "./architecture-ai-access-events";
 
 export const REVIEW_CLIENT_TIMEOUT_MS = 75_000;
 
@@ -70,6 +71,7 @@ export async function requestArchitectureReview(snapshot: ArchitectureReviewSnap
   let body: unknown;
   try { body = JSON.parse(raw) as unknown; }
   catch { return reviewFailure("invalid-provider-result"); }
+  if (!response.ok) reportPaidAiDenial(body);
   if (response.ok) return parseArchitectureReviewResponse(body, snapshot) ?? reviewFailure("invalid-provider-result");
   const error = record(body) && record(body.error) ? body.error : null;
   return error && typeof error.type === "string" && failureTypes.has(error.type as ArchitectureReviewFailure["type"])

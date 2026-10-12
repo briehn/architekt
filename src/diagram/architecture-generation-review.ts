@@ -8,6 +8,7 @@ import {
   parseArchitectureProposal,
   type ArchitectureProposal,
 } from "../application/architecture-proposal";
+import { reportPaidAiDenial } from "./architecture-ai-access-events";
 
 export type ArchitectureGenerationReviewState =
   | { status: "idle"; prompt: string }
@@ -36,6 +37,7 @@ export async function requestArchitectureGeneration(
     signal,
   });
   const body: unknown = await response.json();
+  if (!response.ok) reportPaidAiDenial(body);
   if (response.ok) {
     const parsed = parseArchitectureProposal(body);
     return parsed.ok ? parsed.proposal : generationFailure("invalid-generation");

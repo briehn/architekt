@@ -17,6 +17,16 @@ jobs:
       - run: npx tsc --noEmit
       - run: npm run lint -- --quiet
       - run: npm test
+      - name: Atomic Redis integration when isolated test credentials are configured
+        env:
+          ARCHITEKT_TEST_REDIS_REST_URL: ${{ secrets.ARCHITEKT_TEST_REDIS_REST_URL }}
+          ARCHITEKT_TEST_REDIS_REST_TOKEN: ${{ secrets.ARCHITEKT_TEST_REDIS_REST_TOKEN }}
+        run: |
+          if [ -n "$ARCHITEKT_TEST_REDIS_REST_URL" ] && [ -n "$ARCHITEKT_TEST_REDIS_REST_TOKEN" ]; then
+            npx vitest run src/server/paid-ai/paid-ai-redis.integration.test.ts
+          else
+            echo "Isolated Redis credentials not configured; atomic integration suite skipped."
+          fi
       - run: npm run build
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e

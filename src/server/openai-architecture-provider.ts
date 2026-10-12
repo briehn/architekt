@@ -57,11 +57,14 @@ export function createOpenAIArchitectureProvider(
     logLevel: "off",
   });
   return {
-    async generate(request) {
+    async generate(request, signal) {
       // The SDK fetch timeout ends at response headers. Keep a deadline alive
       // through body consumption as well, and abort the underlying request.
       const deadline = new AbortController();
       const timer = setTimeout(() => deadline.abort(), ARCHITECTURE_GENERATION_TIMEOUT_MS);
+      const onAbort = () => deadline.abort();
+      signal?.addEventListener("abort", onAbort, { once: true });
+      if (signal?.aborted) deadline.abort();
       try {
         const response = await client.responses.create({
           model: config.model,
@@ -104,6 +107,7 @@ export function createOpenAIArchitectureProvider(
         return normalizeError(error);
       } finally {
         clearTimeout(timer);
+        signal?.removeEventListener("abort", onAbort);
       }
     },
   };

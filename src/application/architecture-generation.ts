@@ -54,5 +54,5 @@ export type ArchitectureGenerationProviderResult =
   | { ok: false; type: Exclude<ArchitectureGenerationFailureType, "invalid-request"> };
 
 export interface ArchitectureGenerationProvider {
-  generate(request: ArchitectureGenerationProviderRequest): Promise<ArchitectureGenerationProviderResult>;
+  generate(request: ArchitectureGenerationProviderRequest, signal?: AbortSignal): Promise<ArchitectureGenerationProviderResult>;
 }

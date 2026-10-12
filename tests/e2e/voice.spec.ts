@@ -1,5 +1,9 @@
 import { expect, test, type Page } from "@playwright/test";
 
+test.beforeEach(async ({ page }) => {
+  await page.route("**/api/ai-access/status", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ status: "enabled" }) }));
+});
+
 const panel = (page: Page) => page.getByRole("complementary", { name: "AI utility panel" });
 
 async function installSyntheticMicrophone(page: Page) {
@@ -32,6 +36,23 @@ async function installSyntheticMicrophone(page: Page) {
     Object.defineProperty(window, "MediaRecorder", { configurable: true, value: SyntheticRecorder });
   });
 }
+
+test("expired access during recording releases tracks without uploading audio", async ({ page }) => {
+  await installSyntheticMicrophone(page);
+  let access: "enabled" | "expired" = "enabled";
+  let uploads = 0;
+  await page.route("**/api/ai-access/status", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ status: access }) }));
+  await page.route("**/api/architecture/transcribe", (route) => { uploads++; return route.abort(); });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Generate architecture" }).click();
+  await panel(page).getByRole("button", { name: "Speak" }).click();
+  await expect(panel(page).getByText("Recording", { exact: true })).toBeVisible();
+  access = "expired";
+  await panel(page).getByRole("button", { name: "Stop", exact: true }).click();
+  await expect(panel(page).getByText("Enable AI access with a demo code.")).toBeVisible();
+  expect(uploads).toBe(0);
+  expect(await page.evaluate(() => (window as typeof window & { __voiceMock?: { stopped: number } }).__voiceMock?.stopped)).toBeGreaterThan(0);
+});
 
 test("synthetic microphone produces an editable transcript through the existing review and Apply flow", async ({ page }) => {
   await installSyntheticMicrophone(page);

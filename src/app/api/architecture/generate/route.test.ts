@@ -1,12 +1,23 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 vi.mock("../../../../server/openai-architecture-provider", () => ({ createOpenAIArchitectureProvider: vi.fn() }));
+vi.mock("../../../../server/paid-ai/runtime", () => ({ loadPaidAiRuntime: vi.fn() }));
 
 import { POST } from "./route";
 import { createOpenAIArchitectureProvider } from "../../../../server/openai-architecture-provider";
 import { ARCHITECTURE_GENERATION_BODY_LIMIT_BYTES } from "../../../../server/architecture-generation-http";
 import { ARCHITECTURE_GENERATION_PROMPT_LIMIT, generationFailure, type ArchitectureGenerationProviderResult } from "../../../../application/architecture-generation";
 import { minimalProposal } from "../../../../application/__fixtures__/architecture-proposals";
+import { loadPaidAiRuntime } from "../../../../server/paid-ai/runtime";
+import { paidRouteTestRequest, paidRouteTestRuntime } from "../paid-route-test-support";
+
+function testRequest(url: string, init: RequestInit): Request { return paidRouteTestRequest(url, init, "application/json"); }
+let paid: ReturnType<typeof paidRouteTestRuntime>;
+beforeEach(() => {
+  vi.stubEnv("ARCHITEKT_PAID_AI_ALLOWED_ORIGINS", "http://localhost,http://127.0.0.1:3100");
+  paid = paidRouteTestRuntime();
+  vi.mocked(loadPaidAiRuntime).mockReturnValue(paid.runtime);
+});
 
 const factory = vi.mocked(createOpenAIArchitectureProvider);
 function configure(result: ArchitectureGenerationProviderResult = { ok: true, output: minimalProposal() }) {
@@ -17,7 +28,7 @@ function configure(result: ArchitectureGenerationProviderResult = { ok: true, ou
   return generate;
 }
 function request(body: unknown) {
-  return new Request("http://localhost/api/architecture/generate", { method: "POST", body: JSON.stringify(body) });
+  return testRequest("http://localhost/api/architecture/generate", { method: "POST", body: JSON.stringify(body) });
 }
 afterEach(() => { vi.unstubAllEnvs(); vi.resetAllMocks(); });
 
@@ -28,8 +39,10 @@ describe("POST /api/architecture/generate", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe("no-store");
     expect(await response.json()).toEqual(minimalProposal());
-    expect(generate).toHaveBeenCalledExactlyOnceWith({ prompt: "System" });
+    expect(generate).toHaveBeenCalledExactlyOnceWith({ prompt: "System" }, expect.any(AbortSignal));
     expect(factory).toHaveBeenCalledExactlyOnceWith({ apiKey: "test-only-placeholder", model: "gpt-6-luna" });
+    expect(paid.admitPaidAiRequest).toHaveBeenCalledWith(expect.objectContaining({ workload: "generate" }));
+    expect(paid.settleReservation).toHaveBeenCalledWith(expect.objectContaining({ units: 2 }), "known");
   });
 
   it("uses the optional server model override", async () => {
@@ -62,12 +75,12 @@ describe("POST /api/architecture/generate", () => {
   it("accepts the exact prompt bound, including escaped UTF-16 input", async () => {
     configure();
     const body = '{"prompt":"' + "\\u0061".repeat(ARCHITECTURE_GENERATION_PROMPT_LIMIT) + '"}';
-    expect((await POST(new Request("http://localhost", { method: "POST", body }))).status).toBe(200);
+    expect((await POST(testRequest("http://localhost", { method: "POST", body }))).status).toBe(200);
   });
 
   it.each(["{broken", "", '{"prompt":'])("rejects malformed JSON %j", async (body) => {
     configure();
-    expect((await POST(new Request("http://localhost", { method: "POST", body }))).status).toBe(400);
+    expect((await POST(testRequest("http://localhost", { method: "POST", body }))).status).toBe(400);
     expect(factory).not.toHaveBeenCalled();
   });
 
@@ -75,8 +88,8 @@ describe("POST /api/architecture/generate", () => {
     configure();
     const cancel = vi.fn();
     const body = new ReadableStream<Uint8Array>({ cancel });
-    const req = new Request("http://localhost", { method: "POST", body, headers: { "content-length": String(ARCHITECTURE_GENERATION_BODY_LIMIT_BYTES + 1) }, duplex: "half" } as RequestInit);
-    expect((await POST(req)).status).toBe(400);
+    const req = testRequest("http://localhost", { method: "POST", body, headers: { "content-length": String(ARCHITECTURE_GENERATION_BODY_LIMIT_BYTES + 1) }, duplex: "half" } as RequestInit);
+    expect((await POST(req)).status).toBe(413);
     expect(cancel).toHaveBeenCalled();
     expect(factory).not.toHaveBeenCalled();
   });
@@ -88,8 +101,8 @@ describe("POST /api/architecture/generate", () => {
     const body = new ReadableStream<Uint8Array>({
       pull(controller) { chunks++; controller.enqueue(new Uint8Array(1024).fill(32)); }, cancel,
     });
-    const req = new Request("http://localhost", { method: "POST", body, headers: length ? { "content-length": length } : {}, duplex: "half" } as RequestInit);
-    expect((await POST(req)).status).toBe(400);
+    const req = testRequest("http://localhost", { method: "POST", body, headers: length ? { "content-length": length } : {}, duplex: "half" } as RequestInit);
+    expect((await POST(req)).status).toBe(413);
     expect(cancel).toHaveBeenCalled();
     expect(chunks).toBeLessThanOrEqual(34);
     expect(factory).not.toHaveBeenCalled();
@@ -99,8 +112,8 @@ describe("POST /api/architecture/generate", () => {
     const generate = configure();
     const bytes = new TextEncoder().encode(JSON.stringify({ prompt: "Design 日本語" }));
     const body = new ReadableStream<Uint8Array>({ start(controller) { for (const byte of bytes) controller.enqueue(Uint8Array.of(byte)); controller.close(); } });
-    expect((await POST(new Request("http://localhost", { method: "POST", body, duplex: "half" } as RequestInit))).status).toBe(200);
-    expect(generate).toHaveBeenCalledWith({ prompt: "Design 日本語" });
+    expect((await POST(testRequest("http://localhost", { method: "POST", body, duplex: "half" } as RequestInit))).status).toBe(200);
+    expect(generate).toHaveBeenCalledWith({ prompt: "Design 日本語" }, expect.any(AbortSignal));
   });
 
   it.each([
@@ -126,7 +139,60 @@ describe("POST /api/architecture/generate", () => {
     const generate = configure();
     generate.mockRejectedValue(new Error("private architecture, credentials, provider response"));
     expect(await (await POST(request({ prompt: "private prompt" }))).json()).toEqual({ error: generationFailure("generation-failed") });
+    expect(paid.settleReservation).toHaveBeenCalledWith(expect.any(Object), "known");
     factory.mockImplementation(() => { throw new Error("private construction details"); });
     expect(await (await POST(request({ prompt: "private prompt" }))).json()).toEqual({ error: generationFailure("generation-failed") });
+  });
+
+  it.each(["access-required", "expired", "revoked", "temporarily-unavailable"] as const)("rejects %s access before reading or provider construction", async (status) => {
+    configure(); paid.status.mockResolvedValue(status);
+    const response = await POST(request({ prompt: "System" }));
+    expect(response.status).toBe(status === "access-required" || status === "expired" ? 401 : status === "revoked" ? 403 : 503);
+    expect(paid.admitPaidAiRequest).not.toHaveBeenCalled();
+    expect(factory).not.toHaveBeenCalled();
+  });
+
+  it.each(["grant-allowance-exhausted", "concurrency-limited", "global-ai-disabled", "admission-store-unavailable"] as const)("rejects %s admission before provider construction", async (reason) => {
+    configure(); paid.admitPaidAiRequest.mockResolvedValue({ ok: false, reason });
+    const response = await POST(request({ prompt: "System" }));
+    expect(response.status).toBe(reason === "grant-allowance-exhausted" || reason === "concurrency-limited" ? 429 : 503);
+    expect(factory).not.toHaveBeenCalled();
+    expect(paid.settleReservation).not.toHaveBeenCalled();
+  });
+
+  it("does not charge invalid JSON or prompt input", async () => {
+    configure();
+    expect((await POST(testRequest("http://localhost", { method: "POST", body: "{" }))).status).toBe(400);
+    expect((await POST(request({ prompt: " " }))).status).toBe(400);
+    expect(paid.admitPaidAiRequest).not.toHaveBeenCalled();
+  });
+
+  it("propagates caller cancellation and retains an ambiguous reservation until TTL", async () => {
+    const generate = configure();
+    let finish!: (value: ArchitectureGenerationProviderResult) => void;
+    generate.mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
+    const controller = new AbortController();
+    const pending = POST(testRequest("http://localhost", { method: "POST", body: JSON.stringify({ prompt: "System" }), signal: controller.signal }));
+    await vi.waitFor(() => expect(generate).toHaveBeenCalledOnce());
+    const signal = generate.mock.calls[0][1] as AbortSignal;
+    controller.abort();
+    expect((await pending).status).toBe(499);
+    expect(signal.aborted).toBe(true);
+    expect(paid.settleReservation).toHaveBeenCalledWith(expect.any(Object), "ambiguous");
+    finish({ ok: true, output: minimalProposal() });
+  });
+
+  it("does not construct a provider when canceled while admission is pending", async () => {
+    configure();
+    let finishAdmission!: (value: unknown) => void;
+    paid.admitPaidAiRequest.mockImplementation(() => new Promise((resolve) => { finishAdmission = resolve; }));
+    const controller = new AbortController();
+    const pending = POST(testRequest("http://localhost", { method: "POST", body: JSON.stringify({ prompt: "System" }), signal: controller.signal }));
+    await vi.waitFor(() => expect(paid.admitPaidAiRequest).toHaveBeenCalledOnce());
+    controller.abort();
+    finishAdmission({ ok: true, reservation: { id: "r", grantId: "g", workload: "generate", units: 2, expiresInSeconds: 120 } });
+    expect((await pending).status).toBe(499);
+    expect(factory).not.toHaveBeenCalled();
+    expect(paid.settleReservation).toHaveBeenCalledWith(expect.any(Object), "known");
   });
 });

@@ -1,5 +1,30 @@
 import { expect, test, type Page } from "@playwright/test";
 
+test.beforeEach(async ({ page }) => {
+  await page.route("**/api/ai-access/status", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ status: "enabled" }) }));
+});
+
+test("an admission denial keeps the prior completed review readable", async ({ page }) => {
+  let denied = false;
+  await page.route("**/api/architecture/review", (route) => {
+    if (denied) return route.fulfill({ status: 429, contentType: "application/json", body: '{"error":{"type":"concurrency-limited","message":"unsafe provider text"}}' });
+    const component = route.request().postDataJSON().graph.components[0];
+    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ review: {
+      modeledFacts: [{ evidence: { type: "component", id: component.id }, text: "A modeled component." }],
+      statedContext: [], tradeoffs: [], questions: [{ question: "What traffic is expected?", evidence: [{ type: "component", id: component.id }] }],
+    } }) });
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Review", exact: true }).click();
+  await dock(page).getByRole("button", { name: "Review architecture" }).click();
+  await expect(dock(page).getByText("A modeled component.")).toBeVisible();
+  denied = true;
+  await dock(page).getByRole("button", { name: "Review again" }).click();
+  await expect(dock(page).getByText("Another AI request is running, or requests are arriving too quickly. Try again shortly.")).toBeVisible();
+  await expect(dock(page).getByText("A modeled component.")).toBeVisible();
+  await expect(dock(page)).not.toContainText("unsafe provider text");
+});
+
 const dock = (page: Page) => page.getByRole("complementary", { name: "Review utility panel" });
 
 async function mockReview(page: Page) {
@@ -15,7 +40,7 @@ async function mockReview(page: Page) {
     const review = {
       modeledFacts: [{ evidence: { type: "component", id: component.id }, text: `${component.name} is modeled as a Service.` }],
       statedContext: body.designContext.title ? [{ evidence: { type: "design-context", field: "title" }, excerpt: body.designContext.title }] : [],
-      tradeoffs: [{ condition: "traffic rises", benefit: "additional capacity may help", downside: "cost may increase", evidence: [{ type: "component", id: component.id }] }],
+      tradeoffs: [{ condition: "If traffic rises", benefit: "additional capacity may help", downside: "cost may increase", evidence: [{ type: "component", id: component.id }] }],
       questions: [{ question: "What traffic is expected?", evidence: [{ type: "design-context", field: "assumptionsAndOpenQuestions" }] }],
     };
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ review }) });
@@ -35,6 +60,8 @@ test("explicit review, evidence, staleness, history, layout, dock retention, and
   await dock(page).getByRole("button", { name: "Review architecture" }).click();
   await expect(dock(page).getByRole("heading", { name: "Modeled facts" })).toBeVisible();
   for (const heading of ["Design Brief context", "Possible tradeoffs", "Questions to resolve"]) await expect(dock(page).getByRole("heading", { name: heading })).toBeVisible();
+  await expect(dock(page)).toContainText("If traffic rises");
+  await expect(dock(page)).not.toContainText("If If traffic rises");
   await dock(page).getByText("Evidence", { exact: true }).first().click();
   await expect(dock(page).locator("details").first()).toHaveAttribute("open", "");
   expect(requests()).toBe(1);

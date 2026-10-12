@@ -1,8 +1,19 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
+vi.mock("../../../../server/paid-ai/runtime", () => ({ loadPaidAiRuntime: vi.fn() }));
 vi.mock("../../../../server/openai-architecture-transcription-provider", () => ({ createOpenAIArchitectureTranscriptionProvider: vi.fn() }));
 
 import { POST } from "./route";
+import { loadPaidAiRuntime } from "../../../../server/paid-ai/runtime";
+import { paidRouteTestRequest, paidRouteTestRuntime } from "../paid-route-test-support";
+
+function testRequest(url: string, init: RequestInit): Request { return paidRouteTestRequest(url, init, "audio/webm"); }
+let paid: ReturnType<typeof paidRouteTestRuntime>;
+beforeEach(() => {
+  vi.stubEnv("ARCHITEKT_PAID_AI_ALLOWED_ORIGINS", "http://localhost,http://127.0.0.1:3100");
+  paid = paidRouteTestRuntime();
+  vi.mocked(loadPaidAiRuntime).mockReturnValue(paid.runtime);
+});
 import { createOpenAIArchitectureTranscriptionProvider } from "../../../../server/openai-architecture-transcription-provider";
 import {
   ARCHITECTURE_TRANSCRIPTION_AUDIO_LIMIT_BYTES,
@@ -24,7 +35,7 @@ function configure(result: ArchitectureTranscriptionProviderResult = { ok: true,
 }
 
 function request(audio: Uint8Array = webm, type = "audio/webm", extraHeaders: Record<string, string> = {}) {
-  return new Request("http://localhost/api/architecture/transcribe", {
+  return testRequest("http://localhost/api/architecture/transcribe", {
     method: "POST", body: Uint8Array.from(audio), headers: { "content-type": type, ...extraHeaders },
   });
 }
@@ -40,6 +51,8 @@ describe("POST /api/architecture/transcribe", () => {
     expect(await response.json()).toEqual({ transcript: "Web client to API" });
     expect(factory).toHaveBeenCalledExactlyOnceWith({ apiKey: "test-only-placeholder", model: "gpt-transcribe" });
     expect(transcribe).toHaveBeenCalledWith({ audio: webm, mediaType: "audio/webm" }, expect.any(AbortSignal));
+    expect(paid.admitPaidAiRequest).toHaveBeenCalledWith(expect.objectContaining({ workload: "transcription" }));
+    expect(paid.settleReservation).toHaveBeenCalledWith(expect.objectContaining({ units: 1 }), "known");
   });
 
   it("supports MP4/AAC and the independent model override", async () => {
@@ -86,7 +99,7 @@ describe("POST /api/architecture/transcribe", () => {
     configure();
     const cancel = vi.fn();
     const body = new ReadableStream<Uint8Array>({ cancel });
-    const req = new Request("http://localhost/api/architecture/transcribe", {
+    const req = testRequest("http://localhost/api/architecture/transcribe", {
       method: "POST", body, headers: { "content-type": "audio/webm", "content-length": String(ARCHITECTURE_TRANSCRIPTION_AUDIO_LIMIT_BYTES + 1) }, duplex: "half",
     } as RequestInit);
     const response = await POST(req);
@@ -103,7 +116,7 @@ describe("POST /api/architecture/transcribe", () => {
       pull(controller) { chunks++; controller.enqueue(new Uint8Array(64 * 1024)); }, cancel,
     });
     const headers = { "content-type": "audio/webm", ...(length ? { "content-length": length } : {}) };
-    const req = new Request("http://localhost/api/architecture/transcribe", { method: "POST", body, headers, duplex: "half" } as RequestInit);
+    const req = testRequest("http://localhost/api/architecture/transcribe", { method: "POST", body, headers, duplex: "half" } as RequestInit);
     const response = await POST(req);
     expect(response.status).toBe(413);
     expect(cancel).toHaveBeenCalled();
@@ -158,7 +171,7 @@ describe("POST /api/architecture/transcribe", () => {
     configure();
     const cancel = vi.fn();
     const body = new ReadableStream<Uint8Array>({ cancel });
-    const req = new Request("http://localhost/api/architecture/transcribe", {
+    const req = testRequest("http://localhost/api/architecture/transcribe", {
       method: "POST", body, headers: { "content-type": "audio/webm" }, duplex: "half",
     } as RequestInit);
     const pending = POST(req);
@@ -174,7 +187,7 @@ describe("POST /api/architecture/transcribe", () => {
     let resolve!: (value: ArchitectureTranscriptionProviderResult) => void;
     transcribe.mockImplementation(() => new Promise((done) => { resolve = done; }));
     const abort = new AbortController();
-    const req = new Request("http://localhost/api/architecture/transcribe", {
+    const req = testRequest("http://localhost/api/architecture/transcribe", {
       method: "POST", body: Uint8Array.from(webm), headers: { "content-type": "audio/webm" }, signal: abort.signal,
     });
     const pending = POST(req);
@@ -182,6 +195,28 @@ describe("POST /api/architecture/transcribe", () => {
     abort.abort();
     const response = await pending;
     expect(response.status).toBe(499);
+    expect(paid.settleReservation).toHaveBeenCalledWith(expect.any(Object), "ambiguous");
     resolve({ ok: true, output: "stale transcript" });
+  });
+
+  it.each(["access-required", "expired", "revoked", "temporarily-unavailable"] as const)("rejects %s access before audio read or provider construction", async (status) => {
+    configure(); paid.status.mockResolvedValue(status);
+    const response = await POST(request());
+    expect(response.status).toBe(status === "access-required" || status === "expired" ? 401 : status === "revoked" ? 403 : 503);
+    expect(paid.admitPaidAiRequest).not.toHaveBeenCalled(); expect(factory).not.toHaveBeenCalled();
+  });
+
+  it.each(["grant-allowance-exhausted", "concurrency-limited", "global-ai-disabled", "admission-store-unavailable"] as const)("rejects %s admission before provider construction", async (reason) => {
+    configure(); paid.admitPaidAiRequest.mockResolvedValue({ ok: false, reason });
+    const response = await POST(request());
+    expect(response.status).toBe(reason === "grant-allowance-exhausted" || reason === "concurrency-limited" ? 429 : 503);
+    expect(factory).not.toHaveBeenCalled(); expect(paid.settleReservation).not.toHaveBeenCalled();
+  });
+
+  it("does not charge invalid audio or unsupported media", async () => {
+    configure();
+    expect((await POST(request(Uint8Array.of(1, 2, 3)))).status).toBe(400);
+    expect((await POST(request(webm, "audio/wav"))).status).toBe(415);
+    expect(paid.admitPaidAiRequest).not.toHaveBeenCalled();
   });
 });

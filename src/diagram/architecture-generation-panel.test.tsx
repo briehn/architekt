@@ -11,6 +11,7 @@ function render(review: ArchitectureGenerationReviewState, applyDisabled = false
     voice={{ status: "idle" }}
     voiceSupported={true}
     voiceExitMessage={null}
+    aiAccessEnabled={true}
     applyDisabled={applyDisabled}
     onPromptChange={() => {}}
     onGenerate={() => {}}

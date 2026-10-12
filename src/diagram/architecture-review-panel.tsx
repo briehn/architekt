@@ -69,12 +69,13 @@ type Props = Readonly<{
   unavailableReason: string | null;
   editBlocked: boolean;
   dirtyBriefBlocked: boolean;
+  aiAccessEnabled: boolean;
   onReview: () => void;
   onCancel: () => void;
   onDiscard: () => void;
 }>;
 
-export function ArchitectureReviewPanel({ state, currentKey, unavailableReason, editBlocked, dirtyBriefBlocked, onReview, onCancel, onDiscard }: Props) {
+export function ArchitectureReviewPanel({ state, currentKey, unavailableReason, editBlocked, dirtyBriefBlocked, aiAccessEnabled, onReview, onCancel, onDiscard }: Props) {
   const completed = state.completed;
   const stale = completed !== null && completed.key !== currentKey;
   const loading = state.status === "loading";
@@ -83,7 +84,7 @@ export function ArchitectureReviewPanel({ state, currentKey, unavailableReason, 
       <p className="text-xs leading-relaxed text-text-secondary">Review is advisory and based on the modeled architecture and saved Design Brief. Deterministic Analysis remains separate.</p>
       <p className="text-xs leading-relaxed text-text-secondary">Sends the modeled architecture and saved Design Brief to OpenAI for an advisory review.</p>
       <div className="flex flex-wrap gap-2">
-        <button className="design-brief-primary" disabled={loading || unavailableReason !== null || editBlocked || dirtyBriefBlocked} onClick={onReview} type="button">{completed ? "Review again" : "Review architecture"}</button>
+        <button className="design-brief-primary" disabled={!aiAccessEnabled || loading || unavailableReason !== null || editBlocked || dirtyBriefBlocked} onClick={onReview} type="button">{completed ? "Review again" : "Review architecture"}</button>
         {loading ? <button className="design-brief-secondary" onClick={onCancel} type="button">Cancel</button> : null}
         {completed && !loading ? <button className="design-brief-secondary" onClick={onDiscard} type="button">Discard review</button> : null}
       </div>
@@ -106,7 +107,7 @@ export function ArchitectureReviewPanel({ state, currentKey, unavailableReason, 
       </section>
       <section aria-labelledby="review-tradeoffs" className="border-t border-border pt-4">
         <h3 className="text-xs font-bold uppercase tracking-wide" id="review-tradeoffs">Possible tradeoffs</h3>
-        {completed.review.tradeoffs.length ? <ul className="mt-2 space-y-4">{completed.review.tradeoffs.map((entry, index) => <li className="border-t border-border/60 pt-2 first:border-0 first:pt-0" key={index}><p className="font-semibold">If {entry.condition}</p><p className="mt-1"><span className="text-text-secondary">Possible benefit:</span> {entry.benefit}</p><p className="mt-1"><span className="text-text-secondary">Possible downside:</span> {entry.downside}</p><EvidenceDisclosure evidence={entry.evidence} snapshot={completed.snapshot} /></li>)}</ul> : <p className="mt-2 text-xs text-text-secondary">No tradeoffs selected.</p>}
+        {completed.review.tradeoffs.length ? <ul className="mt-2 space-y-4">{completed.review.tradeoffs.map((entry, index) => <li className="border-t border-border/60 pt-2 first:border-0 first:pt-0" key={index}><p className="font-semibold">{entry.condition}</p><p className="mt-1"><span className="text-text-secondary">Possible benefit:</span> {entry.benefit}</p><p className="mt-1"><span className="text-text-secondary">Possible downside:</span> {entry.downside}</p><EvidenceDisclosure evidence={entry.evidence} snapshot={completed.snapshot} /></li>)}</ul> : <p className="mt-2 text-xs text-text-secondary">No tradeoffs selected.</p>}
       </section>
       <section aria-labelledby="review-questions" className="border-t border-border pt-4">
         <h3 className="text-xs font-bold uppercase tracking-wide" id="review-questions">Questions to resolve</h3>

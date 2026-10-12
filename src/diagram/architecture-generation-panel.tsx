@@ -11,6 +11,7 @@ type ArchitectureGenerationPanelProps = Readonly<{
   voice: ArchitectureVoiceState;
   voiceSupported: boolean;
   voiceExitMessage: string | null;
+  aiAccessEnabled: boolean;
   applyDisabled: boolean;
   onPromptChange(prompt: string): void;
   onGenerate(): void;
@@ -28,7 +29,7 @@ const secondaryButton = "h-9 rounded-md border border-border bg-surface px-3 tex
 const primaryButton = "h-9 rounded-md bg-accent px-3 text-xs font-semibold text-white transition-colors hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-default disabled:bg-surface-subtle disabled:text-text-muted";
 
 export function ArchitectureGenerationPanel({
-  review, voice, voiceSupported, voiceExitMessage, applyDisabled, onPromptChange, onGenerate, onCancel, onApply, onDiscard,
+  review, voice, voiceSupported, voiceExitMessage, aiAccessEnabled, applyDisabled, onPromptChange, onGenerate, onCancel, onApply, onDiscard,
   onSpeak, onVoiceStop, onVoiceCancel, onVoiceRetry, onVoiceDiscard,
 }: ArchitectureGenerationPanelProps) {
   const transcriptRef = useRef<HTMLTextAreaElement | null>(null);
@@ -40,7 +41,7 @@ export function ArchitectureGenerationPanel({
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (review.prompt.length <= ARCHITECTURE_GENERATION_PROMPT_LIMIT && voice.status !== "recording" && voice.status !== "requesting-permission" && voice.status !== "transcribing") onGenerate();
+    if (aiAccessEnabled && review.prompt.length <= ARCHITECTURE_GENERATION_PROMPT_LIMIT && voice.status !== "recording" && voice.status !== "requesting-permission" && voice.status !== "transcribing") onGenerate();
   }
 
   const voiceBusy = voice.status === "requesting-permission" || voice.status === "recording" || voice.status === "transcribing";
@@ -79,12 +80,12 @@ export function ArchitectureGenerationPanel({
             </p>
             {voice.status === "idle" || voice.status === "transcript-ready" || voice.status === "error" ? (
               <div className="mt-2 flex flex-wrap items-center gap-2">
-                <button className={secondaryButton} disabled={!voiceSupported || review.status === "loading" || review.status === "review"} onClick={onSpeak} type="button">{transcriptMode ? "Record again" : "Speak"}</button>
+                <button className={secondaryButton} disabled={!aiAccessEnabled || !voiceSupported || review.status === "loading" || review.status === "review"} onClick={onSpeak} type="button">{transcriptMode ? "Record again" : "Speak"}</button>
                 {transcriptMode && voice.status !== "error" ? <button className={secondaryButton} onClick={onVoiceDiscard} type="button">Discard transcript</button> : null}
               </div>
             ) : null}
             {!voiceSupported ? <p className="mt-2 text-xs text-text-secondary">Voice recording is unavailable here. You can still type your description.</p> : null}
-            {voiceSupported && !voiceBusy && review.status !== "review" ? <p className="mt-2 text-xs text-text-muted">Audio is sent for transcription only after you stop recording. Review the text before generating.</p> : null}
+            {voiceSupported && !voiceBusy && review.status !== "review" ? <p className="mt-2 text-xs text-text-muted">After Stop, sends this recording to OpenAI for transcription. Review the text before generating.</p> : null}
             {voice.status === "requesting-permission" ? <div className="mt-3" role="status"><p className="text-sm text-text-secondary">Waiting for microphone permission…</p><button className={`${secondaryButton} mt-2`} onClick={onVoiceCancel} type="button">Cancel recording</button></div> : null}
             {voice.status === "recording" ? <div className="mt-3" role="group" aria-label="Voice recording controls">
               <p className="text-sm font-semibold text-text-primary" role="status">Recording</p>
@@ -103,7 +104,7 @@ export function ArchitectureGenerationPanel({
               {review.status !== "review" ? (
                 <button
                   className={review.status === "loading" ? secondaryButton : primaryButton}
-                  disabled={review.status !== "loading" && (voiceBusy || promptTooLong)}
+                  disabled={review.status !== "loading" && (!aiAccessEnabled || voiceBusy || promptTooLong)}
                   onClick={review.status === "loading" ? (event) => {
                     // Cancellation changes this same button back into a submit button.
                     event.preventDefault();
@@ -115,6 +116,7 @@ export function ArchitectureGenerationPanel({
                 </button>
               ) : null}
             </div>
+            <p className="mt-2 text-xs text-text-muted">Sends your system description to OpenAI to create an architecture draft.</p>
           </form>
           {review.status === "error" ? (
             <p className="mt-2 text-sm text-danger" role="alert">{review.error.message}</p>

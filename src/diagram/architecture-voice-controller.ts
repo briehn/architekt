@@ -13,6 +13,7 @@ import {
   type BrowserRecorderFailure,
   type BrowserRecordingSession,
 } from "./browser-architecture-recorder";
+import { reportPaidAiDenial } from "./architecture-ai-access-events";
 
 const MAX_RECORDING_SECONDS = 120;
 const WARNING_SECONDS = 110;
@@ -50,6 +51,7 @@ export async function requestArchitectureTranscription(audio: Blob, signal: Abor
       signal: controller.signal,
     });
     const body: unknown = await response.json();
+    if (!response.ok) reportPaidAiDenial(body);
     if (controller.signal.aborted) return { ok: false, error: transcriptionFailure(signal.aborted ? "transcription-canceled" : "transcription-timeout") };
     if (response.ok) return validateArchitectureTranscript(isRecord(body) ? body.transcript : undefined);
     const error = isRecord(body) ? body.error : undefined;

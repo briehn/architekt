@@ -57,7 +57,7 @@ function validRaw() {
   return {
     modeledFacts: [{ type: "modeled-fact", evidence: "C1" }, { type: "modeled-fact", evidence: "E2" }],
     statedContext: [{ type: "stated-context", evidence: "D2", excerpt: "<safely>\n\nKeep chat history." }],
-    tradeoffs: [{ type: "tradeoff", condition: "requests rise", benefit: "more capacity may help", downside: "cost may rise", evidence: ["C1", "D2"] }],
+    tradeoffs: [{ type: "tradeoff", condition: "If requests rise", benefit: "more capacity may help", downside: "cost may rise", evidence: ["C1", "D2"] }],
     questions: [{ type: "question", question: "What traffic is expected?", evidence: ["D3"] }],
   };
 }

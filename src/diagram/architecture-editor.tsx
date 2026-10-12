@@ -114,6 +114,7 @@ import { ArchitectureVoiceController, type ArchitectureVoiceState } from "./arch
 import { ArchitectureAnalysisPanel } from "./architecture-analysis-panel";
 import { ArchitectureReviewController, type ArchitectureReviewViewState } from "./architecture-review-controller";
 import { ArchitectureReviewPanel } from "./architecture-review-panel";
+import { ArchitectureAiAccessPanel, useArchitectureAiAccess } from "./architecture-ai-access";
 import { getArchitectureReviewSnapshotKey, prepareArchitectureReviewSnapshot } from "../application/architecture-review/review-snapshot";
 import { exportPortableArchitectureDocument } from "../persistence/portable-architecture-document";
 import { exportArchitectureMarkdown } from "../application/architecture-markdown-export";
@@ -646,6 +647,7 @@ export function ArchitectureEditor() {
     useState<ReadonlySet<ComponentId>>(() => new Set());
   const [selectedBoundaryId, setSelectedBoundaryId] = useState<BoundaryId | null>(null);
   const [dockView, setDockView] = useState<UtilityDockView>(null);
+  const aiAccess = useArchitectureAiAccess();
   const [designBriefSession, setDesignBriefSession] = useState<DesignBriefSession | null>(null);
   const [portableActionError, setPortableActionError] = useState<string | null>(null);
   const [pngPreparing, setPngPreparing] = useState(false);
@@ -731,6 +733,12 @@ export function ArchitectureEditor() {
       voiceControllerRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    if (aiAccess.status === "enabled" || aiAccess.status === "checking") return;
+    const voice = voiceControllerRef.current?.getState();
+    if (voice?.status === "recording" || voice?.status === "requesting-permission" || voice?.status === "transcribing") voiceControllerRef.current?.cancel();
+  }, [aiAccess.status]);
 
   const guardVoiceDockExit = useCallback(() => {
     if (dockView !== "ai") return true;
@@ -1882,6 +1890,7 @@ export function ArchitectureEditor() {
     setReviewBriefBlockMessage(false);
     setCreationLibraryIsOpen(false);
     setPortableActionError(null);
+    if (view === "ai" || view === "review") void aiAccess.refresh();
     if (dockView === view) {
       setDockView(null);
       setDesignBriefSession(null);
@@ -2078,6 +2087,7 @@ export function ArchitectureEditor() {
   }
 
   function startArchitectureReview() {
+    if (!aiAccess.enabled) return;
     const current = latestViewStateRef.current;
     if (current.status === "loading" || nodeDragIsActive || dragStartHistoryRef.current !== null || boundaryDragRef.current !== null || renameSession !== null) return;
     if (designBriefSession !== null && isDesignBriefDirty(designBriefSession)) {
@@ -2247,31 +2257,37 @@ export function ArchitectureEditor() {
               <button aria-label="Close utility panel" className="workbench-pane-close" onClick={closeDock} ref={dockCloseRef} type="button"><PanelRightClose aria-hidden="true" className="size-4" /></button>
             </div>
             <div className="workbench-dock-content">
+              {dockView === "ai" || dockView === "review" ? <ArchitectureAiAccessPanel access={aiAccess} /> : null}
               {dockView === "ai" ? (
                 <ArchitectureGenerationPanel
                   review={generationReview}
+                  aiAccessEnabled={aiAccess.enabled}
                   voice={voiceState}
                   voiceSupported={voiceSupported}
                   voiceExitMessage={voiceExitMessage}
                   applyDisabled={renameSession !== null || nodeDragIsActive}
                   onPromptChange={(prompt) => generationControllerRef.current?.setPrompt(prompt)}
-                  onGenerate={() => { voiceControllerRef.current?.markGenerated(); void generationControllerRef.current?.generate(); }}
+                  onGenerate={() => { if (!aiAccess.enabled) return; voiceControllerRef.current?.markGenerated(); void generationControllerRef.current?.generate(); }}
                   onCancel={() => { generationControllerRef.current?.cancel(); generationToggleRef.current?.focus(); }}
                   onApply={handleApplyArchitectureProposal}
                   onDiscard={() => { generationControllerRef.current?.discard(); generationToggleRef.current?.focus(); }}
                   onSpeak={() => {
+                    if (!aiAccess.enabled) return;
                     if (generationReview.prompt.length > 0 && !window.confirm("Replace the current description with a new recording? Your text will remain until transcription succeeds.")) return;
                     void voiceControllerRef.current?.start();
                   }}
-                  onVoiceStop={() => { setVoiceExitMessage(null); void voiceControllerRef.current?.stop(); }}
+                  onVoiceStop={() => { setVoiceExitMessage(null); void aiAccess.refresh().then((enabled) => {
+                    if (enabled) void voiceControllerRef.current?.stop(); else voiceControllerRef.current?.cancel();
+                  }); }}
                   onVoiceCancel={() => { setVoiceExitMessage(null); voiceControllerRef.current?.cancel(); }}
-                  onVoiceRetry={() => { void voiceControllerRef.current?.retry(); }}
+                  onVoiceRetry={() => { void aiAccess.refresh().then((enabled) => { if (enabled) void voiceControllerRef.current?.retry(); else voiceControllerRef.current?.cancel(); }); }}
                   onVoiceDiscard={() => { voiceControllerRef.current?.discard(); }}
                 />
               ) : null}
               {dockView === "analysis" ? <ArchitectureAnalysisPanel graph={editorState.graph} /> : null}
               {dockView === "review" ? <ArchitectureReviewPanel
                 state={architectureReview}
+                aiAccessEnabled={aiAccess.enabled}
                 currentKey={reviewCurrentKey}
                 unavailableReason={reviewSnapshotResult !== null && !reviewSnapshotResult.ok ? reviewSnapshotResult.error.type === "review-limit-exceeded" ? `${reviewSnapshotResult.error.message} ${reviewSnapshotResult.error.detail ?? ""}` : reviewSnapshotResult.error.message : null}
                 editBlocked={nodeDragIsActive || renameSession !== null}

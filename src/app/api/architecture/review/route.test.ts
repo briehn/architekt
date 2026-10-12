@@ -1,8 +1,19 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
+vi.mock("../../../../server/paid-ai/runtime", () => ({ loadPaidAiRuntime: vi.fn() }));
 vi.mock("../../../../server/openai-architecture-review-provider", () => ({ createOpenAIArchitectureReviewProvider: vi.fn() }));
 
 import { POST } from "./route";
+import { loadPaidAiRuntime } from "../../../../server/paid-ai/runtime";
+import { paidRouteTestRequest, paidRouteTestRuntime } from "../paid-route-test-support";
+
+function testRequest(url: string, init: RequestInit): Request { return paidRouteTestRequest(url, init, "application/json"); }
+let paid: ReturnType<typeof paidRouteTestRuntime>;
+beforeEach(() => {
+  vi.stubEnv("ARCHITEKT_PAID_AI_ALLOWED_ORIGINS", "http://localhost,http://127.0.0.1:3100");
+  paid = paidRouteTestRuntime();
+  vi.mocked(loadPaidAiRuntime).mockReturnValue(paid.runtime);
+});
 import { createOpenAIArchitectureReviewProvider } from "../../../../server/openai-architecture-review-provider";
 import { ARCHITECTURE_REVIEW_BODY_LIMIT_BYTES, ARCHITECTURE_REVIEW_BODY_TIMEOUT_MS } from "../../../../server/architecture-review-config";
 import { reviewFailure, type ArchitectureReviewProviderResult } from "../../../../application/architecture-review/architecture-review";
@@ -13,7 +24,7 @@ const factory = vi.mocked(createOpenAIArchitectureReviewProvider);
 const raw = {
   modeledFacts: [{ type: "modeled-fact", evidence: "C1" }, { type: "modeled-fact", evidence: "F1" }],
   statedContext: [{ type: "stated-context", evidence: "D2", excerpt: "Store orders." }],
-  tradeoffs: [{ type: "tradeoff", condition: "traffic grows", benefit: "a cache may reduce repeated reads", downside: "invalidation becomes necessary", evidence: ["C2", "D2"] }],
+  tradeoffs: [{ type: "tradeoff", condition: "If traffic grows", benefit: "a cache may reduce repeated reads", downside: "invalidation becomes necessary", evidence: ["C2", "D2"] }],
   questions: [{ type: "question", question: "What is the peak workload?", evidence: ["D3"] }],
 };
 function document() {
@@ -31,7 +42,7 @@ function document() {
   };
 }
 function request(body: unknown = document(), headers: Record<string, string> = {}, signal?: AbortSignal): Request {
-  return new Request("http://localhost/api/architecture/review", {
+  return testRequest("http://localhost/api/architecture/review", {
     method: "POST", body: JSON.stringify(body), signal,
     headers: { "content-type": "application/json", ...headers },
   });
@@ -65,12 +76,12 @@ describe("POST /api/architecture/review", () => {
 
   it("accepts the browser Origin when Next normalizes the request URL to localhost", async () => {
     const review = configure();
-    const normalized = new Request("http://localhost:3100/api/architecture/review", {
+    const normalized = testRequest("http://localhost:3100/api/architecture/review", {
       method: "POST", body: JSON.stringify(document()),
       headers: { "content-type": "application/json", host: "127.0.0.1:3100", origin: "http://127.0.0.1:3100", "sec-fetch-site": "same-origin" },
     });
     expect((await POST(normalized)).status).toBe(200);
-    const crossOrigin = new Request("http://localhost:3100/api/architecture/review", {
+    const crossOrigin = testRequest("http://localhost:3100/api/architecture/review", {
       method: "POST", body: JSON.stringify(document()),
       headers: { "content-type": "application/json", host: "127.0.0.1:3100", origin: "https://other.example", "sec-fetch-site": "same-origin" },
     });
@@ -116,7 +127,7 @@ describe("POST /api/architecture/review", () => {
     ["{}", "application/json"],
   ] as const)("rejects malformed content/body %#", async (body, contentType) => {
     configure();
-    const response = await POST(new Request("http://localhost/api/architecture/review", { method: "POST", body, headers: { "content-type": contentType } }));
+    const response = await POST(testRequest("http://localhost/api/architecture/review", { method: "POST", body, headers: { "content-type": contentType } }));
     expect(response.status).toBe(400);
     expect(response.headers.get("cache-control")).toBe("no-store");
     expect(factory).not.toHaveBeenCalled();
@@ -124,7 +135,7 @@ describe("POST /api/architecture/review", () => {
 
   it("rejects malformed UTF-8 before parsing or provider construction", async () => {
     configure();
-    const response = await POST(new Request("http://localhost/api/architecture/review", {
+    const response = await POST(testRequest("http://localhost/api/architecture/review", {
       method: "POST", body: Uint8Array.of(0xff, 0xfe), headers: { "content-type": "application/json" },
     }));
     expect(response.status).toBe(400);
@@ -135,12 +146,12 @@ describe("POST /api/architecture/review", () => {
     configure();
     const cancel = vi.fn();
     const stream = new ReadableStream<Uint8Array>({ pull(controller) { controller.enqueue(new Uint8Array(64 * 1024)); }, cancel });
-    const req = new Request("http://localhost/api/architecture/review", {
+    const req = testRequest("http://localhost/api/architecture/review", {
       method: "POST", body: stream, headers: { "content-type": "application/json", "content-length": "1" }, duplex: "half",
     } as RequestInit);
     expect((await POST(req)).status).toBe(413);
     expect(cancel).toHaveBeenCalled();
-    const declared = new Request("http://localhost/api/architecture/review", {
+    const declared = testRequest("http://localhost/api/architecture/review", {
       method: "POST", body: "{}", headers: { "content-type": "application/json", "content-length": String(ARCHITECTURE_REVIEW_BODY_LIMIT_BYTES + 1) },
     });
     expect((await POST(declared)).status).toBe(413);
@@ -240,7 +251,7 @@ describe("POST /api/architecture/review", () => {
     configure();
     const cancel = vi.fn();
     const stream = new ReadableStream<Uint8Array>({ cancel });
-    const req = new Request("http://localhost/api/architecture/review", { method: "POST", body: stream, headers: { "content-type": "application/json" }, duplex: "half" } as RequestInit);
+    const req = testRequest("http://localhost/api/architecture/review", { method: "POST", body: stream, headers: { "content-type": "application/json" }, duplex: "half" } as RequestInit);
     const pending = POST(req);
     await vi.advanceTimersByTimeAsync(ARCHITECTURE_REVIEW_BODY_TIMEOUT_MS);
     expect((await pending).status).toBe(504);
@@ -257,6 +268,27 @@ describe("POST /api/architecture/review", () => {
     await vi.waitFor(() => expect(review).toHaveBeenCalledOnce());
     controller.abort();
     expect((await pending).status).toBe(499);
+    expect(paid.settleReservation).toHaveBeenCalledWith(expect.any(Object), "ambiguous");
     resolve({ ok: true, output: raw });
+  });
+
+  it.each(["access-required", "expired", "revoked", "temporarily-unavailable"] as const)("rejects %s access before document read or provider construction", async (status) => {
+    configure(); paid.status.mockResolvedValue(status);
+    const response = await POST(request());
+    expect(response.status).toBe(status === "access-required" || status === "expired" ? 401 : status === "revoked" ? 403 : 503);
+    expect(paid.admitPaidAiRequest).not.toHaveBeenCalled(); expect(factory).not.toHaveBeenCalled();
+  });
+
+  it.each(["grant-allowance-exhausted", "concurrency-limited", "global-ai-disabled", "admission-store-unavailable"] as const)("rejects %s admission before provider construction", async (reason) => {
+    configure(); paid.admitPaidAiRequest.mockResolvedValue({ ok: false, reason });
+    const response = await POST(request());
+    expect(response.status).toBe(reason === "grant-allowance-exhausted" || reason === "concurrency-limited" ? 429 : 503);
+    expect(factory).not.toHaveBeenCalled(); expect(paid.settleReservation).not.toHaveBeenCalled();
+  });
+
+  it("does not charge malformed or invalid graph input", async () => {
+    configure();
+    expect((await POST(request({ version: 1, graph: { components: "invalid" } }))).status).toBe(400);
+    expect(paid.admitPaidAiRequest).not.toHaveBeenCalled();
   });
 });

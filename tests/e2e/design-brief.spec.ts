@@ -1,5 +1,9 @@
 import { expect, test, type Page } from "@playwright/test";
 
+test.beforeEach(async ({ page }) => {
+  await page.route("**/api/ai-access/status", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ status: "enabled" }) }));
+});
+
 const titleButton = (page: Page) => page.getByRole("button", { name: /^Open Design Brief:/ });
 const brief = (page: Page) => page.getByRole("complementary", { name: "Design Brief utility panel" });
 

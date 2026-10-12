@@ -3,6 +3,7 @@ import { handleArchitectureReviewPost } from "../../../../server/architecture-re
 import { createOpenAIArchitectureReviewProvider } from "../../../../server/openai-architecture-review-provider";
 
 export const runtime = "nodejs";
+export const maxDuration = 90;
 
 export async function POST(request: Request): Promise<Response> {
   return handleArchitectureReviewPost(request, () => {

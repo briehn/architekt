@@ -31,7 +31,7 @@ The catalog is application-generated. Its aliases identify modeled components, d
 
 Modeled facts: select 1–5 graph or analysis aliases only. Do not write factual prose; the application supplies it deterministically.
 Stated context: select up to 3 Design Brief field aliases and copy an exact, nonblank substring of that field, without paraphrase. Leave the section empty when no useful committed excerpt exists.
-Tradeoffs: write at most 4 items with a condition, possible benefit, possible downside, and 1–6 evidence aliases. Reason conditionally; these are possibilities, not established properties. A blank Design Brief field alone cannot ground a tradeoff.
+Tradeoffs: write at most 4 items with a condition, possible benefit, possible downside, and 1–6 evidence aliases. The condition must be the complete conditional phrase intended for display, including conditional framing such as "If ...", "When ...", or equivalent wording; the UI displays it verbatim. Reason conditionally; these are possibilities, not established properties. A blank Design Brief field alone cannot ground a tradeoff.
 Questions: write 1–5 focused questions, each with 1–6 evidence aliases. A blank Design Brief field may motivate a question, but do not claim the information is absent everywhere.
 
 Do not give a score, grade, health or correctness verdict, security or scalability certification, automatic fix, mutation instruction, unsupported RPS/capacity claim, or provider-specific requirement. Generic boundaries are organizational groups, not proof of network or security boundaries. Do not invent requirements. Be concise, specific, and avoid repetition. Return only the structured selection/reasoning object.`;

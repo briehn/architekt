@@ -13,12 +13,15 @@ import {
 export async function generateArchitecture(
   input: unknown,
   provider: ArchitectureGenerationProvider,
+  signal?: AbortSignal,
 ): Promise<ArchitectureGenerationResult> {
   const request = parseArchitectureGenerationRequest(input);
   if (!request) return { ok: false, error: generationFailure("invalid-request") };
 
   try {
-    const result = await provider.generate(request);
+    if (signal?.aborted) return { ok: false, error: generationFailure("generation-failed") };
+    const result = signal ? await provider.generate(request, signal) : await provider.generate(request);
+    if (signal?.aborted) return { ok: false, error: generationFailure("generation-failed") };
     if (!result.ok) return { ok: false, error: generationFailure(result.type) };
     const parsed = parseArchitectureProposal(result.output);
     if (!parsed.ok) return { ok: false, error: generationFailure("invalid-generation") };
@@ -26,7 +29,7 @@ export async function generateArchitecture(
     let componentIndex = 0;
     let connectionIndex = 0;
     // Admission only: domain operations stay authoritative; this graph and its IDs
-    // are discarded. Apply will allocate real application IDs in a later slice.
+    // are discarded. The separate Apply path allocates real application IDs.
     const translated = translateArchitectureProposal(parsed.proposal, {
       createComponentId: () => `admission-component-${componentIndex++}` as ComponentId,
       createConnectionId: () => `admission-connection-${connectionIndex++}` as ConnectionId,
