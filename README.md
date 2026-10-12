@@ -1,88 +1,58 @@
 # Architekt
 
-**A visual workbench for thinking through software systems.** Describe a system to get an editable architecture draft, or build the diagram yourself. Architekt keeps components, directed relationships, boundaries, and layout as structured workspace data so you can inspect, revise, undo, and revisit a design.
+**An AI-assisted system-design workbench for turning a system idea into an editable, explainable architecture.** Describe or speak requirements, refine the diagram, document decisions, inspect grounded feedback, and export the result.
 
-System design often ends up split between an easy-to-change whiteboard and notes that explain the decisions. Architekt keeps a plain-text Design Brief beside the diagram so requirements, assumptions, and tradeoffs stay with the editable workspace.
+**Live demo:** public Vercel/Redis/HTTPS acceptance is still in progress. Until that release gate passes, [open the prepared architecture](docs/demo/url-shortener.architekt.json) locally or follow the [three-minute demo script](docs/demo/demo-script.md).
 
-![Populated Architekt Schematic Workbench](docs/screenshots/workbench.png)
+![Architekt Workbench showing a URL shortener, Click analytics boundary, and saved Design Brief](docs/screenshots/workbench.png)
 
-## What you can do
+## The workflow
 
-- Create nine kinds of components and classify directed connections as request/response, asynchronous messaging, streaming, data access, or generic.
-- Connect nodes from four adaptive sides, including keyboard operation; reciprocal relationships keep distinct directions and labels.
-- Create named, one-level boundaries, explicitly manage membership, move grouped components, and run boundary-aware Auto-layout.
-- Use deterministic Analysis for topology observations and cautious relationship-review questions. It does not score a design.
-- Open Grounded Review for an explicit, paid, advisory review of the modeled architecture and saved Design Brief. It shows deterministic modeled facts, exact brief excerpts, conditional tradeoffs, questions, and captured evidence. Relevant edits mark the transient result stale; Review never changes or saves the diagram.
-- Open the Design Brief from the document title to record requirements, open questions, and the reasons and downsides behind choices. Save the whole brief as one Undo step.
-- Download the complete architecture and Design Brief as a portable JSON file or a readable Markdown document. With a component on the canvas, export the complete diagram as a clean PNG independent of the current viewport. Preview and explicitly replace the current document from an Architekt JSON file; Undo restores the previous document.
-- Type a system description or use **Speak** in Generate architecture. Review and edit the transcript, explicitly generate an AI proposal, then **Apply** or **Discard** it. Apply replaces the diagram in one Undo step.
-- Undo and redo meaningful edits; save the current graph, boundary membership, and positions locally across refreshes. **Fit view** changes only the viewport.
+1. **Describe or speak.** Type a system request or record English speech, edit the transcript, then explicitly generate a proposal. Review its assumptions, component kinds, and directed connections before Apply.
+2. **Model and edit.** Create typed components, semantic connections, and one-level boundaries. Move nodes, Auto-layout, Fit view, and Undo/Redo meaningful edits.
+3. **Explain decisions.** Save requirements, open questions, and tradeoffs in the plain-text Design Brief beside the diagram.
+4. **Analyze and review.** Deterministic Analysis reports modeled structural observations. Grounded Review separately uses OpenAI to select evidence, quote exact saved Brief excerpts, and pose conditional tradeoffs and questions; it never scores or edits the design.
+5. **Export.** Download canonical V5 JSON for round trips, deterministic Markdown for reading, or a complete stable-light diagram PNG. JSON import previews a full-document replacement before one-step Apply.
 
-The canvas is a view of the architecture. An immutable `ArchitectureGraph` owns components, connections, boundaries, and invariants; React Flow nodes and edges are derived from it. `ArchitectureEditorState` owns positions, document-level DesignContext, and transient renderer measurements, while bounded history stores only graph, positions, and context. The V5 local document restores through public domain operations and strictly validates saved data, including V1–V4 migrations. Analysis is deterministic, graph-only, and read-only. Grounded Review is a separate transient, evidence-backed workflow; it is not persisted or exported. AI output passes runtime and domain validation before it can become a draft or an applied graph.
+The [prepared URL-shortener document](docs/demo/url-shortener.architekt.json) demonstrates the full editable workflow. Its [Markdown export](docs/demo/url-shortener.md) and [PNG export](docs/screenshots/portable-diagram.png) were downloaded from Architekt itself. The diagram keeps click reporting off the modeled redirect path; its saved Brief states assumptions and tradeoffs rather than presenting them as verified facts.
 
-**Stack:** Next.js 16, React 19, TypeScript, React Flow, Dagre, Tailwind CSS 4, Vitest, and Playwright.
+![Clean URL-shortener PNG exported from Architekt](docs/screenshots/portable-diagram.png)
 
-## Screenshots
+## Engineering choices
 
-| Boundary editing | AI proposal review |
-| --- | --- |
-| ![A named boundary around the request path](docs/screenshots/boundaries.png) | ![An AI-generated draft with explicit assumptions](docs/screenshots/ai-review.png) |
+- **Canonical structure, derived canvas.** Immutable `ArchitectureGraph` owns components, connections, boundaries, and invariants; React Flow renders projections. Positions and DesignContext live in editor state, while measurements and selection remain transient.
+- **Deterministic facts, bounded AI reasoning.** Analysis computes graph facts locally. Grounded Review formats modeled facts deterministically and permits only exact committed Brief excerpts as stated context; provider output must resolve to validated evidence.
+- **Safe asynchronous editing.** Proposals and reviews remain transient. Cancellation, operation versions, and snapshot comparisons prevent stale responses from replacing current work. Apply, import, and document edits use ordinary one-step history.
+- **Public editor, protected paid AI.** Manual work and local exports need no invite. Generate, Transcribe, and Review require a one-time invite-derived HttpOnly session and atomic Redis admission. A global switch, weighted allowances, rate limits, and concurrency limits fail closed before provider construction. Admission units are **not** exact OpenAI billing.
+- **Portable documents.** Strict V1–V5 restoration validates canonical data; JSON is the machine format, while Markdown and PNG are derived local exports that never mutate the document.
 
-These show the real application using a URL-shortener proposal. The proposal is an example for review, not a claim that the architecture is complete or correct.
-
-![Portable PNG exported from Architekt showing a URL shortener with two boundaries and directed relationships](docs/screenshots/portable-diagram.png)
-
-This PNG was exported from the Workbench itself. Portable Documents also provides a canonical V5 JSON round trip and a deterministic, human-readable Markdown export. Actual downloads were checked in Windows Chrome, Edge, and Brave; see the [acceptance record](docs/evaluations/portable-documents-2026-10-04.md).
-
-## Three-minute demo
-
-1. Enter a system requirement, such as a URL shortener with redirect traffic and click analytics, and select **Generate architecture**.
-2. Review the draft's assumptions, component kinds, and connection directions. Explain that the workspace is unchanged until **Apply to diagram**.
-3. Apply, open **Analysis**, and distinguish a graph observation from a performance or reliability claim.
-4. Change a relationship kind in **Structure**. Create a boundary around a related part of the system.
-5. Select **Auto-layout**, then **Undo** and **Redo** to show one-step canonical history. Use **Fit view** to reframe without moving components.
-6. Refresh to show that the graph, boundaries, and positions return; the AI prompt and review do not.
-
-**Fallback if generation is slow or unavailable:** before the demo, prepare the same URL-shortener workspace in the demo browser and let local autosave finish. Begin at steps 3–6. A useful prepared graph has a client, gateway, shortener service, URL database, cache, click-event queue, analytics service, and analytics database. It can be edited and analyzed without an API key. Architekt currently saves one local workspace per browser origin, so use that same browser for the fallback.
+The [architecture notes](ARCHITECTURE.md) explain ownership and tradeoffs. The [product decisions](PRODUCT.md), [interaction design](DESIGN.md), and [dated evaluations](docs/evaluations/) provide more detail.
 
 ## Run locally
 
-Use Node.js 22 or later:
+Use Node.js **22.13 or later**:
 
 ```bash
 npm ci
 npm run dev
 ```
 
-Open `http://localhost:3000`. The editor works without an OpenAI key. To enable generation for controlled local use, copy the variable names from `.env.example` into ignored `.env.local`:
+Open `http://localhost:3000`. The public Workbench works without AI credentials. Import [the demo JSON](docs/demo/url-shortener.architekt.json) through the document-title control to try editing, Analysis, Design Brief, and exports.
 
-```text
-OPENAI_API_KEY=your-server-side-key
-ARCHITEKT_OPENAI_MODEL=gpt-6-luna
-```
+Paid AI needs server-only OpenAI and managed Redis configuration, two independent credential-hashing secrets, an exact allowed origin, operator initialization, and an invite. See [.env.example](.env.example) and the [deployment runbook](docs/public-demo-runbook.md); never place these values under `NEXT_PUBLIC_` or commit them. Generation defaults to `gpt-6-luna` with medium reasoning, Review to `gpt-6-sol` with medium reasoning, and transcription to `gpt-transcribe`. The [generation](docs/evaluations/ai-generation-2026-10-01.md), [Review](docs/evaluations/grounded-review-2026-10-11.md), and [Voice](docs/evaluations/voice-to-architecture-2026-10-03.md) evaluations record why and where human review remains necessary.
 
-`OPENAI_API_KEY` is server-only. `ARCHITEKT_OPENAI_MODEL` is optional; the default is `gpt-6-luna` with medium reasoning, retained after a [seven-prompt Luna/Sol evaluation](docs/evaluations/ai-generation-2026-10-01.md). Generation has request and output bounds, a 40-second deadline, zero automatic retries, no application prompt logging, and safe public error messages. Prompts and proposal metadata are transient. Cancellation protects the editor from stale results, though an already-started provider request may still incur usage.
-
-Grounded Review also uses the server-side key through its separate bounded endpoint. Its default is `gpt-6-sol` with medium reasoning after a [ten-case live Luna/Sol comparison](docs/evaluations/grounded-review-2026-10-11.md); optional server-only `ARCHITEKT_OPENAI_REVIEW_MODEL` overrides only Review. The Workbench sends a paid request only when you activate Review architecture. Live provider acceptance passed in Windows Chrome and Edge, with a Brave smoke check.
-
-Voice input uses the same server-side key through the separate `gpt-transcribe` endpoint. The browser records up to two minutes and sends the clip only after Stop. Audio stays in memory for the current operation or an explicit retry; the editable transcript remains in session memory until refresh and is never saved or exported. The verified v1 target is English on Windows desktop with a physical microphone in Google Chrome, Microsoft Edge, and Brave; the interface was checked around 390px. Voice and typed prompts share the existing Generate → proposal review → Apply path. Mobile microphone behavior, Safari, Firefox, macOS, multilingual transcription, and actual screen-reader speech remain unverified. See the dated Voice evaluation for the fixed-set quality findings.
-
-Run validation with:
+## Validation and scope
 
 ```bash
 npm test
 npx tsc --noEmit
-npm run lint -- --quiet
+npx eslint . --quiet
+npm run lint
 npm run build
-npx playwright install chromium
 npm run test:e2e
+npm audit --omit=dev
 ```
 
-The browser smoke suite covers the loaded editor, a canonical edit with Undo/Redo, Structure, Fit view, an immediate refresh before the normal autosave debounce, and mocked Grounded Review interactions. CI runs the same checks on pushes and pull requests.
-On Windows, if Playwright's automatic server shutdown stalls, run `npm run start -- -p 3100` in a separate terminal before `npm run test:e2e`; the local suite reuses that server.
+Vitest protects domain, analysis, history, persistence, import/export, AI boundaries, and paid-route admission. Playwright covers the production-built Workbench and mocked paid-provider flows. CI runs these checks and executes isolated real-Redis atomic tests when test credentials are configured. The [Portable Documents acceptance](docs/evaluations/portable-documents-2026-10-04.md) inspected actual downloads in Windows Chrome, Edge, and Brave.
 
-## Intentional limits
-
-Architekt has one browser-local workspace. It has no accounts, cloud sync, or public sharing yet. Markdown and PNG are local, export-only views; JSON remains the machine-readable document format. PNG requires at least one component and may reduce resolution for very large diagrams rather than crop them. Portable JSON import replaces the complete current document after validation and preview; it does not merge documents. Design Brief content is user-authored context, not verified architecture fact; deterministic Analysis does not use it, and AI does not write it in v1. The graph itself does not capture workload, protocols, deployment, or runtime measurements. Analysis reports only facts and review questions supported by the modeled graph; it cannot prove security, capacity, availability, or correctness. AI drafts need human review. A public deployment with server-funded generation or Review needs trusted access and centralized rate/budget controls before anonymous use. Keyboard, DOM semantics, and visible focus have been checked; actual screen-reader speech has not been verified.
-
-This is a personal portfolio project, built as a product rather than a starter template. The [architecture notes](ARCHITECTURE.md), [product intent](PRODUCT.md), and [work log](TODO.md) describe the decisions and current scope.
+Architekt stores one workspace per browser origin, without accounts, cloud sync, or collaboration. The Design Brief is user-authored and unverified; Review is advisory. AI availability depends on invited access, the provider, and the central store, while manual editing and local exports remain usable. Large diagrams can become visually dense; PNG proportionally reduces resolution before cropping. Review has explicit input limits. Voice v1 is verified for English on Windows desktop with a physical microphone in Chrome, Edge, and Brave; mobile microphone behavior, Safari, Firefox, macOS, multilingual transcription, and actual screen-reader speech remain unverified. The public deployment has **not** passed its final Vercel/Redis/HTTPS gate yet.

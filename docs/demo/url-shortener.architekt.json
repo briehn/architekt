@@ -1,0 +1,150 @@
+{
+  "schemaVersion": 5,
+  "designContext": {
+    "title": "URL shortener",
+    "requirementsAndConstraints": "Create short links and resolve redirects without waiting for click reporting.\nRecord click events for later analytics.",
+    "assumptionsAndOpenQuestions": "Expected traffic and cache hit rate are not specified. Confirm redirect volume and retention requirements before sizing the system.",
+    "decisionsAndTradeoffs": "Use a cache for frequent mappings backed by the URL database; a cache miss adds a database read. Send click events to a queue so reporting is off the redirect path; analytics become eventually consistent."
+  },
+  "graph": {
+    "components": [
+      {
+        "id": "browser",
+        "name": "Browser",
+        "kind": "client"
+      },
+      {
+        "id": "gateway",
+        "name": "API Gateway",
+        "kind": "gateway"
+      },
+      {
+        "id": "links",
+        "name": "Link Service",
+        "kind": "service"
+      },
+      {
+        "id": "cache",
+        "name": "Redirect Cache",
+        "kind": "cache"
+      },
+      {
+        "id": "urls",
+        "name": "URL Database",
+        "kind": "database"
+      },
+      {
+        "id": "clicks",
+        "name": "Click Events",
+        "kind": "queue"
+      },
+      {
+        "id": "worker",
+        "name": "Analytics Worker",
+        "kind": "service"
+      },
+      {
+        "id": "reports",
+        "name": "Reporting Database",
+        "kind": "database"
+      }
+    ],
+    "connections": [
+      {
+        "id": "browser-gateway",
+        "sourceComponentId": "browser",
+        "targetComponentId": "gateway",
+        "kind": "request-response"
+      },
+      {
+        "id": "gateway-links",
+        "sourceComponentId": "gateway",
+        "targetComponentId": "links",
+        "kind": "request-response"
+      },
+      {
+        "id": "links-cache",
+        "sourceComponentId": "links",
+        "targetComponentId": "cache",
+        "kind": "data-access"
+      },
+      {
+        "id": "links-urls",
+        "sourceComponentId": "links",
+        "targetComponentId": "urls",
+        "kind": "data-access"
+      },
+      {
+        "id": "links-clicks",
+        "sourceComponentId": "links",
+        "targetComponentId": "clicks",
+        "kind": "async-messaging"
+      },
+      {
+        "id": "clicks-worker",
+        "sourceComponentId": "clicks",
+        "targetComponentId": "worker",
+        "kind": "async-messaging"
+      },
+      {
+        "id": "worker-reports",
+        "sourceComponentId": "worker",
+        "targetComponentId": "reports",
+        "kind": "data-access"
+      }
+    ],
+    "boundaries": [
+      {
+        "id": "analytics",
+        "name": "Click analytics",
+        "memberComponentIds": [
+          "clicks",
+          "reports",
+          "worker"
+        ]
+      }
+    ]
+  },
+  "nodePositions": [
+    {
+      "componentId": "browser",
+      "x": 40,
+      "y": 230
+    },
+    {
+      "componentId": "gateway",
+      "x": 320,
+      "y": 230
+    },
+    {
+      "componentId": "links",
+      "x": 600,
+      "y": 230
+    },
+    {
+      "componentId": "cache",
+      "x": 920,
+      "y": 75
+    },
+    {
+      "componentId": "urls",
+      "x": 920,
+      "y": 305
+    },
+    {
+      "componentId": "clicks",
+      "x": 600,
+      "y": 540
+    },
+    {
+      "componentId": "worker",
+      "x": 900,
+      "y": 540
+    },
+    {
+      "componentId": "reports",
+      "x": 1200,
+      "y": 540
+    }
+  ]
+}

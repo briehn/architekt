@@ -8,6 +8,8 @@
 * [x] Slice 2: one-time invites, short-lived HttpOnly sessions, atomic Redis admission/reservations, operator controls, access endpoints, and fail-closed tests
 * [x] Slice 3: integrate shared admission and reservation lifecycle into Generate, Transcribe, and Review; harden origin/body/cancellation handling; add Workbench access UX and mocked production-browser acceptance
 * [ ] Slice 4: deploy with exact HTTPS origins and isolated managed Redis, then verify real external access, quota, kill switch, provider calls, and operational recovery
+  * [x] Prepare the recruiter-facing README, current Workbench screenshot, actual URL-shortener JSON/Markdown/PNG artifacts, interview demo shot list, deployment runbook, and CI production-dependency audit.
+  * [ ] Authenticate/link the Vercel project, configure isolated managed Redis and server-only production variables, deploy initially disabled, and complete the real HTTPS/browser/security/provider acceptance before marking this milestone complete.
 
 ## Completed milestone: Grounded Architecture Review v1
 
